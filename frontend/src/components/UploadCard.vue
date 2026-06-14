@@ -13,6 +13,15 @@ const previewSrc = ref('');
 const showPreview = ref(false);
 const submitting = ref(false);
 
+async function extractErrorMessage(res) {
+  try {
+    const data = await res.json();
+    return data.message || `请求失败（${res.status}）`;
+  } catch {
+    return `服务器返回异常（${res.status}），请稍后重试`;
+  }
+}
+
 function onFileChange(e) {
   const file = e.target.files[0];
   if (!file) return;
@@ -40,8 +49,8 @@ async function onSubmit() {
   try {
     const res = await fetch('/api/photos', { method: 'POST', body: fd });
     if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.message || '上传失败');
+      const msg = await extractErrorMessage(res);
+      throw new Error(msg);
     }
     uploadName.value = '';
     uploadDesc.value = '';

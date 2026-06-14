@@ -25,6 +25,15 @@ function onClose() {
   animate(backdrop, { opacity: [1, 0], duration: 200, ease: 'linear', onComplete: () => emit('close') });
 }
 
+async function extractErrorMessage(res) {
+  try {
+    const data = await res.json();
+    return data.message || `请求失败（${res.status}）`;
+  } catch {
+    return `服务器返回异常（${res.status}），请稍后重试`;
+  }
+}
+
 async function onSubmit() {
   if (!editName.value.trim()) return alert('请输入照片名称');
 
@@ -35,8 +44,8 @@ async function onSubmit() {
       body: JSON.stringify({ name: editName.value.trim(), description: editDesc.value.trim() })
     });
     if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.message || '保存失败，请稍后重试');
+      const msg = await extractErrorMessage(res);
+      throw new Error(msg);
     }
     emit('saved');
   } catch (err) {
