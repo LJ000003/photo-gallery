@@ -37,10 +37,15 @@ public class PhotoService {
 
     public Photo getById(Long id) {
         return repo.findById(id)
-                .orElseThrow(() -> new RuntimeException("照片不存在: " + id));
+                .orElseThrow(() -> new RuntimeException("该照片已被删除或不存在"));
     }
 
+    private static final long MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
     public Photo upload(MultipartFile file, String name, String description) throws IOException {
+        if (file.getSize() > MAX_FILE_SIZE) {
+            throw new FileSizeExceededException("文件过大，请上传小于 10MB 的图片");
+        }
         validateImageMagicBytes(file.getInputStream());
 
         String storedName = UUID.randomUUID() + "_" + file.getOriginalFilename();
@@ -88,10 +93,9 @@ public class PhotoService {
     private void validateImageMagicBytes(InputStream in) throws IOException {
         byte[] header = new byte[12];
         int read = in.read(header);
-        in.close();
 
         if (read <= 0) {
-            throw new InvalidFileTypeException("无法识别文件类型，请上传图片文件");
+            throw new InvalidFileTypeException("无法识别文件内容，请上传图片文件");
         }
 
         if (read >= 2
@@ -116,6 +120,6 @@ public class PhotoService {
             return; // WebP
         }
 
-        throw new InvalidFileTypeException("不支持的文件类型，请上传 JPEG/PNG/GIF/BMP/WebP 格式的图片");
+        throw new InvalidFileTypeException("文件格式不支持，请上传常见的图片文件");
     }
 }

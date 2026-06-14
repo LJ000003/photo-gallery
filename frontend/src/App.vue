@@ -24,12 +24,25 @@ function onView(photo)   { viewPhoto.value = photo; }
 function onEdit(photo)   { editPhoto.value = photo; }
 function onUploaded()    { loadPhotos(); }
 function onSaved()       { editPhoto.value = null; loadPhotos(); }
+async function extractErrorMessage(res) {
+  try {
+    const data = await res.json();
+    return data.message || `请求失败（${res.status}）`;
+  } catch {
+    return `服务器返回异常（${res.status}），请稍后重试`;
+  }
+}
+
 async function onDelete(id) {
   try {
-    await fetch(`/api/photos/${id}`, { method: 'DELETE' });
+    const res = await fetch(`/api/photos/${id}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const msg = await extractErrorMessage(res);
+      throw new Error(msg);
+    }
     loadPhotos();
   } catch (err) {
-    alert('删除失败: ' + err.message);
+    alert(err.message);
   }
 }
 

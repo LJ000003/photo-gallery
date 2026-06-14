@@ -25,16 +25,31 @@ function onClose() {
   animate(backdrop, { opacity: [1, 0], duration: 200, ease: 'linear', onComplete: () => emit('close') });
 }
 
-async function onSubmit() {
+async function extractErrorMessage(res) {
   try {
-    await fetch(`/api/photos/${props.photo.id}`, {
+    const data = await res.json();
+    return data.message || `请求失败（${res.status}）`;
+  } catch {
+    return `服务器返回异常（${res.status}），请稍后重试`;
+  }
+}
+
+async function onSubmit() {
+  if (!editName.value.trim()) return alert('请输入照片名称');
+
+  try {
+    const res = await fetch(`/api/photos/${props.photo.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: editName.value, description: editDesc.value })
+      body: JSON.stringify({ name: editName.value.trim(), description: editDesc.value.trim() })
     });
+    if (!res.ok) {
+      const msg = await extractErrorMessage(res);
+      throw new Error(msg);
+    }
     emit('saved');
   } catch (err) {
-    alert('编辑失败: ' + err.message);
+    alert(err.message);
   }
 }
 </script>
@@ -49,7 +64,7 @@ async function onSubmit() {
         <label>名称</label>
         <input v-model="editName" type="text" required />
         <label>描述</label>
-        <input v-model="editDesc" type="text" />
+        <input v-model="editDesc" type="text" maxlength="500" />
         <button type="submit">保存</button>
       </form>
     </div>

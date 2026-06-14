@@ -13,6 +13,15 @@ const previewSrc = ref('');
 const showPreview = ref(false);
 const submitting = ref(false);
 
+async function extractErrorMessage(res) {
+  try {
+    const data = await res.json();
+    return data.message || `请求失败（${res.status}）`;
+  } catch {
+    return `服务器返回异常（${res.status}），请稍后重试`;
+  }
+}
+
 function onFileChange(e) {
   const file = e.target.files[0];
   if (!file) return;
@@ -40,8 +49,8 @@ async function onSubmit() {
   try {
     const res = await fetch('/api/photos', { method: 'POST', body: fd });
     if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.error || '上传失败');
+      const msg = await extractErrorMessage(res);
+      throw new Error(msg);
     }
     uploadName.value = '';
     uploadDesc.value = '';
@@ -79,7 +88,7 @@ async function onSubmit() {
       </div>
       <div class="form-row">
         <input v-model="uploadName" type="text" placeholder="照片名称（可选）" />
-        <input v-model="uploadDesc" type="text" placeholder="照片描述（可选）" />
+        <input v-model="uploadDesc" type="text" maxlength="500" placeholder="照片描述（可选）" />
         <button type="submit" :disabled="submitting">上传</button>
       </div>
     </form>
