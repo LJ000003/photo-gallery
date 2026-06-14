@@ -1,6 +1,7 @@
 package com.example.demo;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -40,6 +41,8 @@ public class PhotoService {
     }
 
     public Photo upload(MultipartFile file, String name, String description) throws IOException {
+        validateImageMagicBytes(file.getInputStream());
+
         String storedName = UUID.randomUUID() + "_" + file.getOriginalFilename();
         Path target = uploadDir.resolve(storedName);
         Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
@@ -80,5 +83,39 @@ public class PhotoService {
     public Path getFilePath(Long id) {
         Photo photo = getById(id);
         return uploadDir.resolve(photo.getFileName());
+    }
+
+    private void validateImageMagicBytes(InputStream in) throws IOException {
+        byte[] header = new byte[12];
+        int read = in.read(header);
+        in.close();
+
+        if (read <= 0) {
+            throw new InvalidFileTypeException("无法识别文件类型，请上传图片文件");
+        }
+
+        if (read >= 2
+                && header[0] == (byte) 0xFF && header[1] == (byte) 0xD8) {
+            return; // JPEG
+        }
+        if (read >= 4
+                && header[0] == (byte) 0x89 && header[1] == 0x50 && header[2] == 0x4E && header[3] == 0x47) {
+            return; // PNG
+        }
+        if (read >= 4
+                && header[0] == 0x47 && header[1] == 0x49 && header[2] == 0x46 && header[3] == 0x38) {
+            return; // GIF
+        }
+        if (read >= 2
+                && header[0] == 0x42 && header[1] == 0x4D) {
+            return; // BMP
+        }
+        if (read >= 12
+                && header[0] == 0x52 && header[1] == 0x49 && header[2] == 0x46 && header[3] == 0x46
+                && header[8] == 0x57 && header[9] == 0x45 && header[10] == 0x42 && header[11] == 0x50) {
+            return; // WebP
+        }
+
+        throw new InvalidFileTypeException("不支持的文件类型，请上传 JPEG/PNG/GIF/BMP/WebP 格式的图片");
     }
 }

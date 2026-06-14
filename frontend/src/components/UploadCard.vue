@@ -38,7 +38,11 @@ async function onSubmit() {
 
   submitting.value = true;
   try {
-    await fetch('/api/photos', { method: 'POST', body: fd });
+    const res = await fetch('/api/photos', { method: 'POST', body: fd });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || '上传失败');
+    }
     uploadName.value = '';
     uploadDesc.value = '';
     showPreview.value = false;
@@ -52,6 +56,9 @@ async function onSubmit() {
     emit('uploaded');
   } catch (err) {
     alert('上传失败: ' + err.message);
+    showPreview.value = false;
+    previewSrc.value = '';
+    if (fileInput.value) fileInput.value.value = '';
   } finally {
     submitting.value = false;
   }
