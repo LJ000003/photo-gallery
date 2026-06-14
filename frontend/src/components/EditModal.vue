@@ -26,15 +26,21 @@ function onClose() {
 }
 
 async function onSubmit() {
+  if (!editName.value.trim()) return alert('请输入照片名称');
+
   try {
-    await fetch(`/api/photos/${props.photo.id}`, {
+    const res = await fetch(`/api/photos/${props.photo.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: editName.value, description: editDesc.value })
+      body: JSON.stringify({ name: editName.value.trim(), description: editDesc.value.trim() })
     });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.message || '保存失败，请稍后重试');
+    }
     emit('saved');
   } catch (err) {
-    alert('编辑失败: ' + err.message);
+    alert(err.message);
   }
 }
 </script>
@@ -49,7 +55,7 @@ async function onSubmit() {
         <label>名称</label>
         <input v-model="editName" type="text" required />
         <label>描述</label>
-        <input v-model="editDesc" type="text" />
+        <input v-model="editDesc" type="text" maxlength="500" />
         <button type="submit">保存</button>
       </form>
     </div>

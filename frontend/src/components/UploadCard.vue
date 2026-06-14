@@ -41,7 +41,7 @@ async function onSubmit() {
     const res = await fetch('/api/photos', { method: 'POST', body: fd });
     if (!res.ok) {
       const data = await res.json();
-      throw new Error(data.error || '上传失败');
+      throw new Error(data.message || '上传失败');
     }
     uploadName.value = '';
     uploadDesc.value = '';
@@ -79,7 +79,7 @@ async function onSubmit() {
       </div>
       <div class="form-row">
         <input v-model="uploadName" type="text" placeholder="照片名称（可选）" />
-        <input v-model="uploadDesc" type="text" placeholder="照片描述（可选）" />
+        <input v-model="uploadDesc" type="text" maxlength="500" placeholder="照片描述（可选）" />
         <button type="submit" :disabled="submitting">上传</button>
       </div>
     </form>

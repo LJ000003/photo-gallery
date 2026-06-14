@@ -7,6 +7,8 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 @Entity
 @Table(name = "photos")
@@ -16,8 +18,12 @@ public class Photo {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @NotBlank(message = "照片名称不能为空")
     private String name;
+
+    @Size(max = 500, message = "描述不能超过500字")
     private String description;
+
     private String fileName;
     private String originalFileName;
     private Long fileSize;

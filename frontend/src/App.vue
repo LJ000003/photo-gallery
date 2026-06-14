@@ -26,10 +26,14 @@ function onUploaded()    { loadPhotos(); }
 function onSaved()       { editPhoto.value = null; loadPhotos(); }
 async function onDelete(id) {
   try {
-    await fetch(`/api/photos/${id}`, { method: 'DELETE' });
+    const res = await fetch(`/api/photos/${id}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.message || '删除失败，请稍后重试');
+    }
     loadPhotos();
   } catch (err) {
-    alert('删除失败: ' + err.message);
+    alert(err.message);
   }
 }
 
