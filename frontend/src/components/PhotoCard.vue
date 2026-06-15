@@ -49,7 +49,7 @@ async function onDelete() {
     @mouseleave="tiltOff"
   >
     <div class="photo-thumb" @click="$emit('view')">
-      <img :src="`/api/photos/${photo.id}/file`" :alt="photo.name" loading="lazy" />
+      <img :src="`/api/photos/${photo.id}/thumbnail`" :alt="photo.name" loading="lazy" />
       <div class="photo-overlay">
         <button class="btn-view" @click.stop="$emit('view')">查看</button>
       </div>

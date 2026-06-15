@@ -1,13 +1,25 @@
 package com.example.demo;
 
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
+import java.util.Iterator;
+import java.util.List;
 import java.util.UUID;
+
+import javax.imageio.IIOImage;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageWriter;
+import javax.imageio.stream.FileImageOutputStream;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -42,6 +54,7 @@ public class PhotoService {
     }
 
     private static final long MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+    private static final int THUMBNAIL_WIDTH = 400;
 
     public Photo upload(MultipartFile file, String name, String description) throws IOException {
         if (file.getSize() > MAX_FILE_SIZE) {
@@ -54,9 +67,13 @@ public class PhotoService {
         Path datePath = uploadDir.resolve(dateDir);
         Files.createDirectories(datePath);
 
-        String storedName = dateDir + "/" + UUID.randomUUID() + "_" + file.getOriginalFilename();
+        String baseName = UUID.randomUUID() + "_" + file.getOriginalFilename();
+        String storedName = dateDir + "/" + baseName;
         Path target = uploadDir.resolve(storedName);
         Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
+
+        // 生成缩略图
+        generateThumbnail(target, dateDir, baseName);
 
         Photo photo = new Photo();
         photo.setName(name != null && !name.isBlank() ? name : file.getOriginalFilename());
@@ -68,6 +85,53 @@ public class PhotoService {
         photo.setCreatedAt(now);
 
         return repo.save(photo);
+    }
+
+    private void generateThumbnail(Path original, String dateDir, String baseName) throws IOException {
+        BufferedImage image = ImageIO.read(original.toFile());
+        if (image == null) return;
+
+        int h = (int) ((double) image.getHeight() / image.getWidth() * THUMBNAIL_WIDTH);
+        BufferedImage thumb = new BufferedImage(THUMBNAIL_WIDTH, h, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = thumb.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g.drawImage(image, 0, 0, THUMBNAIL_WIDTH, h, null);
+        g.dispose();
+
+        Path thumbDir = uploadDir.resolve(dateDir).resolve("thumbnails");
+        Files.createDirectories(thumbDir);
+        Path thumbPath = thumbDir.resolve(baseName);
+
+        Iterator<ImageWriter> writers = ImageIO.getImageWritersByFormatName("jpeg");
+        if (writers.hasNext()) {
+            ImageWriter writer = writers.next();
+            ImageWriteParam param = writer.getDefaultWriteParam();
+            param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+            param.setCompressionQuality(0.75f);
+            writer.setOutput(new FileImageOutputStream(thumbPath.toFile()));
+            writer.write(null, new IIOImage(thumb, null, null), param);
+            writer.dispose();
+        } else {
+            ImageIO.write(thumb, "jpeg", thumbPath.toFile());
+        }
+    }
+
+    public Path getFilePath(Long id) {
+        Photo photo = getById(id);
+        return uploadDir.resolve(photo.getFileName());
+    }
+
+    public Path getThumbnailPath(Long id) {
+        Photo photo = getById(id);
+        String fn = photo.getFileName();
+        int lastSlash = fn.lastIndexOf('/');
+        String dateDir = fn.substring(0, lastSlash);
+        String baseName = fn.substring(lastSlash + 1);
+        Path thumb = uploadDir.resolve(dateDir).resolve("thumbnails").resolve(baseName);
+        if (Files.exists(thumb)) {
+            return thumb;
+        }
+        return uploadDir.resolve(fn); // 降级返回原图
     }
 
     public Photo update(Long id, String name, String description) {
@@ -85,15 +149,37 @@ public class PhotoService {
         Photo photo = getById(id);
         try {
             Files.deleteIfExists(uploadDir.resolve(photo.getFileName()));
+            // 同时删除缩略图
+            String fn = photo.getFileName();
+            int lastSlash = fn.lastIndexOf('/');
+            String dateDir = fn.substring(0, lastSlash);
+            String baseName = fn.substring(lastSlash + 1);
+            Files.deleteIfExists(uploadDir.resolve(dateDir).resolve("thumbnails").resolve(baseName));
         } catch (IOException e) {
             // 文件删除失败不影响数据库记录删除
         }
         repo.delete(photo);
     }
 
-    public Path getFilePath(Long id) {
-        Photo photo = getById(id);
-        return uploadDir.resolve(photo.getFileName());
+    public int migrateThumbnails() {
+        List<Photo> all = repo.findAll();
+        int count = 0;
+        for (Photo p : all) {
+            String fn = p.getFileName();
+            int lastSlash = fn.lastIndexOf('/');
+            String dateDir = fn.substring(0, lastSlash);
+            String baseName = fn.substring(lastSlash + 1);
+            Path thumb = uploadDir.resolve(dateDir).resolve("thumbnails").resolve(baseName);
+            if (Files.exists(thumb)) continue;
+            Path original = uploadDir.resolve(fn);
+            if (!Files.exists(original)) continue;
+            try {
+                generateThumbnail(original, dateDir, baseName);
+                if (Files.exists(thumb)) count++;
+            } catch (IOException ignored) {
+            }
+        }
+        return count;
     }
 
     private void validateImageMagicBytes(InputStream in) throws IOException {

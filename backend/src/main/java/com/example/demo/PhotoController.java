@@ -1,12 +1,15 @@
 package com.example.demo;
 
 import java.io.IOException;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -68,6 +71,22 @@ public class PhotoController {
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(photo.getContentType()))
                 .body(resource);
+    }
+
+    @GetMapping("/{id}/thumbnail")
+    public ResponseEntity<Resource> getThumbnail(@PathVariable Long id) {
+        Photo photo = service.getById(id);
+        Resource resource = new FileSystemResource(service.getThumbnailPath(id));
+        return ResponseEntity.ok()
+                .contentType(MediaType.IMAGE_JPEG)
+                .cacheControl(CacheControl.maxAge(7, TimeUnit.DAYS))
+                .body(resource);
+    }
+
+    @PostMapping("/migrate-thumbnails")
+    public ApiResponse<Map<String, Integer>> migrateThumbnails() {
+        int count = service.migrateThumbnails();
+        return ApiResponse.success(Map.of("generated", count));
     }
 
 }
