@@ -4,18 +4,19 @@
 
 ## 技术栈
 
-| 层 | 技术 | 版本 |
-|---|---|---|
-| 后端框架 | Spring Boot | 3.3.0 |
-| 语言 | Java | 17 |
-| ORM | Spring Data JPA + Hibernate | — |
-| 数据库 | MySQL | 8.0+ |
-| 数据库迁移 | Flyway | — |
-| 参数校验 | Bean Validation (Hibernate Validator) | — |
-| 前端框架 | Vue 3 (Composition API) | 3.5 |
-| 构建工具 | Vite | 5.4 |
-| 动画 | anime.js | 4.4 |
-| 文件存储 | 本地文件系统（路径存 MySQL） | — |
+
+| 层         | 技术                                  | 版本  |
+| ---------- | ------------------------------------- | ----- |
+| 后端框架   | Spring Boot                           | 3.3.0 |
+| 语言       | Java                                  | 17    |
+| ORM        | Spring Data JPA + Hibernate           | —    |
+| 数据库     | MySQL                                 | 8.0+  |
+| 数据库迁移 | Flyway                                | —    |
+| 参数校验   | Bean Validation (Hibernate Validator) | —    |
+| 前端框架   | Vue 3 (Composition API)               | 3.5   |
+| 构建工具   | Vite                                  | 5.4   |
+| 动画       | anime.js                              | 4.4   |
+| 文件存储   | 本地文件系统（年/月子目录分片）       | —    |
 
 ## 功能
 
@@ -34,6 +35,7 @@
 │   ├── src/main/java/com/example/demo/
 │   │   ├── DemoApplication.java          # 应用入口
 │   │   ├── ApiResponse.java              # 统一响应体
+│   │   ├── CorsConfig.java               # 跨域配置
 │   │   ├── GlobalExceptionHandler.java   # 全局异常处理
 │   │   ├── HelloController.java          # 测试接口
 │   │   ├── Photo.java                    # 照片实体（含校验注解）
@@ -68,39 +70,43 @@
 
 ## 安全校验
 
-| 校验项 | 实现方式 | 说明 |
-|--------|---------|------|
-| 文件类型 | 魔数（Magic Bytes）校验 | 读取文件头 12 字节，仅放行 JPEG / PNG / GIF / BMP / WebP |
-| 文件大小 | 应用层 `file.getSize()` 检查 | 限制 ≤ 10MB，容器层面放宽至 100MB 确保错误响应正常返回 |
-| 前端类型提示 | `accept="image/*"` | 文件选择器仅显示图片，不依赖此作为安全措施 |
-| 参数校验 | `@NotBlank` / `@Size` + `@Valid` | 编辑时名称不能为空，描述不超过 500 字 |
-| 文件名安全 | `UUID_原文件名` | 防止路径遍历和文件名冲突 |
+
+| 校验项       | 实现方式                         | 说明                                                     |
+| ------------ | -------------------------------- | -------------------------------------------------------- |
+| 文件类型     | 魔数（Magic Bytes）校验          | 读取文件头 12 字节，仅放行 JPEG / PNG / GIF / BMP / WebP |
+| 文件大小     | 应用层`file.getSize()` 检查      | 限制 ≤ 10MB，容器层面放宽至 100MB 确保错误响应正常返回  |
+| 前端类型提示 | `accept="image/*"`               | 文件选择器仅显示图片，不依赖此作为安全措施               |
+| 参数校验     | `@NotBlank` / `@Size` + `@Valid` | 编辑时名称不能为空，描述不超过 500 字                    |
+| 文件名安全   | `年/月/UUID_原文件名`            | 防止路径遍历、文件名冲突及单目录文件堆积                 |
+| 跨域         | `CorsConfig`                     | 全局允许 `http://localhost:5173`，生产需改为实际域名     |
 
 ## API 接口
 
-| 方法 | 端点 | 描述 |
-|------|------|------|
-| GET | `/api/hello` | 健康检查 |
-| GET | `/api/photos` | 获取所有照片 |
-| GET | `/api/photos/{id}` | 获取单张照片信息 |
-| GET | `/api/photos/{id}/file` | 下载照片原文件 |
-| POST | `/api/photos` | 上传照片（multipart/form-data） |
-| PUT | `/api/photos/{id}` | 更新名称/描述 |
-| DELETE | `/api/photos/{id}` | 删除照片 |
+
+| 方法   | 端点                    | 描述                            |
+| ------ | ----------------------- | ------------------------------- |
+| GET    | `/api/hello`            | 健康检查                        |
+| GET    | `/api/photos`           | 获取所有照片                    |
+| GET    | `/api/photos/{id}`      | 获取单张照片信息                |
+| GET    | `/api/photos/{id}/file` | 下载照片原文件                  |
+| POST   | `/api/photos`           | 上传照片（multipart/form-data） |
+| PUT    | `/api/photos/{id}`      | 更新名称/描述                   |
+| DELETE | `/api/photos/{id}`      | 删除照片                        |
 
 所有错误响应格式：`{"code": 400, "message": "错误描述", "data": null}`
 
 ## 异常处理覆盖
 
-| 场景 | HTTP 状态码 | 用户提示示例 |
-|------|------------|-------------|
-| 上传非图片文件 | 400 | 文件格式不支持，请上传常见的图片文件 |
-| 上传空文件 | 400 | 无法识别文件内容，请上传图片文件 |
-| 上传超大文件 | 400 | 文件过大，请上传小于 10MB 的图片 |
-| 编辑时名称为空 | 400 | 照片名称不能为空 |
-| 编辑时描述过长 | 400 | 描述不能超过500字 |
-| 操作不存在的照片 | 500 | 该照片已被删除或不存在 |
-| 服务器内部错误 | 500 | 系统繁忙，请稍后重试 |
+
+| 场景             | HTTP 状态码 | 用户提示示例                         |
+| ---------------- | ----------- | ------------------------------------ |
+| 上传非图片文件   | 400         | 文件格式不支持，请上传常见的图片文件 |
+| 上传空文件       | 400         | 无法识别文件内容，请上传图片文件     |
+| 上传超大文件     | 400         | 文件过大，请上传小于 10MB 的图片     |
+| 编辑时名称为空   | 400         | 照片名称不能为空                     |
+| 编辑时描述过长   | 400         | 描述不能超过500字                    |
+| 操作不存在的照片 | 500         | 该照片已被删除或不存在               |
+| 服务器内部错误   | 500         | 系统繁忙，请稍后重试                 |
 
 ## 本地快速启动
 
@@ -133,7 +139,7 @@ spring:
 
 ```bash
 cd backend
-mvn spring-boot:run -Dspring-boot.run.profiles=dev
+mvn spring-boot:run "-Dspring-boot.run.profiles=dev"
 ```
 
 后端运行在 `http://localhost:8080`，Flyway 会在首次启动时自动建表。
@@ -226,8 +232,21 @@ nohup java -jar /opt/app/demo-backend-0.0.1-SNAPSHOT.jar \
 
 ## Spring Profile
 
-| 文件 | 环境 | 说明 |
-|------|------|------|
-| `application.properties` | 公共 | 端口、上传限制、JPA 方言等 |
-| `application-dev.yml` | 开发 | 本地数据库连接 |
-| `application-prod.yml` | 生产 | 生产数据库连接 |
+
+| 文件                     | 环境 | 说明                                     |
+| ------------------------ | ---- | ---------------------------------------- |
+| `application.properties` | 公共 | 端口、上传限制、JPA 方言、上传目录默认值 |
+| `application-dev.yml`    | 开发 | 本地数据库连接（上传目录沿用默认值）     |
+| `application-prod.yml`   | 生产 | 生产数据库连接 + 上传目录 `/data/photo-uploads` |
+
+### 上传目录说明
+
+默认上传目录为 `${user.home}/photo-uploads`，实际路径随操作系统变化：
+
+| 操作系统 | 开发环境                   | 生产环境              |
+| -------- | -------------------------- | --------------------- |
+| Windows  | `C:\Users\<用户名>\photo-uploads` | —                     |
+| macOS    | `/Users/<用户名>/photo-uploads`   | —                     |
+| Linux    | `/home/<用户名>/photo-uploads`    | `/data/photo-uploads` |
+
+上传的图片按年月自动分子目录存储，如 `~/photo-uploads/2026/06/a1b2c3_照片.jpg`。

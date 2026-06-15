@@ -48,7 +48,12 @@ public class PhotoService {
         }
         validateImageMagicBytes(file.getInputStream());
 
-        String storedName = UUID.randomUUID() + "_" + file.getOriginalFilename();
+        LocalDateTime now = LocalDateTime.now();
+        String dateDir = String.format("%04d/%02d", now.getYear(), now.getMonthValue());
+        Path datePath = uploadDir.resolve(dateDir);
+        Files.createDirectories(datePath);
+
+        String storedName = dateDir + "/" + UUID.randomUUID() + "_" + file.getOriginalFilename();
         Path target = uploadDir.resolve(storedName);
         Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
 
@@ -59,7 +64,7 @@ public class PhotoService {
         photo.setOriginalFileName(file.getOriginalFilename());
         photo.setFileSize(file.getSize());
         photo.setContentType(file.getContentType());
-        photo.setCreatedAt(LocalDateTime.now());
+        photo.setCreatedAt(now);
 
         return repo.save(photo);
     }

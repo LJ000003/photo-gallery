@@ -6,3 +6,6 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
+
+photo:
+  upload-dir: /data/photo-uploads
