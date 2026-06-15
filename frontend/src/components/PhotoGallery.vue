@@ -2,7 +2,9 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted, defineAsyncComponent } from 'vue';
 import gsap from 'gsap';
 import PhotoCard from './PhotoCard.vue';
+import { useConfirm } from '../useConfirm.js';
 
+const confirmFn = useConfirm();
 const LottieLoader = defineAsyncComponent(() => import('./LottieLoader.vue'));
 
 const props = defineProps({
@@ -12,9 +14,6 @@ const props = defineProps({
   totalCount: { type: Number, default: 0 }
 });
 const emit = defineEmits(['view', 'edit', 'delete', 'loadMore', 'batch-delete']);
-
-const sentinel = ref(null);
-let observer = null;
 
 const selectedIds = ref(new Set());
 
@@ -26,7 +25,7 @@ function toggleSelect(id) {
   const s = selectedIds.value;
   if (s.has(id)) s.delete(id);
   else s.add(id);
-  selectedIds.value = new Set(s); // trigger reactivity
+  selectedIds.value = new Set(s);
 }
 
 const allSelected = computed(() =>
@@ -41,15 +40,14 @@ function toggleAll() {
   }
 }
 
-function batchDelete() {
+async function batchDelete() {
   if (selectedIds.value.size === 0) return;
   const ids = [...selectedIds.value];
-  if (!confirm(`确定要删除选中的 ${ids.length} 张照片吗？`)) return;
+  if (!await confirmFn(`确定要删除选中的 ${ids.length} 张照片吗？`, '批量删除')) return;
   emit('batch-delete', ids);
   selectedIds.value = new Set();
 }
 
-// 当照片列表变化时清理无效的选中 ID
 watch(() => props.photos, () => {
   const currentIds = new Set(props.photos.map(p => p.id));
   let changed = false;
@@ -62,22 +60,23 @@ watch(() => props.photos, () => {
   }
 });
 
-onMounted(() => {
-  observer = new IntersectionObserver(([entry]) => {
-    if (entry.isIntersecting) {
-      emit('loadMore');
-    }
-  }, { threshold: 0 });
-  if (sentinel.value) {
-    observer.observe(sentinel.value);
+function onScroll() {
+  if (!props.hasMore || props.loading) return;
+  const scrollBottom = window.innerHeight + window.scrollY;
+  const docBottom = document.documentElement.scrollHeight;
+  if (scrollBottom >= docBottom - 200) {
+    emit('loadMore');
   }
+}
+
+onMounted(() => {
+  window.addEventListener('scroll', onScroll, { passive: true });
 });
 
 onUnmounted(() => {
-  if (observer) observer.disconnect();
+  window.removeEventListener('scroll', onScroll);
 });
 
-// 新加载的照片入场动画（仅动画新增部分）
 let prevCount = 0;
 watch(() => props.photos.length, () => {
   if (props.photos.length === prevCount) return;
@@ -118,11 +117,11 @@ watch(() => props.photos.length, () => {
         @toggle-select="toggleSelect"
       />
     </div>
-    <div ref="sentinel" class="sentinel">
-      <LottieLoader v-if="loading" name="loading" :size="60" />
-      <span v-else-if="!hasMore && photos.length > 0" class="end-hint">没有更多了</span>
+    <div v-if="loading" class="sentinel">
+      <LottieLoader name="loading" :size="60" />
     </div>
-    <div v-if="!loading && photos.length === 0" class="empty-state">
+    <div v-else-if="!hasMore && photos.length > 0" class="end-hint">没有更多了</div>
+    <div v-if="!hasMore && !loading && photos.length === 0" class="empty-state">
       <LottieLoader name="empty" :size="160" />
       <p class="empty-hint">还没有照片，上传第一张吧</p>
     </div>

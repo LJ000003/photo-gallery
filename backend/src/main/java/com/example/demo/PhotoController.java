@@ -13,21 +13,13 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.validation.Valid;
 
 @RestController
-@RequestMapping("/api/photos")
+@RequestMapping("/api")
 public class PhotoController {
 
     private final PhotoService service;
@@ -36,36 +28,69 @@ public class PhotoController {
         this.service = service;
     }
 
-    @GetMapping
-    public ApiResponse<Page<Photo>> list(@PageableDefault(size = 20) Pageable pageable) {
-        return ApiResponse.success(service.listAll(pageable));
+    // === 照片 ===
+
+    @GetMapping("/photos")
+    public ApiResponse<Page<Photo>> list(
+            @RequestParam(required = false) List<Long> tagIds,
+            @RequestParam(required = false) List<Long> categoryIds,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ApiResponse.success(service.listAll(tagIds, categoryIds, pageable));
     }
 
-    @GetMapping("/{id}")
+    @GetMapping("/photos/{id}")
     public Photo get(@PathVariable Long id) {
         return service.getById(id);
     }
 
-    @PostMapping
+    @PostMapping("/photos")
     public Photo upload(@RequestParam("file") MultipartFile file,
                         @RequestParam(value = "name", required = false) String name,
-                        @RequestParam(value = "description", required = false) String description)
+                        @RequestParam(value = "description", required = false) String description,
+                        @RequestParam(value = "tagIds", required = false) List<Long> tagIds,
+                        @RequestParam(value = "categoryId", required = false) Long categoryId)
             throws IOException {
-        return service.upload(file, name, description);
+        return service.upload(file, name, description, tagIds, categoryId);
     }
 
-    @PutMapping("/{id}")
-    public Photo update(@PathVariable Long id, @Valid @RequestBody Photo body) {
-        return service.update(id, body.getName(), body.getDescription());
+    @PostMapping("/photos/batch")
+    public ApiResponse<List<Photo>> batchUpload(
+            @RequestParam("files") List<MultipartFile> files,
+            @RequestParam(value = "name", required = false) String name,
+            @RequestParam(value = "description", required = false) String description,
+            @RequestParam(value = "tagIds", required = false) List<Long> tagIds,
+            @RequestParam(value = "categoryId", required = false) Long categoryId)
+            throws IOException {
+        return ApiResponse.success(service.batchUpload(files, name, description, tagIds, categoryId));
     }
 
-    @DeleteMapping("/{id}")
+    @PutMapping("/photos/{id}")
+    public Photo update(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        String name = (String) body.get("name");
+        String description = (String) body.get("description");
+        @SuppressWarnings("unchecked")
+        List<Long> tagIds = body.get("tagIds") != null
+                ? ((List<Integer>) body.get("tagIds")).stream().map(Integer::longValue).toList()
+                : null;
+        Long categoryId = body.get("categoryId") != null
+                ? ((Number) body.get("categoryId")).longValue()
+                : null;
+        return service.update(id, name, description, tagIds, categoryId);
+    }
+
+    @DeleteMapping("/photos/{id}")
     public ApiResponse<String> delete(@PathVariable Long id) {
         service.delete(id);
         return ApiResponse.success("删除成功");
     }
 
-    @GetMapping("/{id}/file")
+    @DeleteMapping("/photos/batch")
+    public ApiResponse<Map<String, Integer>> batchDelete(@RequestBody List<Long> ids) {
+        int count = service.batchDelete(ids);
+        return ApiResponse.success(Map.of("deleted", count));
+    }
+
+    @GetMapping("/photos/{id}/file")
     public ResponseEntity<Resource> getFile(@PathVariable Long id) {
         Photo photo = service.getById(id);
         Resource resource = new FileSystemResource(service.getFilePath(id));
@@ -74,7 +99,7 @@ public class PhotoController {
                 .body(resource);
     }
 
-    @GetMapping("/{id}/thumbnail")
+    @GetMapping("/photos/{id}/thumbnail")
     public ResponseEntity<Resource> getThumbnail(@PathVariable Long id) {
         Photo photo = service.getById(id);
         Resource resource = new FileSystemResource(service.getThumbnailPath(id));
@@ -84,25 +109,57 @@ public class PhotoController {
                 .body(resource);
     }
 
-    @PostMapping("/migrate-thumbnails")
+    @PostMapping("/photos/migrate-thumbnails")
     public ApiResponse<Map<String, Integer>> migrateThumbnails() {
         int count = service.migrateThumbnails();
         return ApiResponse.success(Map.of("generated", count));
     }
 
-    @DeleteMapping("/batch")
-    public ApiResponse<Map<String, Integer>> batchDelete(@RequestBody List<Long> ids) {
-        int count = service.batchDelete(ids);
-        return ApiResponse.success(Map.of("deleted", count));
+    // === 标签 ===
+
+    @GetMapping("/tags")
+    public ApiResponse<List<Tag>> listTags() {
+        return ApiResponse.success(service.listTags());
     }
 
-    @PostMapping("/batch")
-    public ApiResponse<List<Photo>> batchUpload(
-            @RequestParam("files") List<MultipartFile> files,
-            @RequestParam(value = "name", required = false) String name,
-            @RequestParam(value = "description", required = false) String description)
-            throws IOException {
-        return ApiResponse.success(service.batchUpload(files, name, description));
+    @PostMapping("/tags")
+    public ApiResponse<Tag> createTag(@RequestBody Map<String, String> body) {
+        Tag tag = service.createTag(body.get("name"), body.get("color"));
+        return ApiResponse.success(tag);
     }
 
+    @DeleteMapping("/tags/{id}")
+    public ApiResponse<String> deleteTag(@PathVariable Long id) {
+        service.deleteTag(id);
+        return ApiResponse.success("删除成功");
+    }
+
+    @PutMapping("/tags/{id}")
+    public ApiResponse<Tag> updateTag(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        return ApiResponse.success(service.updateTag(id, body.get("name"), body.get("color")));
+    }
+
+    // === 分类 ===
+
+    @GetMapping("/categories")
+    public ApiResponse<List<Category>> listCategories() {
+        return ApiResponse.success(service.listCategories());
+    }
+
+    @PostMapping("/categories")
+    public ApiResponse<Category> createCategory(@RequestBody Map<String, String> body) {
+        Category cat = service.createCategory(body.get("name"));
+        return ApiResponse.success(cat);
+    }
+
+    @DeleteMapping("/categories/{id}")
+    public ApiResponse<String> deleteCategory(@PathVariable Long id) {
+        service.deleteCategory(id);
+        return ApiResponse.success("删除成功");
+    }
+
+    @PutMapping("/categories/{id}")
+    public ApiResponse<Category> updateCategory(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        return ApiResponse.success(service.updateCategory(id, body.get("name")));
+    }
 }

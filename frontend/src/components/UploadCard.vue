@@ -1,10 +1,13 @@
 <script setup>
 import { ref, nextTick, defineAsyncComponent } from 'vue';
 import gsap from 'gsap';
+import { useStore } from '../store.js';
 
 const LottieLoader = defineAsyncComponent(() => import('./LottieLoader.vue'));
 
 const emit = defineEmits(['uploaded']);
+
+const { tags: allTags, categories: allCats, loadAll } = useStore();
 
 const fileInput = ref(null);
 const preview = ref(null);
@@ -16,6 +19,8 @@ const showPreview = ref(false);
 const submitting = ref(false);
 const selectedCount = ref(0);
 const previews = ref([]); // { name, url }
+const selectedTagIds = ref([]);
+const selectedCatId = ref(null);
 
 async function extractErrorMessage(res) {
   try {
@@ -60,6 +65,12 @@ function revokePreviews() {
   previews.value = [];
 }
 
+function toggleTag(id) {
+  const idx = selectedTagIds.value.indexOf(id);
+  if (idx > -1) selectedTagIds.value.splice(idx, 1);
+  else selectedTagIds.value.push(id);
+}
+
 function clearSelection() {
   showPreview.value = false;
   previewSrc.value = '';
@@ -78,6 +89,8 @@ async function onSubmit() {
   }
   fd.append('name', uploadName.value.trim());
   fd.append('description', uploadDesc.value.trim());
+  selectedTagIds.value.forEach(id => fd.append('tagIds', id));
+  if (selectedCatId.value) fd.append('categoryId', selectedCatId.value);
 
   submitting.value = true;
   try {
@@ -93,6 +106,8 @@ async function onSubmit() {
       singleFd.append('file', files[0]);
       singleFd.append('name', uploadName.value.trim());
       singleFd.append('description', uploadDesc.value.trim());
+      selectedTagIds.value.forEach(id => singleFd.append('tagIds', id));
+      if (selectedCatId.value) singleFd.append('categoryId', selectedCatId.value);
       const res = await fetch('/api/photos', { method: 'POST', body: singleFd });
       if (!res.ok) {
         const msg = await extractErrorMessage(res);
@@ -139,6 +154,21 @@ async function onSubmit() {
         <div v-for="p in previews" :key="p.name" class="preview-item">
           <img :src="p.url" :alt="p.name" />
           <span>{{ p.name }}</span>
+        </div>
+      </div>
+      <div class="meta-row">
+        <select v-model="selectedCatId" class="mini-select">
+          <option :value="null">无分类</option>
+          <option v-for="c in allCats" :key="c.id" :value="c.id">{{ c.name }}</option>
+        </select>
+        <div class="tag-chips">
+          <button v-for="t in allTags" :key="t.id" type="button"
+            class="tag-chip"
+            :class="{ on: selectedTagIds.includes(t.id) }"
+            :style="selectedTagIds.includes(t.id) ? { background: t.color, borderColor: t.color } : {}"
+            @click="toggleTag(t.id)">
+            {{ t.name }}
+          </button>
         </div>
       </div>
       <div class="form-row">

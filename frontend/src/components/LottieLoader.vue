@@ -49,7 +49,7 @@ const animations = {
         { ty: 'el', p: { a: 0, k: [0, -10] }, s: { a: 0, k: [14, 14] }, d: 1 },
         { ty: 'st', c: { a: 0, k: [0.66, 0.333, 0.969, 1] }, o: { a: 0, k: 90 }, w: { a: 0, k: 2 }, lc: 1, lj: 1 },
         { ty: 'fl', c: { a: 0, k: [0.66, 0.333, 0.969, 0.15] }, o: { a: 0, k: 100 }, r: 1 },
-        { ty: 'gr', o: { a: 0, k: 100 }, g: { p: 3, k: { a: 0, k: [0, 1, 1, 1, 0.5, 0.33, 0.97, 1, 1, 1, 0.24, 0.61, 1] } }, s: { a: 0, k: [0, -20] }, e: { a: 0, k: [0, 18] }, t: 1 }
+        { ty: 'gr', o: { a: 0, k: 100 }, g: { p: 3, k: { a: 0, k: [0, 1, 1, 1, 0.5, 0.33, 0.97, 1, 1, 1, 0.24, 0.61] } }, s: { a: 0, k: [0, -20] }, e: { a: 0, k: [0, 18] }, t: 1 }
       ],
       ip: 0, op: 91, st: 0
     }]
@@ -77,7 +77,8 @@ const animations = {
 };
 
 onMounted(() => {
-  if (container.value && animations[props.name]) {
+  if (!container.value || !animations[props.name]) return;
+  try {
     anim = lottie.loadAnimation({
       container: container.value,
       animationData: animations[props.name],
@@ -85,6 +86,8 @@ onMounted(() => {
       loop: true,
       autoplay: true
     });
+  } catch {
+    // lottie 初始化失败 — 静默降级
   }
 });
 
@@ -105,5 +108,9 @@ onUnmounted(() => {
 .lottie-container {
   display: inline-block;
   vertical-align: middle;
+  pointer-events: none;
+}
+.lottie-container svg {
+  pointer-events: none;
 }
 </style>

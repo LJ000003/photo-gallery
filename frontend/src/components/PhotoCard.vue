@@ -1,7 +1,9 @@
 <script setup>
 import { ref } from 'vue';
 import gsap from 'gsap';
+import { useConfirm } from '../useConfirm.js';
 
+const confirmFn = useConfirm();
 const props = defineProps({ photo: Object, selected: Boolean });
 const emit = defineEmits(['view', 'edit', 'delete', 'toggle-select']);
 
@@ -26,7 +28,7 @@ function tiltOff() {
 }
 
 async function onDelete() {
-  if (!confirm('确定要删除这张照片吗？')) return;
+  if (!await confirmFn('确定要删除这张照片吗？', '删除照片')) return;
   await gsap.to(cardRef.value, {
     scale: 0.7,
     opacity: 0,
@@ -60,7 +62,10 @@ async function onDelete() {
     </div>
     <div class="photo-body">
       <h4 class="photo-name">{{ photo.name }}</h4>
-      <p class="photo-meta">{{ formatSize(photo.fileSize) }}</p>
+      <p class="photo-meta">{{ formatSize(photo.fileSize) }}<span v-if="photo.category"> · {{ photo.category.name }}</span></p>
+      <div v-if="photo.tags && photo.tags.length" class="card-tags">
+        <span v-for="t in photo.tags" :key="t.id" class="card-tag" :style="{ background: t.color }">{{ t.name }}</span>
+      </div>
       <div class="photo-actions">
         <button class="btn-edit" @click="$emit('edit')">编辑</button>
         <button class="btn-del" @click="onDelete">删除</button>

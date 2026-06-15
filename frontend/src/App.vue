@@ -8,8 +8,11 @@ import UploadCard from './components/UploadCard.vue';
 import PhotoGallery from './components/PhotoGallery.vue';
 import ViewModal from './components/ViewModal.vue';
 import EditModal from './components/EditModal.vue';
+import FilterSidebar from './components/FilterSidebar.vue';
 
 const photos = ref([]);
+const selectedTagIds = ref([]);
+const selectedCategoryIds = ref([]);
 const viewPhoto = ref(null);
 const editPhoto = ref(null);
 const page = ref(0);
@@ -17,6 +20,8 @@ const hasMore = ref(true);
 const loading = ref(false);
 const totalCount = ref(0);
 const showBackTop = ref(false);
+const sidebarOpen = ref(false);
+let requestId = 0;
 
 function scrollToTop() {
   gsap.to(window, { scrollTo: 0, duration: 0.6, ease: 'power3.out' });
@@ -25,18 +30,27 @@ function scrollToTop() {
 async function loadMore() {
   if (loading.value || !hasMore.value) return;
   loading.value = true;
+  const myId = ++requestId;
   try {
-    const res = await fetch(`/api/photos?page=${page.value}&size=20`);
+    let url = `/api/photos?page=${page.value}&size=20`;
+    selectedTagIds.value.forEach(id => { url += `&tagIds=${id}`; });
+    selectedCategoryIds.value.forEach(id => { url += `&categoryIds=${id}`; });
+    const res = await fetch(url);
+    if (myId !== requestId) return; // 有更新的请求，丢弃旧结果
+    if (!res.ok) {
+      console.error('加载照片失败:', res.status);
+      return;
+    }
     const json = await res.json();
     const { content, totalPages, totalElements } = json.data;
-    photos.value.push(...content);
+    if (content && content.length) photos.value.push(...content);
     page.value++;
     hasMore.value = page.value < totalPages;
     totalCount.value = totalElements;
-  } catch {
-    // 加载失败保留已加载的照片
+  } catch (err) {
+    console.error('加载照片异常:', err);
   } finally {
-    loading.value = false;
+    if (myId === requestId) loading.value = false;
   }
 }
 
@@ -44,6 +58,7 @@ function resetAndReload() {
   photos.value = [];
   page.value = 0;
   hasMore.value = true;
+  loading.value = false;
   loadMore();
 }
 
@@ -209,18 +224,31 @@ onMounted(() => {
 <template>
   <AppHeader />
   <main class="page">
-    <UploadCard @uploaded="onUploaded" />
-    <PhotoGallery
-      :photos="photos"
-      :loading="loading"
-      :has-more="hasMore"
-      :total-count="totalCount"
-      @view="onView"
-      @edit="onEdit"
-      @delete="onDelete"
-      @load-more="loadMore"
-      @batch-delete="onBatchDelete"
+    <button class="sidebar-toggle" @click="sidebarOpen = !sidebarOpen">
+      {{ sidebarOpen ? '✕' : '☰' }}
+    </button>
+    <div v-if="sidebarOpen" class="sidebar-backdrop" @click="sidebarOpen = false"></div>
+    <FilterSidebar
+      :class="{ open: sidebarOpen }"
+      :selected-tag-ids="selectedTagIds"
+      :selected-category-ids="selectedCategoryIds"
+      @update:selected-tag-ids="selectedTagIds = $event; resetAndReload(); sidebarOpen = false"
+      @update:selected-category-ids="selectedCategoryIds = $event; resetAndReload(); sidebarOpen = false"
     />
+    <div class="main-content">
+      <UploadCard @uploaded="onUploaded" />
+      <PhotoGallery
+        :photos="photos"
+        :loading="loading"
+        :has-more="hasMore"
+        :total-count="totalCount"
+        @view="onView"
+        @edit="onEdit"
+        @delete="onDelete"
+        @load-more="loadMore"
+        @batch-delete="onBatchDelete"
+      />
+    </div>
   </main>
   <button v-show="showBackTop" class="back-top" @click="scrollToTop" title="回到顶部">
     ↑

@@ -84,6 +84,8 @@ body {
 }
 .header h1 {
   font-size: 40px;
+  cursor: default;
+  user-select: none;
   font-weight: 800;
   letter-spacing: 2px;
   background: linear-gradient(135deg, var(--accent), var(--accent2), var(--accent3));
@@ -93,14 +95,297 @@ body {
   opacity: 0;
   filter: drop-shadow(0 0 20px rgba(0,212,255,0.4));
 }
+.header h1.rgb {
+  background: linear-gradient(90deg, #f00, #f80, #ff0, #0f0, #08f, #80f, #f00);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: rgb-sweep 2s linear infinite;
+}
+@keyframes rgb-sweep {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
 
 /* === 主容器 === */
 .page {
   position: relative;
   z-index: 1;
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 32px 24px 64px;
+  display: flex;
+  gap: 28px;
+  align-items: flex-start;
+}
+.main-content {
+  flex: 1;
+  min-width: 0;
+}
+
+/* === 侧边栏 === */
+.sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 24px;
+  z-index: 2;
+  pointer-events: auto;
+}
+.filter-group {
+  background: var(--glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.filter-group h3 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+.sidebar-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 11px;
+}
+.sidebar-toolbar label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  color: var(--text-dim);
+  user-select: none;
+}
+.sidebar-toolbar label input[type="checkbox"],
+.item-check {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.sidebar-toolbar label input[type="checkbox"]:checked,
+.item-check:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.sidebar-toolbar label input[type="checkbox"]:checked::after,
+.item-check:checked::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 0px;
+  width: 5px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.item-check {
+  opacity: 0;
+}
+.filter-group li:hover .item-check,
+.filter-group li .item-check:checked {
+  opacity: 1;
+}
+.item-edit-input {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 6px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--text);
+  outline: none;
+}
+.edit-color-pick {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .item-check { opacity: 0.6; }
+}
+.filter-group ul {
+  list-style: none;
+  margin-bottom: 8px;
+}
+.filter-group li {
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.filter-group li:hover { background: var(--glass-hover); color: var(--text); }
+.filter-group li.active {
+  background: rgba(0,212,255,0.12);
+  color: var(--accent);
+}
+.filter-group li.empty { cursor: default; color: var(--text-dim); opacity: 0.5; }
+.tag-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.item-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.btn-item-edit, .btn-item-del {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 14px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--text-dim);
+  border: none;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s, color 0.2s;
+}
+.filter-group li:hover .btn-item-edit,
+.filter-group li:hover .btn-item-del {
+  opacity: 1;
+}
+.btn-item-edit:hover { color: var(--accent); }
+.btn-item-del:hover { color: var(--accent3); }
+
+@media (max-width: 768px) {
+  .btn-item-edit, .btn-item-del {
+    opacity: 0.6;
+  }
+}
+.filter-input {
+  display: flex;
+  gap: 4px;
+  align-items: stretch;
+}
+.filter-input input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text);
+  outline: none;
+  box-sizing: border-box;
+}
+.filter-input input:focus { border-color: var(--accent); }
+.color-pick {
+  flex: 0 0 30px !important;
+  width: 30px;
+  height: 30px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  box-sizing: border-box;
+  align-self: center;
+}
+.btn-mini {
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 16px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  align-self: center;
+}
+.btn-mini:hover { box-shadow: var(--glow-cyan); }
+
+.meta-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.mini-select {
+  padding: 8px 12px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text);
+  outline: none;
+  cursor: pointer;
+}
+.mini-select:focus { border-color: var(--accent); }
+.mini-select option { background: #1a1a2e; color: var(--text); }
+
+.tag-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.tag-chip {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.tag-chip:hover { border-color: var(--accent); color: var(--text); }
+.tag-chip.on { color: #fff; }
+
+.card-tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.card-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 10px;
+  color: #fff;
 }
 
 /* === 玻璃态卡片 === */
@@ -246,6 +531,68 @@ button[type="submit"]:hover,
 .btn-del:hover {
   background: rgba(255,60,120,0.3);
   box-shadow: 0 0 20px rgba(255,60,120,0.3);
+}
+
+/* === 自定义确认弹窗 === */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.confirm-box {
+  background: rgba(20, 20, 40, 0.95);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 28px;
+  width: 360px;
+  max-width: 90vw;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+.confirm-box h3 {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  color: var(--text);
+}
+.confirm-box p {
+  font-size: 14px;
+  color: var(--text-dim);
+  line-height: 1.5;
+  margin-bottom: 24px;
+}
+.confirm-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+.btn-confirm-cancel {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-dim);
+  font-size: 13px;
+  padding: 9px 20px;
+  border-radius: 8px;
+}
+.btn-confirm-cancel:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text);
+}
+.btn-confirm-ok {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #fff;
+  font-size: 13px;
+  padding: 9px 20px;
+  border-radius: 8px;
+}
+.btn-confirm-ok:hover {
+  box-shadow: 0 4px 15px rgba(0, 212, 255, 0.4);
 }
 
 /* === 波纹效果容器 === */
@@ -508,9 +855,11 @@ button[type="submit"]:hover,
 }
 
 .end-hint {
+  text-align: center;
   color: var(--text-dim);
-  font-size: 13px;
-  opacity: 0.6;
+  font-size: 15px;
+  opacity: 0.5;
+  padding: 32px 0;
 }
 
 
@@ -529,6 +878,7 @@ button[type="submit"]:hover,
   justify-content: center;
   padding: 40px 0;
   gap: 16px;
+  overflow: hidden;
 }
 
 /* === 按钮内加载 === */
@@ -621,7 +971,30 @@ button[type="submit"]:hover,
 .gallery-toolbar label input[type="checkbox"] {
   width: 16px;
   height: 16px;
-  accent-color: var(--accent);
+  appearance: none;
+  -webkit-appearance: none;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.gallery-toolbar label input[type="checkbox"]:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.gallery-toolbar label input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 5px;
+  height: 9px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
 }
 
 .btn-clear {
@@ -664,4 +1037,170 @@ button[type="submit"]:hover,
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* ========== 移动端适配 ========== */
+@media (max-width: 768px) {
+  .header {
+    padding: 24px 16px 20px;
+  }
+  .header h1 {
+    font-size: 26px;
+  }
+
+  .page {
+    flex-direction: column;
+    padding: 16px 12px 48px;
+    gap: 16px;
+  }
+
+  /* 侧边栏 — 固定覆盖层 */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 260px;
+    height: 100vh;
+    z-index: 200;
+    padding: 16px;
+    padding-top: 60px;
+    background: rgba(10, 10, 20, 0.97);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-right: 1px solid var(--border);
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    overflow-y: auto;
+  }
+  .sidebar.open {
+    transform: translateX(0);
+  }
+  .sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 199;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+  }
+  .sidebar-toggle {
+    display: flex;
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 50;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--glass);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 18px;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  /* 上传卡片 */
+  .upload-card {
+    padding: 18px;
+    margin-bottom: 20px;
+  }
+  .file-area label {
+    height: 120px;
+    font-size: 13px;
+  }
+  .file-area img {
+    height: 160px;
+  }
+  .form-row {
+    flex-direction: column;
+  }
+  .meta-row {
+    flex-direction: column;
+  }
+  .tag-chips {
+    gap: 4px;
+  }
+
+  /* 画廊 */
+  .gallery {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px;
+  }
+  .photo-body {
+    padding: 10px 12px;
+  }
+  .photo-name {
+    font-size: 13px;
+  }
+  .photo-actions {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .photo-actions button {
+    font-size: 11px;
+    padding: 5px 10px;
+  }
+  .gallery-toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .gallery-section h2 {
+    font-size: 17px;
+  }
+
+  /* 弹窗 */
+  .modal-content {
+    max-width: 100vw;
+    max-height: 100vh;
+    border-radius: 0;
+    padding: 20px;
+  }
+  .modal-small {
+    width: 100vw;
+    max-width: 100vw;
+  }
+
+  /* 回到顶部 */
+  .back-top {
+    right: 12px;
+    bottom: 20px;
+    width: 38px;
+    height: 38px;
+    font-size: 16px;
+  }
+
+  /* 预览网格 */
+  .preview-grid {
+    grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+    max-height: 150px;
+  }
+  .preview-item img {
+    height: 56px;
+  }
+  .preview-item span {
+    font-size: 10px;
+  }
+
+  /* 卡片复选框始终可见 */
+  .card-check {
+    opacity: 1;
+    width: 22px;
+    height: 22px;
+    top: 6px;
+    left: 6px;
+  }
+}
+
+/* 桌面端汉堡按钮隐藏 */
+@media (min-width: 769px) {
+  .sidebar-toggle {
+    display: none;
+  }
+  .sidebar-backdrop {
+    display: none;
+  }
 }
