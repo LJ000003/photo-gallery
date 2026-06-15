@@ -2,7 +2,6 @@ package com.example.demo;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
@@ -55,9 +54,9 @@ public class PhotoController {
     }
 
     @DeleteMapping("/{id}")
-    public Map<String, String> delete(@PathVariable Long id) {
+    public ApiResponse<String> delete(@PathVariable Long id) {
         service.delete(id);
-        return Map.of("message", "删除成功");
+        return ApiResponse.success("删除成功");
     }
 
     @GetMapping("/{id}/file")

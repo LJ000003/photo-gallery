@@ -16,6 +16,7 @@
 | 前端框架   | Vue 3 (Composition API)               | 3.5   |
 | 构建工具   | Vite                                  | 5.4   |
 | 动画       | anime.js                              | 4.4   |
+| 日志       | Logback（控制台 + 按天滚动文件）      | —    |
 | 文件存储   | 本地文件系统（年/月子目录分片）       | —    |
 
 ## 功能
@@ -48,6 +49,7 @@
 │   │   ├── application.properties        # 公共配置
 │   │   ├── application-dev.yml           # 开发环境
 │   │   ├── application-prod.yml          # 生产环境
+│   │   ├── logback-spring.xml            # 日志配置
 │   │   └── db/migration/                 # Flyway 迁移脚本
 │   └── pom.xml
 │
@@ -125,21 +127,19 @@ CREATE DATABASE IF NOT EXISTS photodb CHARACTER SET utf8mb4;
 
 ### 2. 配置数据库连接
 
-编辑 `backend/src/main/resources/application-dev.yml`，修改数据库用户名和密码：
+数据库用户名和密码通过环境变量传入，不写在配置文件中。开发环境默认使用 `root` 用户，只需传入密码：
 
-```yaml
-spring:
-  datasource:
-    url: jdbc:mysql://localhost:3306/photodb?...
-    username: 你的用户名
-    password: 你的密码
+```bash
+export DB_PASSWORD=你的密码
 ```
+
+也可在本地创建 `.env` 文件（已加入 .gitignore）：
 
 ### 3. 启动后端
 
 ```bash
 cd backend
-mvn spring-boot:run "-Dspring-boot.run.profiles=dev"
+mvn spring-boot:run "-Dspring-boot.run.profiles=dev" "-Dspring-boot.run.arguments=--DB_PASSWORD=$DB_PASSWORD"
 ```
 
 后端运行在 `http://localhost:8080`，Flyway 会在首次启动时自动建表。
@@ -180,7 +180,15 @@ scp backend/target/demo-backend-*.jar root@<服务器IP>:/opt/app/
 
 ### 3. 配置生产环境数据库
 
-编辑 `backend/src/main/resources/application-prod.yml`，配置生产数据库连接后重新打包；或直接在服务器上创建同路径配置文件覆盖。
+先在 MySQL 中创建专用账户（最小权限）：
+
+```sql
+CREATE USER 'app_user'@'localhost' IDENTIFIED BY '生产密码';
+GRANT SELECT, INSERT, UPDATE, DELETE ON photodb.* TO 'app_user'@'localhost';
+FLUSH PRIVILEGES;
+```
+
+数据库连接信息不再写入配置文件，通过启动参数传入（见第 5 步）。
 
 ### 4. Nginx 配置
 
@@ -223,6 +231,8 @@ nginx -s reload
 ssh root@<服务器IP>
 nohup java -jar /opt/app/demo-backend-0.0.1-SNAPSHOT.jar \
   --spring.profiles.active=prod \
+  --DB_USERNAME=app_user \
+  --DB_PASSWORD=生产密码 \
   > /opt/app/app.log 2>&1 &
 ```
 
@@ -233,11 +243,12 @@ nohup java -jar /opt/app/demo-backend-0.0.1-SNAPSHOT.jar \
 ## Spring Profile
 
 
-| 文件                     | 环境 | 说明                                     |
-| ------------------------ | ---- | ---------------------------------------- |
-| `application.properties` | 公共 | 端口、上传限制、JPA 方言、上传目录默认值 |
-| `application-dev.yml`    | 开发 | 本地数据库连接（上传目录沿用默认值）     |
-| `application-prod.yml`   | 生产 | 生产数据库连接 + 上传目录 `/data/photo-uploads` |
+| 文件                     | 环境 | 说明                                       |
+| ------------------------ | ---- | ------------------------------------------ |
+| `application.properties` | 公共 | 端口、上传限制、JPA 方言、上传目录默认值   |
+| `application-dev.yml`    | 开发 | 数据库连接（`${DB_USERNAME:root}` / `${DB_PASSWORD}`） |
+| `application-prod.yml`   | 生产 | 数据库连接（`${DB_USERNAME}` / `${DB_PASSWORD}`）+ 上传目录 |
+| `logback-spring.xml`     | 公共 | 控制台彩色输出 + 按天滚动文件（30 天），ERROR 单独记录（90 天） |
 
 ### 上传目录说明
 
