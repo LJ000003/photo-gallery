@@ -2,7 +2,9 @@
 import { ref, onMounted } from 'vue';
 import gsap from 'gsap';
 import { useStore } from '../store.js';
+import { useToastStore } from '../stores/toast.js';
 
+const toast = useToastStore();
 const props = defineProps({ photo: Object });
 const emit = defineEmits(['close', 'saved']);
 
@@ -90,7 +92,7 @@ async function extractErrorMessage(res) {
 }
 
 async function onSubmit() {
-  if (!editName.value.trim()) return alert('请输入照片名称');
+  if (!editName.value.trim()) { toast.error('请输入照片名称'); return; }
 
   try {
     const body = {
@@ -111,7 +113,7 @@ async function onSubmit() {
     }
     emit('saved');
   } catch (err) {
-    alert(err.message);
+    toast.error(err.message);
   }
 }
 </script>
