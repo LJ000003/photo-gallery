@@ -1,8 +1,10 @@
 <script setup>
-import { ref, nextTick, defineAsyncComponent } from 'vue';
+import { ref, nextTick, onMounted, onUnmounted, defineAsyncComponent } from 'vue';
 import gsap from 'gsap';
 import { useStore } from '../store.js';
+import { useToastStore } from '../stores/toast.js';
 
+const toast = useToastStore();
 const LottieLoader = defineAsyncComponent(() => import('./LottieLoader.vue'));
 
 const emit = defineEmits(['uploaded']);
@@ -21,6 +23,7 @@ const selectedCount = ref(0);
 const previews = ref([]); // { name, url }
 const selectedTagIds = ref([]);
 const selectedCatId = ref(null);
+const dragOver = ref(false);
 
 async function extractErrorMessage(res) {
   try {
@@ -60,6 +63,35 @@ function onFileChange(e) {
   }
 }
 
+function processFiles(files) {
+  if (!files || files.length === 0) return;
+  // 同步到 fileInput 以便 onSubmit 读取
+  const dt = new DataTransfer();
+  for (const f of files) dt.items.add(f);
+  if (fileInput.value) fileInput.value.files = dt.files;
+  onFileChange({ target: { files: dt.files } });
+}
+
+function onDragOver(e) {
+  e.preventDefault();
+  dragOver.value = true;
+}
+function onDragLeave() { dragOver.value = false; }
+function onDrop(e) {
+  e.preventDefault();
+  dragOver.value = false;
+  processFiles(e.dataTransfer.files);
+}
+function onPaste(e) {
+  if (e.clipboardData.files.length > 0) {
+    e.preventDefault();
+    processFiles(e.clipboardData.files);
+  }
+}
+
+onMounted(() => { document.addEventListener('paste', onPaste); });
+onUnmounted(() => { document.removeEventListener('paste', onPaste); });
+
 function revokePreviews() {
   for (const p of previews.value) URL.revokeObjectURL(p.url);
   previews.value = [];
@@ -81,7 +113,7 @@ function clearSelection() {
 
 async function onSubmit() {
   const files = fileInput.value.files;
-  if (files.length === 0) return alert('请选择照片');
+  if (files.length === 0) { toast.error('请选择照片'); return; }
 
   const fd = new FormData();
   for (const f of files) {
@@ -130,7 +162,7 @@ async function onSubmit() {
     });
     emit('uploaded');
   } catch (err) {
-    alert('上传失败: ' + err.message);
+    toast.error('上传失败: ' + err.message);
     clearSelection();
   } finally {
     submitting.value = false;
@@ -144,9 +176,11 @@ async function onSubmit() {
     <form @submit.prevent="onSubmit">
       <div class="file-area">
         <input ref="fileInput" type="file" id="fileInput" accept="image/*" multiple @change="onFileChange" />
-        <label ref="fileLabel" for="fileInput" :class="{ 'preview-hidden': showPreview }">
+        <label ref="fileLabel" for="fileInput"
+          :class="{ 'preview-hidden': showPreview, 'drag-over': dragOver }"
+          @dragover="onDragOver" @dragleave="onDragLeave" @drop="onDrop">
           <span class="file-icon">+</span>
-          <span>{{ selectedCount > 0 ? `已选 ${selectedCount} 张` : '点击选择图片（支持多选）' }}</span>
+          <span>{{ selectedCount > 0 ? `已选 ${selectedCount} 张` : '点击选择 / 拖拽 / 粘贴 (Ctrl+V)' }}</span>
         </label>
         <img ref="preview" v-if="showPreview" :src="previewSrc" alt="预览" />
       </div>

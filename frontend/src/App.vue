@@ -1,71 +1,36 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { onMounted } from 'vue';
 import gsap from 'gsap';
 import { ScrollToPlugin } from 'gsap/ScrollToPlugin';
 gsap.registerPlugin(ScrollToPlugin);
+
 import AppHeader from './components/AppHeader.vue';
 import UploadCard from './components/UploadCard.vue';
 import PhotoGallery from './components/PhotoGallery.vue';
 import ViewModal from './components/ViewModal.vue';
 import EditModal from './components/EditModal.vue';
 import FilterSidebar from './components/FilterSidebar.vue';
+import KonamiGate from './components/KonamiGate.vue';
+import ToastProvider from './components/ToastProvider.vue';
 
-const photos = ref([]);
-const selectedTagIds = ref([]);
-const selectedCategoryIds = ref([]);
-const viewPhoto = ref(null);
-const editPhoto = ref(null);
-const page = ref(0);
-const hasMore = ref(true);
-const loading = ref(false);
-const totalCount = ref(0);
-const showBackTop = ref(false);
-const sidebarOpen = ref(false);
-let requestId = 0;
+import { usePhotoStore } from './stores/photo.js';
+import { useUiStore } from './stores/ui.js';
+import { useToastStore } from './stores/toast.js';
+
+const photo = usePhotoStore();
+const ui = useUiStore();
+const toast = useToastStore();
 
 function scrollToTop() {
-  gsap.to(window, { scrollTo: 0, duration: 0.6, ease: 'power3.out' });
-}
-
-async function loadMore() {
-  if (loading.value || !hasMore.value) return;
-  loading.value = true;
-  const myId = ++requestId;
-  try {
-    let url = `/api/photos?page=${page.value}&size=20`;
-    selectedTagIds.value.forEach(id => { url += `&tagIds=${id}`; });
-    selectedCategoryIds.value.forEach(id => { url += `&categoryIds=${id}`; });
-    const res = await fetch(url);
-    if (myId !== requestId) return; // 有更新的请求，丢弃旧结果
-    if (!res.ok) {
-      console.error('加载照片失败:', res.status);
-      return;
-    }
-    const json = await res.json();
-    const { content, totalPages, totalElements } = json.data;
-    if (content && content.length) photos.value.push(...content);
-    page.value++;
-    hasMore.value = page.value < totalPages;
-    totalCount.value = totalElements;
-  } catch (err) {
-    console.error('加载照片异常:', err);
-  } finally {
-    if (myId === requestId) loading.value = false;
+  if ('ontouchstart' in window) {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } else {
+    gsap.to(window, { scrollTo: 0, duration: 0.6, ease: 'power3.out' });
   }
 }
 
-function resetAndReload() {
-  photos.value = [];
-  page.value = 0;
-  hasMore.value = true;
-  loading.value = false;
-  loadMore();
-}
-
-function onView(photo)   { viewPhoto.value = photo; }
-function onEdit(photo)   { editPhoto.value = photo; }
-function onUploaded()    { resetAndReload(); }
-function onSaved()       { editPhoto.value = null; resetAndReload(); }
+function onUploaded() { photo.resetAndReload(); }
+function onSaved() { ui.editPhoto = null; photo.resetAndReload(); }
 
 async function extractErrorMessage(res) {
   try {
@@ -79,14 +44,11 @@ async function extractErrorMessage(res) {
 async function onDelete(id) {
   try {
     const res = await fetch(`/api/photos/${id}`, { method: 'DELETE' });
-    if (!res.ok) {
-      const msg = await extractErrorMessage(res);
-      throw new Error(msg);
-    }
-    photos.value = photos.value.filter(p => p.id !== id);
-    totalCount.value--;
+    if (!res.ok) throw new Error(await extractErrorMessage(res));
+    photo.removePhoto(id);
+    toast.success('删除成功');
   } catch (err) {
-    alert(err.message);
+    toast.error(err.message);
   }
 }
 
@@ -97,86 +59,72 @@ async function onBatchDelete(ids) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(ids)
     });
-    if (!res.ok) {
-      const msg = await extractErrorMessage(res);
-      throw new Error(msg);
-    }
-    const idSet = new Set(ids);
-    photos.value = photos.value.filter(p => !idSet.has(p.id));
-    totalCount.value -= ids.length;
+    if (!res.ok) throw new Error(await extractErrorMessage(res));
+    photo.removePhotos(ids);
+    toast.success(`已删除 ${ids.length} 张照片`);
   } catch (err) {
-    alert(err.message);
+    toast.error(err.message);
   }
 }
 
-// 背景、光标、入场动画（首次加载时执行）
+function onUnlock() {
+  initEffects();
+  ui.unlock();
+}
+
+// 背景、光标、入场动画
 let firstLoad = true;
 function initEffects() {
   if (!firstLoad) return;
   firstLoad = false;
 
-  const orbsHTML = `
-    <div class="bg-orbs">
-      <div class="orb orb-1"></div>
-      <div class="orb orb-2"></div>
-      <div class="orb orb-3"></div>
-    </div>`;
+  const orbsHTML = `<div class="bg-orbs">
+    <div class="orb orb-1"></div><div class="orb orb-2"></div><div class="orb orb-3"></div>
+  </div>`;
   document.body.insertAdjacentHTML('afterbegin', orbsHTML);
 
-  gsap.to('.orb-1', {
-    keyframes: [
-      { xPercent: -10, yPercent: -5, scale: 1 },
-      { xPercent: 10, yPercent: 5, scale: 1.15 },
-      { xPercent: -5, yPercent: 10, scale: 0.9 },
-      { xPercent: 5, yPercent: -5, scale: 1.05 },
-      { xPercent: -10, yPercent: -5, scale: 1 },
-    ],
-    duration: 12, repeat: -1, ease: 'sine.inOut'
-  });
-  gsap.to('.orb-2', {
-    keyframes: [
-      { xPercent: 5, yPercent: 5, scale: 1 },
-      { xPercent: -8, yPercent: -8, scale: 0.85 },
-      { xPercent: 3, yPercent: 3, scale: 1.1 },
-      { xPercent: -5, yPercent: 5, scale: 0.95 },
-      { xPercent: 5, yPercent: 5, scale: 1 },
-    ],
-    duration: 15, repeat: -1, ease: 'sine.inOut'
-  });
-  gsap.to('.orb-3', {
-    keyframes: [
-      { xPercent: 3, yPercent: -5, scale: 1 },
-      { xPercent: -6, yPercent: 3, scale: 1.1 },
-      { xPercent: 8, yPercent: -8, scale: 0.85 },
-      { xPercent: -3, yPercent: 5, scale: 1.05 },
-      { xPercent: 3, yPercent: -5, scale: 1 },
-    ],
-    duration: 10, repeat: -1, ease: 'sine.inOut'
-  });
+  gsap.to('.orb-1', { keyframes: [
+    { xPercent: -10, yPercent: -5, scale: 1 }, { xPercent: 10, yPercent: 5, scale: 1.15 },
+    { xPercent: -5, yPercent: 10, scale: 0.9 }, { xPercent: 5, yPercent: -5, scale: 1.05 },
+    { xPercent: -10, yPercent: -5, scale: 1 }
+  ], duration: 12, repeat: -1, ease: 'sine.inOut' });
+  gsap.to('.orb-2', { keyframes: [
+    { xPercent: 5, yPercent: 5, scale: 1 }, { xPercent: -8, yPercent: -8, scale: 0.85 },
+    { xPercent: 3, yPercent: 3, scale: 1.1 }, { xPercent: -5, yPercent: 5, scale: 0.95 },
+    { xPercent: 5, yPercent: 5, scale: 1 }
+  ], duration: 15, repeat: -1, ease: 'sine.inOut' });
+  gsap.to('.orb-3', { keyframes: [
+    { xPercent: 3, yPercent: -5, scale: 1 }, { xPercent: -6, yPercent: 3, scale: 1.1 },
+    { xPercent: 8, yPercent: -8, scale: 0.85 }, { xPercent: -3, yPercent: 5, scale: 1.05 },
+    { xPercent: 3, yPercent: -5, scale: 1 }
+  ], duration: 10, repeat: -1, ease: 'sine.inOut' });
 
-  const trails = [];
-  let mouseX = 0, mouseY = 0;
-  for (let i = 0; i < 12; i++) {
-    const dot = document.createElement('div');
-    dot.className = 'cursor-trail';
-    dot.style.opacity = (1 - i / 12) * 0.5;
-    dot.style.transform = `translate(-50%, -50%) scale(${1 - i / 12})`;
-    document.body.appendChild(dot);
-    trails.push({ el: dot, x: 0, y: 0 });
-  }
-  document.addEventListener('mousemove', e => { mouseX = e.clientX; mouseY = e.clientY; });
-  (function tick() {
-    let tx = mouseX, ty = mouseY;
-    for (let i = 0; i < trails.length; i++) {
-      const t = trails[i];
-      t.x += (tx - t.x) * (0.35 - i * 0.02);
-      t.y += (ty - t.y) * (0.35 - i * 0.02);
-      t.el.style.left = t.x + 'px';
-      t.el.style.top = t.y + 'px';
-      tx = t.x; ty = t.y;
+  // 光标拖尾 — 仅桌面
+  if (!('ontouchstart' in window)) {
+    const trails = [];
+    let mx = 0, my = 0;
+    for (let i = 0; i < 12; i++) {
+      const dot = document.createElement('div');
+      dot.className = 'cursor-trail';
+      dot.style.opacity = (1 - i / 12) * 0.5;
+      dot.style.transform = `translate(-50%,-50%) scale(${1 - i / 12})`;
+      document.body.appendChild(dot);
+      trails.push({ el: dot, x: 0, y: 0 });
     }
-    requestAnimationFrame(tick);
-  })();
+    document.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; });
+    (function tick() {
+      let tx = mx, ty = my;
+      for (let i = 0; i < trails.length; i++) {
+        const t = trails[i];
+        t.x += (tx - t.x) * (0.35 - i * 0.02);
+        t.y += (ty - t.y) * (0.35 - i * 0.02);
+        t.el.style.left = t.x + 'px';
+        t.el.style.top = t.y + 'px';
+        tx = t.x; ty = t.y;
+      }
+      requestAnimationFrame(tick);
+    })();
+  }
 
   document.addEventListener('click', e => {
     const btn = e.target.closest('button');
@@ -192,67 +140,55 @@ function initEffects() {
     ripple.addEventListener('animationend', () => ripple.remove());
   });
 
-  gsap.fromTo('.header h1',
-    { y: -60, opacity: 0 },
-    { y: 0, opacity: 1, duration: 1, ease: 'expo.out' }
-  );
-  gsap.fromTo('.upload-card',
-    { y: 40, opacity: 0 },
-    { y: 0, opacity: 1, duration: 0.7, delay: 0.3, ease: 'expo.out' }
-  );
-  gsap.fromTo('.gallery-section h2',
-    { y: 30, opacity: 0 },
-    { y: 0, opacity: 1, duration: 0.6, delay: 0.5, ease: 'power1.out' }
-  );
+  gsap.fromTo('.header h1', { y: -60, opacity: 0 }, { y: 0, opacity: 1, duration: 1, ease: 'expo.out' });
+  gsap.fromTo('.upload-card', { y: 40, opacity: 0 }, { y: 0, opacity: 1, duration: 0.7, delay: 0.3, ease: 'expo.out' });
+  gsap.fromTo('.gallery-section h2', { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.6, delay: 0.5, ease: 'power1.out' });
 }
 
 onMounted(() => {
-  initEffects();
+  if (ui.unlocked) initEffects();
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') {
-      viewPhoto.value = null;
-      editPhoto.value = null;
-    }
+    if (e.key === 'Escape') { ui.viewPhoto = null; ui.editPhoto = null; }
   });
-  window.addEventListener('scroll', () => {
-    showBackTop.value = window.scrollY > 400;
-  });
-  loadMore();
+  window.addEventListener('scroll', () => { ui.showBackTop = window.scrollY > 400; });
+  photo.loadMore();
 });
 </script>
 
 <template>
-  <AppHeader />
-  <main class="page">
-    <button class="sidebar-toggle" @click="sidebarOpen = !sidebarOpen">
-      {{ sidebarOpen ? '✕' : '☰' }}
-    </button>
-    <div v-if="sidebarOpen" class="sidebar-backdrop" @click="sidebarOpen = false"></div>
-    <FilterSidebar
-      :class="{ open: sidebarOpen }"
-      :selected-tag-ids="selectedTagIds"
-      :selected-category-ids="selectedCategoryIds"
-      @update:selected-tag-ids="selectedTagIds = $event; resetAndReload(); sidebarOpen = false"
-      @update:selected-category-ids="selectedCategoryIds = $event; resetAndReload(); sidebarOpen = false"
-    />
-    <div class="main-content">
-      <UploadCard @uploaded="onUploaded" />
-      <PhotoGallery
-        :photos="photos"
-        :loading="loading"
-        :has-more="hasMore"
-        :total-count="totalCount"
-        @view="onView"
-        @edit="onEdit"
-        @delete="onDelete"
-        @load-more="loadMore"
-        @batch-delete="onBatchDelete"
+  <KonamiGate v-if="!ui.unlocked" @unlocked="onUnlock" />
+  <template v-else>
+    <span class="relock-wrap">
+      <button class="relock-btn" @click="ui.reLock">🔒</button>
+      <span class="relock-hint">再来一次！</span>
+    </span>
+    <AppHeader />
+    <main class="page">
+      <button class="sidebar-toggle" @click="ui.sidebarOpen = !ui.sidebarOpen">
+        {{ ui.sidebarOpen ? '✕' : '☰' }}
+      </button>
+      <div v-if="ui.sidebarOpen" class="sidebar-backdrop" @click="ui.sidebarOpen = false"></div>
+      <FilterSidebar
+        :class="{ open: ui.sidebarOpen }"
+        :selected-tag-ids="photo.selectedTagIds"
+        :selected-category-ids="photo.selectedCategoryIds"
+        @update:selected-tag-ids="photo.selectedTagIds = $event; photo.resetAndReload(); ui.sidebarOpen = false"
+        @update:selected-category-ids="photo.selectedCategoryIds = $event; photo.resetAndReload(); ui.sidebarOpen = false"
       />
-    </div>
-  </main>
-  <button v-show="showBackTop" class="back-top" @click="scrollToTop" title="回到顶部">
-    ↑
-  </button>
-  <ViewModal v-if="viewPhoto" :photo="viewPhoto" @close="viewPhoto = null" />
-  <EditModal v-if="editPhoto" :photo="editPhoto" @close="editPhoto = null" @saved="onSaved" />
+      <div class="main-content">
+        <UploadCard @uploaded="onUploaded" />
+        <PhotoGallery
+          @view="ui.viewPhoto = $event"
+          @edit="ui.editPhoto = $event"
+          @delete="onDelete"
+          @load-more="photo.loadMore"
+          @batch-delete="onBatchDelete"
+        />
+      </div>
+    </main>
+    <button v-show="ui.showBackTop" class="back-top" @click="scrollToTop">↑</button>
+    <ViewModal v-if="ui.viewPhoto" :photo="ui.viewPhoto" @close="ui.viewPhoto = null" />
+    <EditModal v-if="ui.editPhoto" :photo="ui.editPhoto" @close="ui.editPhoto = null" @saved="onSaved" />
+    <ToastProvider />
+  </template>
 </template>
