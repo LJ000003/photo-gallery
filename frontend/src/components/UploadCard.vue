@@ -3,6 +3,7 @@ import { ref, nextTick, onMounted, onUnmounted, defineAsyncComponent } from 'vue
 import gsap from 'gsap';
 import { useStore } from '../store.js';
 import { useToastStore } from '../stores/toast.js';
+import { api } from '../api.js';
 
 const toast = useToastStore();
 const LottieLoader = defineAsyncComponent(() => import('./LottieLoader.vue'));
@@ -128,7 +129,7 @@ async function onSubmit() {
   try {
     const endpoint = files.length > 1 ? '/api/photos/batch' : '/api/photos';
     if (files.length > 1) {
-      const res = await fetch(endpoint, { method: 'POST', body: fd });
+      const res = await api(endpoint, { method: 'POST', body: fd });
       if (!res.ok) {
         const msg = await extractErrorMessage(res);
         throw new Error(msg);
@@ -140,7 +141,7 @@ async function onSubmit() {
       singleFd.append('description', uploadDesc.value.trim());
       selectedTagIds.value.forEach(id => singleFd.append('tagIds', id));
       if (selectedCatId.value) singleFd.append('categoryId', selectedCatId.value);
-      const res = await fetch('/api/photos', { method: 'POST', body: singleFd });
+      const res = await api('/api/photos', { method: 'POST', body: singleFd });
       if (!res.ok) {
         const msg = await extractErrorMessage(res);
         throw new Error(msg);

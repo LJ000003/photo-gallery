@@ -1,4 +1,5 @@
 import { ref } from 'vue';
+import { api } from './api.js';
 
 const tags = ref([]);
 const categories = ref([]);
@@ -7,7 +8,7 @@ let loadPromise = null;
 async function loadAll() {
   if (loadPromise) return loadPromise;
   loadPromise = (async () => {
-    const [tRes, cRes] = await Promise.all([fetch('/api/tags'), fetch('/api/categories')]);
+    const [tRes, cRes] = await Promise.all([api('/api/tags'), api('/api/categories')]);
     tags.value = (await tRes.json()).data;
     categories.value = (await cRes.json()).data;
     return { tags, categories };
@@ -16,12 +17,12 @@ async function loadAll() {
 }
 
 async function refreshTags() {
-  const res = await fetch('/api/tags');
+  const res = await api('/api/tags');
   tags.value = (await res.json()).data;
 }
 
 async function refreshCategories() {
-  const res = await fetch('/api/categories');
+  const res = await api('/api/categories');
   categories.value = (await res.json()).data;
 }
 

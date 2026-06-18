@@ -7,3 +7,6 @@ spring:
     hibernate:
       ddl-auto: validate
     show-sql: true
+
+admin:
+  password: ${ADMIN_PASSWORD:photoadmin}

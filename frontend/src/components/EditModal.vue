@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue';
 import gsap from 'gsap';
 import { useStore } from '../store.js';
 import { useToastStore } from '../stores/toast.js';
+import { api } from '../api.js';
 
 const toast = useToastStore();
 const props = defineProps({ photo: Object });
@@ -44,9 +45,8 @@ function toggleTag(id) {
 
 async function addTag() {
   if (!newTagName.value.trim()) return;
-  const res = await fetch('/api/tags', {
+  const res = await api('/api/tags', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: newTagName.value.trim(), color: newTagColor.value })
   });
   if (res.ok) {
@@ -59,9 +59,8 @@ async function addTag() {
 
 async function addCat() {
   if (!newCatName.value.trim()) return;
-  const res = await fetch('/api/categories', {
+  const res = await api('/api/categories', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: newCatName.value.trim() })
   });
   if (res.ok) {
@@ -102,9 +101,8 @@ async function onSubmit() {
       categoryId: selectedCatId.value
     };
 
-    const res = await fetch(`/api/photos/${props.photo.id}`, {
+    const res = await api(`/api/photos/${props.photo.id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
     if (!res.ok) {

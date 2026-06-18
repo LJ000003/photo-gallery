@@ -22,4 +22,6 @@ public interface PhotoRepository extends JpaRepository<Photo, Long> {
     Page<Photo> findByCategoryIdsAndTagIds(@Param("catIds") List<Long> catIds,
                                             @Param("tagIds") List<Long> tagIds,
                                             Pageable pageable);
+
+    Page<Photo> findByIdIn(List<Long> ids, Pageable pageable);
 }

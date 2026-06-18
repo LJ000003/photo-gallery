@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted } from 'vue';
+import { onMounted, ref } from 'vue';
 import gsap from 'gsap';
 import { ScrollToPlugin } from 'gsap/ScrollToPlugin';
 gsap.registerPlugin(ScrollToPlugin);
@@ -11,15 +11,19 @@ import ViewModal from './components/ViewModal.vue';
 import EditModal from './components/EditModal.vue';
 import FilterSidebar from './components/FilterSidebar.vue';
 import KonamiGate from './components/KonamiGate.vue';
+import ShareViewer from './components/ShareViewer.vue';
 import ToastProvider from './components/ToastProvider.vue';
 
 import { usePhotoStore } from './stores/photo.js';
 import { useUiStore } from './stores/ui.js';
 import { useToastStore } from './stores/toast.js';
+import { api, requestToken } from './api.js';
 
 const photo = usePhotoStore();
 const ui = useUiStore();
 const toast = useToastStore();
+
+const isShare = window.location.pathname.startsWith('/share/');
 
 function scrollToTop() {
   if ('ontouchstart' in window) {
@@ -43,7 +47,7 @@ async function extractErrorMessage(res) {
 
 async function onDelete(id) {
   try {
-    const res = await fetch(`/api/photos/${id}`, { method: 'DELETE' });
+    const res = await api(`/api/photos/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error(await extractErrorMessage(res));
     photo.removePhoto(id);
     toast.success('删除成功');
@@ -54,9 +58,8 @@ async function onDelete(id) {
 
 async function onBatchDelete(ids) {
   try {
-    const res = await fetch('/api/photos/batch', {
+    const res = await api('/api/photos/batch', {
       method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(ids)
     });
     if (!res.ok) throw new Error(await extractErrorMessage(res));
@@ -67,9 +70,53 @@ async function onBatchDelete(ids) {
   }
 }
 
-function onUnlock() {
+// 分享链接
+const shareModal = ref(null);
+const shareUrl = ref('');
+const shareLoading = ref(false);
+
+async function onGenerateShare(ids) {
+  if (ids.length === 0) return;
+  shareLoading.value = true;
+  shareUrl.value = '';
+  shareModal.value = { photoIds: ids };
+  try {
+    const res = await api('/api/share/generate', {
+      method: 'POST',
+      body: JSON.stringify({ photoIds: ids, expireDays: 7 })
+    });
+    if (!res.ok) {
+      const msg = await extractErrorMessage(res);
+      throw new Error(msg);
+    }
+    const json = await res.json();
+    shareUrl.value = window.location.origin + json.data.url;
+  } catch (err) {
+    toast.error(err.message);
+    shareModal.value = null;
+  } finally {
+    shareLoading.value = false;
+  }
+}
+
+function copyShareLink() {
+  navigator.clipboard.writeText(shareUrl.value).then(() => {
+    toast.success('链接已复制，分享给朋友吧');
+    shareModal.value = null;
+  }).catch(() => toast.error('复制失败，请手动复制'));
+}
+
+async function onUnlock() {
+  // 并行：初始化动效 + 调用后端拿 JWT
   initEffects();
-  ui.unlock();
+  try {
+    const token = await requestToken();
+    ui.setToken(token);
+    ui.unlock();
+    toast.success('认证成功');
+  } catch (err) {
+    toast.error('认证失败，请重试');
+  }
 }
 
 // 背景、光标、入场动画
@@ -146,17 +193,24 @@ function initEffects() {
 }
 
 onMounted(() => {
+  if (isShare) return; // 分享模式，不初始化管理功能
+
+  // 旧版本迁移：已解锁但无 token → 重锁
+  if (ui.unlocked && !ui.token) {
+    ui.reLock();
+  }
   if (ui.unlocked) initEffects();
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') { ui.viewPhoto = null; ui.editPhoto = null; }
   });
   window.addEventListener('scroll', () => { ui.showBackTop = window.scrollY > 400; });
-  photo.loadMore();
+  if (ui.unlocked) photo.loadMore();
 });
 </script>
 
 <template>
-  <KonamiGate v-if="!ui.unlocked" @unlocked="onUnlock" />
+  <ShareViewer v-if="isShare" />
+  <KonamiGate v-else-if="!ui.unlocked" @unlocked="onUnlock" />
   <template v-else>
     <span class="relock-wrap">
       <button class="relock-btn" @click="ui.reLock">🔒</button>
@@ -183,6 +237,7 @@ onMounted(() => {
           @delete="onDelete"
           @load-more="photo.loadMore"
           @batch-delete="onBatchDelete"
+          @generate-share="onGenerateShare"
         />
       </div>
     </main>
@@ -190,5 +245,17 @@ onMounted(() => {
     <ViewModal v-if="ui.viewPhoto" :photo="ui.viewPhoto" @close="ui.viewPhoto = null" />
     <EditModal v-if="ui.editPhoto" :photo="ui.editPhoto" @close="ui.editPhoto = null" @saved="onSaved" />
     <ToastProvider />
+    <div v-if="shareModal" class="modal" @click.self="shareModal = null">
+      <div class="modal-content modal-small">
+        <h3>分享 {{ shareModal.photoIds.length }} 张照片</h3>
+        <p class="share-hint">链接 7 天内有效，拿到链接的人可直接查看</p>
+        <div v-if="shareLoading" class="share-loading">生成中...</div>
+        <div v-else-if="shareUrl" class="share-row">
+          <input :value="shareUrl" readonly class="share-input" @focus="$event.target.select()" />
+          <button class="btn-primary" @click="copyShareLink">复制链接</button>
+        </div>
+        <button class="modal-close" @click="shareModal = null">✕</button>
+      </div>
+    </div>
   </template>
 </template>

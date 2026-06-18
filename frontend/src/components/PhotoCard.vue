@@ -7,6 +7,11 @@ const confirmFn = useConfirm();
 const props = defineProps({ photo: Object, selected: Boolean });
 const emit = defineEmits(['view', 'edit', 'delete', 'toggle-select']);
 
+function tokenParam() {
+  const t = localStorage.getItem('jwt_token') || localStorage.getItem('token');
+  return t ? `?token=${t}` : '';
+}
+
 const cardRef = ref(null);
 
 function formatSize(bytes) {
@@ -55,7 +60,7 @@ async function onDelete() {
       <span class="check-mark" v-if="selected">✓</span>
     </div>
     <div class="photo-thumb" @click="$emit('view')">
-      <img :src="`/api/photos/${photo.id}/thumbnail`" :alt="photo.name" loading="lazy" />
+      <img :src="`/api/photos/${photo.id}/thumbnail${tokenParam()}`" :alt="photo.name" loading="lazy" />
       <div class="photo-overlay">
         <button class="btn-view" @click.stop="$emit('view')">查看</button>
       </div>

@@ -4,72 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>照片管理器</title>
-    <script type="module" crossorigin src="/assets/index-Be2dlbLN.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-DLZXu3tM.css">
+    <link rel="preconnect" href="/api" />
+    <link rel="dns-prefetch" href="/api" />
+    <script type="module" crossorigin src="/assets/index-CrzbRFYc.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/gsap-SFc2wnMY.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-DMRI2uTa.css">
   </head>
   <body>
-    <header class="header">
-      <h1>照片管理器</h1>
-    </header>
-
-    <main class="page">
-      <!-- 上传区域 -->
-      <section class="upload-card">
-        <h2>上传照片</h2>
-        <form id="uploadForm">
-          <div class="file-area">
-            <input type="file" id="fileInput" accept="image/*" required />
-            <label for="fileInput" id="fileLabel">
-              <span class="file-icon">+</span>
-              <span>点击选择图片</span>
-            </label>
-            <img id="preview" class="preview-hidden" alt="预览" />
-          </div>
-          <div class="form-row">
-            <input type="text" id="uploadName" placeholder="照片名称（可选）" />
-            <input type="text" id="uploadDesc" placeholder="照片描述（可选）" />
-            <button type="submit">上传</button>
-          </div>
-        </form>
-      </section>
-
-      <!-- 照片列表 -->
-      <section class="gallery-section">
-        <h2>我的照片 <span id="photoCount"></span></h2>
-        <div id="gallery" class="gallery"></div>
-        <p id="emptyHint" class="empty-hint hidden">还没有照片，上传第一张吧</p>
-      </section>
-    </main>
-
-    <!-- 查看大图弹窗 -->
-    <div id="viewModal" class="modal hidden">
-      <div class="modal-backdrop"></div>
-      <div class="modal-content">
-        <button class="modal-close">&times;</button>
-        <img id="viewImage" alt="" />
-        <div class="modal-info">
-          <h3 id="viewName"></h3>
-          <p id="viewDesc"></p>
-        </div>
-      </div>
-    </div>
-
-    <!-- 编辑弹窗 -->
-    <div id="editModal" class="modal hidden">
-      <div class="modal-backdrop"></div>
-      <div class="modal-content modal-small">
-        <button class="modal-close">&times;</button>
-        <h2>编辑照片信息</h2>
-        <form id="editForm">
-          <input type="hidden" id="editId" />
-          <label>名称</label>
-          <input type="text" id="editName" required />
-          <label>描述</label>
-          <input type="text" id="editDesc" />
-          <button type="submit">保存</button>
-        </form>
-      </div>
-    </div>
-
+    <div id="app"></div>
   </body>
 </html>

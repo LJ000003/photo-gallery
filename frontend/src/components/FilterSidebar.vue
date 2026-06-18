@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, nextTick } from 'vue';
 import { useStore } from '../store.js';
 import { useConfirm } from '../useConfirm.js';
+import { api } from '../api.js';
 
 const confirmFn = useConfirm();
 const props = defineProps({
@@ -39,7 +40,7 @@ async function batchDeleteCats() {
   const ids = [...selCats.value];
   if (ids.length === 0) return;
   if (!await confirmFn(`确定要删除选中的 ${ids.length} 个分类？所属照片的分类将被清除。`, '批量删除分类')) return;
-  for (const id of ids) await fetch(`/api/categories/${id}`, { method: 'DELETE' });
+  for (const id of ids) await api(`/api/categories/${id}`, { method: 'DELETE' });
   selCats.value = new Set();
   refreshCategories();
 }
@@ -47,7 +48,7 @@ async function batchDeleteTags() {
   const ids = [...selTags.value];
   if (ids.length === 0) return;
   if (!await confirmFn(`确定要删除选中的 ${ids.length} 个标签？`, '批量删除标签')) return;
-  for (const id of ids) await fetch(`/api/tags/${id}`, { method: 'DELETE' });
+  for (const id of ids) await api(`/api/tags/${id}`, { method: 'DELETE' });
   selTags.value = new Set();
   refreshTags();
 }
@@ -55,7 +56,7 @@ async function batchDeleteTags() {
 // === 新建 ===
 async function addTag() {
   if (!newTagName.value.trim()) return;
-  const res = await fetch('/api/tags', {
+  const res = await api('/api/tags', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: newTagName.value.trim(), color: newTagColor.value })
   });
@@ -63,7 +64,7 @@ async function addTag() {
 }
 async function addCat() {
   if (!newCatName.value.trim()) return;
-  const res = await fetch('/api/categories', {
+  const res = await api('/api/categories', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: newCatName.value.trim() })
   });
@@ -73,12 +74,12 @@ async function addCat() {
 // === 删除 ===
 async function deleteTag(id, name) {
   if (!await confirmFn(`确定删除标签「${name}」？`, '删除标签')) return;
-  await fetch(`/api/tags/${id}`, { method: 'DELETE' });
+  await api(`/api/tags/${id}`, { method: 'DELETE' });
   refreshTags();
 }
 async function deleteCat(id, name) {
   if (!await confirmFn(`确定删除分类「${name}」？`, '删除分类')) return;
-  await fetch(`/api/categories/${id}`, { method: 'DELETE' });
+  await api(`/api/categories/${id}`, { method: 'DELETE' });
   refreshCategories();
 }
 
@@ -100,7 +101,7 @@ function cancelEditTag() { editingTagId.value = null; }
 async function saveEditCat(id) {
   const name = editCatName.value.trim();
   if (!name) { cancelEditCat(); return; }
-  await fetch(`/api/categories/${id}`, {
+  await api(`/api/categories/${id}`, {
     method: 'PUT', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name })
   });
@@ -110,7 +111,7 @@ async function saveEditCat(id) {
 async function saveEditTag(id) {
   const name = editTagName.value.trim();
   if (!name) { cancelEditTag(); return; }
-  await fetch(`/api/tags/${id}`, {
+  await api(`/api/tags/${id}`, {
     method: 'PUT', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, color: editTagColor.value })
   });

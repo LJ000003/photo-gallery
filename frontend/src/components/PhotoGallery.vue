@@ -7,7 +7,7 @@ import { usePhotoStore } from '../stores/photo.js';
 const LottieLoader = defineAsyncComponent(() => import('./LottieLoader.vue'));
 
 const photo = usePhotoStore();
-const emit = defineEmits(['view', 'edit', 'delete', 'loadMore', 'batch-delete']);
+const emit = defineEmits(['view', 'edit', 'delete', 'loadMore', 'batch-delete', 'generate-share']);
 
 const selectedIds = ref(new Set());
 
@@ -29,6 +29,11 @@ function batchDelete() {
   if (selectedIds.value.size === 0) return;
   emit('batch-delete', [...selectedIds.value]);
   selectedIds.value = new Set();
+}
+
+function generateShare() {
+  if (selectedIds.value.size === 0) return;
+  emit('generate-share', [...selectedIds.value]);
 }
 
 const sortOptions = [
@@ -81,6 +86,9 @@ watch(() => photo.photos.length, () => {
         <input type="checkbox" :checked="allSelected" @change="toggleAll" />
         全选
       </label>
+      <button v-if="selectedIds.size > 0" class="btn-share" @click="generateShare">
+        生成分享链接
+      </button>
       <button v-if="selectedIds.size > 0" class="btn-del" @click="batchDelete">
         批量删除 ({{ selectedIds.size }})
       </button>

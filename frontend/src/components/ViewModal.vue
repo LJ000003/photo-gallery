@@ -8,6 +8,11 @@ const emit = defineEmits(['close']);
 const isMobile = 'ontouchstart' in window;
 const fullLoaded = ref(false);
 
+function tokenParam() {
+  const t = localStorage.getItem('jwt_token') || localStorage.getItem('token');
+  return t ? `?token=${t}` : '';
+}
+
 onMounted(() => {
   const content = document.querySelector('#viewModal .modal-content');
   const backdrop = document.querySelector('#viewModal .modal-backdrop');
@@ -41,14 +46,14 @@ function onClose() {
       <button class="modal-close" @click="onClose">&times;</button>
       <div class="img-wrap">
         <img
-          :src="`/api/photos/${photo.id}/thumbnail`"
+          :src="`/api/photos/${photo.id}/thumbnail${tokenParam()}`"
           :alt="photo.name"
           decoding="async"
         />
         <img
           class="img-full"
           :class="{ show: fullLoaded }"
-          :src="`/api/photos/${photo.id}/file`"
+          :src="`/api/photos/${photo.id}/file${tokenParam()}`"
           :alt="photo.name"
           decoding="async"
           @load="fullLoaded = true"

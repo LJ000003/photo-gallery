@@ -34,7 +34,6 @@ function press(dir) {
   // Check if complete
   if (pressed.value.length === TARGET.length) {
     success.value = true;
-    localStorage.setItem('konami_unlocked', 'true');
     setTimeout(() => { emit('unlocked'); }, 1500);
   }
 }

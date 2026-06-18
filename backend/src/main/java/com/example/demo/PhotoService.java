@@ -64,6 +64,10 @@ public class PhotoService {
                 .orElseThrow(() -> new RuntimeException("该照片已被删除或不存在"));
     }
 
+    public Page<Photo> findByIds(List<Long> ids, Pageable pageable) {
+        return repo.findByIdIn(ids, pageable);
+    }
+
     private static final long MAX_FILE_SIZE = 10 * 1024 * 1024;
     private static final int THUMBNAIL_WIDTH = 400;
 

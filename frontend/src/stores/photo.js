@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
+import { api } from '../api.js';
 
 export const usePhotoStore = defineStore('photo', () => {
   const photos = ref([]);
@@ -23,7 +24,7 @@ export const usePhotoStore = defineStore('photo', () => {
       let url = `/api/photos?page=${page.value}&size=20&sort=${sortMap[sortBy.value] || 'createdAt,desc'}`;
       selectedTagIds.value.forEach(id => { url += `&tagIds=${id}`; });
       selectedCategoryIds.value.forEach(id => { url += `&categoryIds=${id}`; });
-      const res = await fetch(url);
+      const res = await api(url);
       if (myId !== requestId) return;
       const json = await res.json();
       const { content, totalPages, totalElements } = json.data;
