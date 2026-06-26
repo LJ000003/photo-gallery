@@ -32,7 +32,10 @@ export const usePhotoStore = defineStore('photo', () => {
       page.value++;
       hasMore.value = page.value < totalPages;
       totalCount.value = totalElements;
-    } catch {
+    } catch (err) {
+      if (err.message !== '登录已过期，请重新解锁') {
+        console.error('加载照片失败:', err);
+      }
     } finally {
       if (myId === requestId) loading.value = false;
     }
