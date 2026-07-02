@@ -1,18 +1,56 @@
 <script setup>
 import { ref } from 'vue';
 import gsap from 'gsap';
+import { webpUrl } from '../webp.js';
+import { useToastStore } from '../stores/toast.js';
+import { usePhotoStore } from '../stores/photo.js';
 import { useConfirm } from '../useConfirm.js';
+import ImageEditor from './ImageEditor.vue';
 
 const confirmFn = useConfirm();
+const toast = useToastStore();
+const photoStore = usePhotoStore();
 const props = defineProps({ photo: Object, selected: Boolean });
 const emit = defineEmits(['view', 'edit', 'delete', 'toggle-select']);
 
 function tokenParam() {
   const t = localStorage.getItem('jwt_token') || localStorage.getItem('token');
-  return t ? `?token=${t}` : '';
+  let q = t ? `?token=${t}` : '';
+  const v = props.photo.fileSize ? `v=${props.photo.fileSize}` : '';
+  if (v) q += q ? `&${v}` : `?${v}`;
+  return q;
 }
 
 const cardRef = ref(null);
+const editorVisible = ref(false);
+const editorSrc = ref('');
+
+function openImageEditor() {
+  editorSrc.value = `${webpUrl(props.photo.id)}${tokenParam()}`;
+  editorVisible.value = true;
+}
+
+async function onImageEditDone({ params }) {
+  editorVisible.value = false;
+  try {
+    const res = await fetch(`/api/photos/${props.photo.id}/transform`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${localStorage.getItem('jwt_token') || localStorage.getItem('token')}`
+      },
+      body: JSON.stringify(params)
+    });
+    if (res.ok) {
+      toast.success('图片编辑完成');
+      photoStore.resetAndReload();
+    } else {
+      toast.error('编辑失败');
+    }
+  } catch (e) {
+    toast.error('编辑失败');
+  }
+}
 
 function formatSize(bytes) {
   if (bytes < 1024) return bytes + ' B';
@@ -73,8 +111,10 @@ async function onDelete() {
       </div>
       <div class="photo-actions">
         <button class="btn-edit" @click="$emit('edit')">编辑</button>
+        <button class="btn-img-edit" @click="openImageEditor" title="编辑图片">✂</button>
         <button class="btn-del" @click="onDelete">删除</button>
       </div>
     </div>
   </div>
+  <ImageEditor :src="editorSrc" :visible="editorVisible" @close="editorVisible = false" @done="onImageEditDone" />
 </template>

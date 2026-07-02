@@ -22,7 +22,10 @@ export const usePhotoStore = defineStore('photo', () => {
     const myId = ++requestId;
     try {
       const fieldMap = { time: 'createdAt', name: 'name', size: 'fileSize' };
-      const sortStr = `${fieldMap[sortBy.value]},${sortOrder.value}`;
+      const order = sortBy.value === 'time'
+        ? (sortOrder.value === 'asc' ? 'desc' : 'asc')
+        : sortOrder.value;
+      const sortStr = `${fieldMap[sortBy.value]},${order}`;
       let url = `/api/photos?page=${page.value}&size=20&sort=${sortStr}`;
       selectedTagIds.value.forEach(id => { url += `&tagIds=${id}`; });
       selectedCategoryIds.value.forEach(id => { url += `&categoryIds=${id}`; });

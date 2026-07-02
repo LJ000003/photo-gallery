@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, defineAsyncComponent, nextTick } from 'vue';
 import gsap from 'gsap';
+import { webpUrl } from '../webp.js';
 
 const LottieLoader = defineAsyncComponent(() => import('./LottieLoader.vue'));
 
@@ -95,7 +96,7 @@ onMounted(() => {
     <!-- 查看大图 -->
     <div v-if="viewPhoto" class="modal" @click.self="viewPhoto = null">
       <div class="modal-content">
-        <img :src="`/api/photos/${viewPhoto.id}/file?token=${token}`" :alt="viewPhoto.name"
+        <img :src="`${webpUrl(viewPhoto.id)}?token=${token}`" :alt="viewPhoto.name"
           loading="lazy"
           style="max-width:90vw;max-height:80vh;border-radius:10px;" />
         <h3>{{ viewPhoto.name }}</h3>

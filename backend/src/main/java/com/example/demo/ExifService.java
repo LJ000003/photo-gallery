@@ -135,6 +135,17 @@ public class ExifService {
         return null;
     }
 
+    public int getOrientation(Path filePath) {
+        try (InputStream in = Files.newInputStream(filePath)) {
+            Metadata metadata = ImageMetadataReader.readMetadata(in);
+            ExifIFD0Directory ifd0 = metadata.getFirstDirectoryOfType(ExifIFD0Directory.class);
+            if (ifd0 != null && ifd0.containsTag(ExifIFD0Directory.TAG_ORIENTATION)) {
+                return ifd0.getInt(ExifIFD0Directory.TAG_ORIENTATION);
+            }
+        } catch (Exception ignored) {}
+        return 1;
+    }
+
     private boolean hasAnyData(ExifData e) {
         return e.getDateTaken() != null || e.getCameraModel() != null
             || e.getLensModel() != null || e.getFocalLength() != null

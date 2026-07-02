@@ -39,12 +39,19 @@ function toggleSelect(id) {
   selectedIds.value = new Set(s);
 }
 const allSelected = computed(() =>
-  photo.photos.length > 0 && photo.photos.every(p => selectedIds.value.has(p.id))
+  photo.totalCount > 0 && selectedIds.value.size === photo.totalCount
 );
-function toggleAll() {
-  selectedIds.value = allSelected.value
-    ? new Set()
-    : new Set(photo.photos.map(p => p.id));
+
+async function toggleAll() {
+  if (allSelected.value) {
+    selectedIds.value = new Set();
+    return;
+  }
+  // Load remaining pages
+  while (photo.hasMore && !photo.loading) {
+    await photo.loadMore();
+  }
+  selectedIds.value = new Set(photo.photos.map(p => p.id));
 }
 function batchDelete() {
   if (selectedIds.value.size === 0) return;
@@ -156,7 +163,7 @@ watch(() => photo.photos.length, () => {
         </div>
         <PhotoCard
           v-for="(p, i) in photo.photos"
-          :key="p.id"
+          :key="p.id + '-' + p.fileSize"
           :photo="p"
           :selected="isSelected(p.id)"
           :data-insert="i"

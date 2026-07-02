@@ -473,6 +473,11 @@ body {
   border-radius: 12px;
   background: rgba(0,0,0,0.3);
 }
+.single-preview-wrap {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+}
 .preview-hidden { display: none !important; }
 
 /* === 表单 === */
@@ -542,6 +547,16 @@ button[type="submit"]:hover,
 .btn-edit:hover {
   background: rgba(168,85,247,0.3);
   box-shadow: var(--glow-purple);
+}
+.btn-img-edit {
+  background: rgba(0,212,255,0.1);
+  color: var(--accent);
+  font-size: 13px;
+  padding: 7px 10px;
+}
+.btn-img-edit:hover {
+  background: rgba(0,212,255,0.25);
+  box-shadow: var(--glow);
 }
 
 /* 删除按钮 */
@@ -1834,3 +1849,100 @@ button[type="submit"]:hover,
     display: none;
   }
 }
+
+/* 图片编辑器 */
+.editor-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.editor-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+}
+.editor-panel {
+  position: relative;
+  z-index: 1;
+  width: 95vw;
+  height: 90vh;
+  background: #1a1a2e;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.editor-toolbar button {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.editor-toolbar button:hover { color: var(--text); border-color: var(--accent); }
+.editor-toolbar button.active { color: var(--accent); border-color: var(--accent); background: rgba(0,212,255,0.1); }
+.editor-toolbar .btn-confirm {
+  width: auto;
+  padding: 0 16px;
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.editor-toolbar .btn-cancel {
+  width: auto;
+  padding: 0 16px;
+}
+.editor-canvas-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 10px;
+}
+.editor-canvas-wrap canvas {
+  cursor: crosshair;
+  border-radius: 8px;
+}
+/* 上传时编辑按钮 */
+.upload-edit-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 5;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(0,0,0,0.6);
+  color: var(--text-dim);
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
+}
+.upload-edit-btn:hover { color: var(--accent); border-color: var(--accent); }
+/* 编辑按钮（照片卡片上已有）保持原样 */

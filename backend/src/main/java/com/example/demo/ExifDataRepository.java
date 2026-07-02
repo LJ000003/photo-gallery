@@ -14,7 +14,7 @@ public interface ExifDataRepository extends JpaRepository<ExifData, Long> {
     @Query("SELECT e FROM ExifData e WHERE e.dateTaken IS NOT NULL ORDER BY e.dateTaken DESC")
     List<ExifData> findWithDateTaken();
 
-    @Query("SELECT e FROM ExifData e WHERE e.latitude IS NOT NULL AND e.longitude IS NOT NULL")
+    @Query("SELECT e FROM ExifData e WHERE e.latitude IS NOT NULL AND e.longitude IS NOT NULL AND NOT (e.latitude = 0 AND e.longitude = 0)")
     List<ExifData> findWithGps();
 
     @Query("SELECT e FROM ExifData e JOIN FETCH e.photo p WHERE e.dateTaken IS NOT NULL ORDER BY e.dateTaken DESC")
@@ -23,6 +23,6 @@ public interface ExifDataRepository extends JpaRepository<ExifData, Long> {
     @Query("SELECT e FROM ExifData e JOIN FETCH e.photo p WHERE e.dateTaken IS NOT NULL ORDER BY e.dateTaken ASC")
     List<ExifData> findWithDateTakenAndPhotoAsc();
 
-    @Query("SELECT e FROM ExifData e JOIN FETCH e.photo p WHERE e.latitude IS NOT NULL AND e.longitude IS NOT NULL")
+    @Query("SELECT e FROM ExifData e JOIN FETCH e.photo p WHERE e.latitude IS NOT NULL AND e.longitude IS NOT NULL AND NOT (e.latitude = 0 AND e.longitude = 0)")
     List<ExifData> findWithGpsAndPhoto();
 }
