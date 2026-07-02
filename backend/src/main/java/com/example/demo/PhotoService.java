@@ -19,6 +19,8 @@ import javax.imageio.ImageWriter;
 import javax.imageio.stream.FileImageOutputStream;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -46,6 +48,7 @@ public class PhotoService {
         }
     }
 
+    @Cacheable(value = "photos", key = "{#tagIds, #categoryIds, #pageable}")
     public Page<Photo> listAll(List<Long> tagIds, List<Long> categoryIds, Pageable pageable) {
         boolean hasTags = tagIds != null && !tagIds.isEmpty();
         boolean hasCats = categoryIds != null && !categoryIds.isEmpty();
@@ -71,6 +74,7 @@ public class PhotoService {
     private static final long MAX_FILE_SIZE = 10 * 1024 * 1024;
     private static final int THUMBNAIL_WIDTH = 400;
 
+    @CacheEvict(value = "photos", allEntries = true)
     public Photo upload(MultipartFile file, String name, String description,
                         List<Long> tagIds, Long categoryId) throws IOException {
         if (file.getSize() > MAX_FILE_SIZE) {
@@ -109,6 +113,7 @@ public class PhotoService {
         return repo.save(photo);
     }
 
+    @CacheEvict(value = "photos", allEntries = true)
     @Transactional
     public Photo update(Long id, String name, String description,
                         List<Long> tagIds, Long categoryId) {
@@ -192,6 +197,7 @@ public class PhotoService {
         return uploadDir.resolve(fn);
     }
 
+    @CacheEvict(value = "photos", allEntries = true)
     public void delete(Long id) {
         Photo photo = getById(id);
         try {
@@ -205,6 +211,7 @@ public class PhotoService {
         repo.delete(photo);
     }
 
+    @CacheEvict(value = "photos", allEntries = true)
     public int batchDelete(List<Long> ids) {
         int count = 0;
         for (Long id : ids) {
@@ -224,6 +231,7 @@ public class PhotoService {
         return count;
     }
 
+    @CacheEvict(value = "photos", allEntries = true)
     public List<Photo> batchUpload(List<MultipartFile> files, String name, String description,
                                     List<Long> tagIds, Long categoryId) throws IOException {
         List<Photo> results = new ArrayList<>();

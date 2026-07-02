@@ -96,6 +96,7 @@ onMounted(() => {
     <div v-if="viewPhoto" class="modal" @click.self="viewPhoto = null">
       <div class="modal-content">
         <img :src="`/api/photos/${viewPhoto.id}/file?token=${token}`" :alt="viewPhoto.name"
+          loading="lazy"
           style="max-width:90vw;max-height:80vh;border-radius:10px;" />
         <h3>{{ viewPhoto.name }}</h3>
         <p v-if="viewPhoto.description" class="view-desc">{{ viewPhoto.description }}</p>

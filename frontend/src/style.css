@@ -1,3 +1,21 @@
+@font-face {
+  font-family: "iconfont";
+  src: url('./assets/iconfont.woff2?t=1782982164850') format('woff2'),
+       url('./assets/iconfont.woff?t=1782982164850') format('woff'),
+       url('./assets/iconfont.ttf?t=1782982164850') format('truetype');
+}
+
+.iconfont {
+  font-family: "iconfont" !important;
+  font-style: normal;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.icon-jiantou_qiehuanxiangshang_o:before {
+  content: "\eb8c";
+}
+
 /* === 全局基础 === */
 * {
   box-sizing: border-box;
@@ -790,6 +808,28 @@ button[type="submit"]:hover,
 .sort-opt:last-child { border-right: none; }
 .sort-opt.active { color: var(--accent); }
 .sort-opt:hover { color: var(--text); }
+.sort-arrows {
+  position: absolute;
+  display: inline-flex;
+  font-size: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.sort-arrows i {
+  display: inline-block;
+  opacity: 0.25;
+  transition: opacity 0.2s;
+}
+.sort-arrows i:last-child {
+  margin-left: -8px;
+}
+.sort-arrows i.active {
+  opacity: 1;
+  color: var(--accent);
+}
+.sort-arrow-down {
+  transform: rotate(180deg);
+}
 
 /* === 画廊区域 === */
 .gallery-section { position: relative; z-index: 1; }
