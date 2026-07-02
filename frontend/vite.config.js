@@ -14,7 +14,8 @@ export default defineConfig({
       output: {
         manualChunks: {
           'gsap': ['gsap'],
-          'lottie': ['lottie-web']
+          'lottie': ['lottie-web'],
+          'leaflet': ['leaflet']
         }
       }
     }

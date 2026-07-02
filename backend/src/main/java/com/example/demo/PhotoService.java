@@ -33,13 +33,18 @@ public class PhotoService {
     private final PhotoRepository repo;
     private final TagRepository tagRepo;
     private final CategoryRepository catRepo;
+    private final ExifService exifService;
+    private final ExifDataRepository exifRepo;
     private final Path uploadDir;
 
     public PhotoService(PhotoRepository repo, TagRepository tagRepo, CategoryRepository catRepo,
+                        ExifService exifService, ExifDataRepository exifRepo,
                         @Value("${photo.upload-dir:uploads}") String uploadDir) {
         this.repo = repo;
         this.tagRepo = tagRepo;
         this.catRepo = catRepo;
+        this.exifService = exifService;
+        this.exifRepo = exifRepo;
         this.uploadDir = Paths.get(uploadDir).toAbsolutePath().normalize();
         try {
             Files.createDirectories(this.uploadDir);
@@ -110,7 +115,15 @@ public class PhotoService {
             photo.setCategory(catRepo.findById(categoryId).orElse(null));
         }
 
-        return repo.save(photo);
+        Photo saved = repo.save(photo);
+
+        try {
+            exifService.extractAndSave(saved, target);
+        } catch (Exception e) {
+            // EXIF extraction failure should not block upload
+        }
+
+        return saved;
     }
 
     @CacheEvict(value = "photos", allEntries = true)
@@ -260,6 +273,35 @@ public class PhotoService {
             } catch (IOException ignored) {}
         }
         return count;
+    }
+
+    public List<ExifData> getTimeline(String sortOrder) {
+        if ("asc".equalsIgnoreCase(sortOrder)) {
+            return exifRepo.findWithDateTakenAndPhotoAsc();
+        }
+        return exifRepo.findWithDateTakenAndPhotoDesc();
+    }
+
+    public List<ExifData> getMapPhotos() {
+        List<ExifData> list = exifRepo.findWithGpsAndPhoto();
+        for (ExifData e : list) {
+            double[] gcj = CoordUtil.wgs84ToGcj02(e.getLongitude(), e.getLatitude());
+            e.setLongitude(gcj[0]);
+            e.setLatitude(gcj[1]);
+        }
+        return list;
+    }
+
+    public int extractExifForExisting() {
+        var photos = repo.findAll();
+        return exifService.extractForExisting(photos, uploadDir);
+    }
+
+    public ExifData extractExifForPhoto(Long id) {
+        Photo photo = getById(id);
+        Path filePath = uploadDir.resolve(photo.getFileName());
+        if (!Files.exists(filePath)) return null;
+        return exifService.extractAndSave(photo, filePath);
     }
 
     private void validateImageMagicBytes(InputStream in) throws IOException {

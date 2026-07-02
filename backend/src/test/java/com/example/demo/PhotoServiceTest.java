@@ -26,12 +26,16 @@ class PhotoServiceTest {
     private TagRepository tagRepo;
     @Mock
     private CategoryRepository catRepo;
+    @Mock
+    private ExifService exifService;
+    @Mock
+    private ExifDataRepository exifRepo;
 
     private PhotoService service;
 
     @BeforeEach
     void setUp() {
-        service = new PhotoService(photoRepo, tagRepo, catRepo, "target/test-uploads");
+        service = new PhotoService(photoRepo, tagRepo, catRepo, exifService, exifRepo, "target/test-uploads");
     }
 
     @Test

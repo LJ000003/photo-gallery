@@ -2,6 +2,8 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted, defineAsyncComponent } from 'vue';
 import gsap from 'gsap';
 import PhotoCard from './PhotoCard.vue';
+import TimelineView from './TimelineView.vue';
+import MapView from './MapView.vue';
 import { usePhotoStore } from '../stores/photo.js';
 
 const LottieLoader = defineAsyncComponent(() => import('./LottieLoader.vue'));
@@ -10,6 +12,25 @@ const photo = usePhotoStore();
 const emit = defineEmits(['view', 'edit', 'delete', 'loadMore', 'batch-delete', 'generate-share']);
 
 const selectedIds = ref(new Set());
+const viewMode = ref('grid'); // grid | timeline | map
+const timelineSortOrder = ref('desc');
+
+const viewModes = [
+  { key: 'grid', label: '网格' },
+  { key: 'timeline', label: '时间线' },
+  { key: 'map', label: '地图' }
+];
+
+function switchView(key) {
+  if (viewMode.value === key) {
+    if (key === 'timeline') toggleTimelineSort();
+    return;
+  }
+  viewMode.value = key;
+}
+function toggleTimelineSort() {
+  timelineSortOrder.value = timelineSortOrder.value === 'desc' ? 'asc' : 'desc';
+}
 
 function isSelected(id) { return selectedIds.value.has(id); }
 function toggleSelect(id) {
@@ -92,7 +113,21 @@ watch(() => photo.photos.length, () => {
       <button v-if="selectedIds.size > 0" class="btn-del" @click="batchDelete">
         批量删除 ({{ selectedIds.size }})
       </button>
-      <div class="sort-switch">
+      <div class="view-switch">
+        <span class="sort-label">视图：</span>
+        <div class="view-track">
+          <button v-for="vm in viewModes" :key="vm.key"
+            class="view-opt" :class="{ active: viewMode === vm.key }"
+            @click="switchView(vm.key)">
+            {{ vm.label }}
+            <span v-if="vm.key === 'timeline' && viewMode === 'timeline'" class="sort-arrows">
+              <i class="iconfont icon-jiantou_qiehuanxiangshang_o sort-arrow-down" :class="{ active: timelineSortOrder === 'asc' }"></i>
+              <i class="iconfont icon-jiantou_qiehuanxiangshang_o" :class="{ active: timelineSortOrder === 'desc' }"></i>
+            </span>
+          </button>
+        </div>
+      </div>
+      <div class="sort-switch" v-if="viewMode === 'grid'">
         <span class="sort-label">排序方式：</span>
         <div class="sort-track">
           <div class="sort-slider" :style="{ transform: `translateX(${sortOptions.findIndex(o => o.key === photo.sortBy) * 100}%)` }"></div>
@@ -109,34 +144,42 @@ watch(() => photo.photos.length, () => {
       </div>
     </div>
 
-    <div class="gallery">
-      <!-- 骨架屏 -->
-      <div v-if="photo.loading && photo.photos.length === 0" v-for="i in 6" :key="'s'+i" class="skeleton-card">
-        <div class="skeleton-img"></div>
-        <div class="skeleton-body">
-          <div class="skeleton-line"></div>
-          <div class="skeleton-line"></div>
+    <!-- 网格视图 -->
+    <template v-if="viewMode === 'grid'">
+      <div class="gallery">
+        <div v-if="photo.loading && photo.photos.length === 0" v-for="i in 6" :key="'s'+i" class="skeleton-card">
+          <div class="skeleton-img"></div>
+          <div class="skeleton-body">
+            <div class="skeleton-line"></div>
+            <div class="skeleton-line"></div>
+          </div>
         </div>
+        <PhotoCard
+          v-for="(p, i) in photo.photos"
+          :key="p.id"
+          :photo="p"
+          :selected="isSelected(p.id)"
+          :data-insert="i"
+          @view="emit('view', p)"
+          @edit="emit('edit', p)"
+          @delete="emit('delete', p.id)"
+          @toggle-select="toggleSelect"
+        />
       </div>
-      <PhotoCard
-        v-for="(p, i) in photo.photos"
-        :key="p.id"
-        :photo="p"
-        :selected="isSelected(p.id)"
-        :data-insert="i"
-        @view="emit('view', p)"
-        @edit="emit('edit', p)"
-        @delete="emit('delete', p.id)"
-        @toggle-select="toggleSelect"
-      />
-    </div>
-    <div v-if="photo.loading && photo.photos.length > 0" class="sentinel">
-      <LottieLoader name="loading" :size="60" />
-    </div>
-    <div v-else-if="!photo.hasMore && photo.photos.length > 0" class="end-hint">没有更多了</div>
-    <div v-if="!photo.hasMore && !photo.loading && photo.photos.length === 0" class="empty-state">
-      <LottieLoader name="empty" :size="160" />
-      <p class="empty-hint">还没有照片，上传第一张吧</p>
-    </div>
+      <div v-if="photo.loading && photo.photos.length > 0" class="sentinel">
+        <LottieLoader name="loading" :size="60" />
+      </div>
+      <div v-else-if="!photo.hasMore && photo.photos.length > 0" class="end-hint">没有更多了</div>
+      <div v-if="!photo.hasMore && !photo.loading && photo.photos.length === 0" class="empty-state">
+        <LottieLoader name="empty" :size="160" />
+        <p class="empty-hint">还没有照片，上传第一张吧</p>
+      </div>
+    </template>
+
+    <!-- 时间线视图 -->
+    <TimelineView v-else-if="viewMode === 'timeline'" :sort-order="timelineSortOrder" @view="p => emit('view', p)" />
+
+    <!-- 地图视图 -->
+    <MapView v-else-if="viewMode === 'map'" @view="p => emit('view', p)" />
   </section>
 </template>

@@ -115,6 +115,28 @@ public class PhotoController {
         return ApiResponse.success(Map.of("generated", count));
     }
 
+    @GetMapping("/photos/timeline")
+    public ApiResponse<List<ExifData>> timeline(
+            @RequestParam(defaultValue = "desc") String sortOrder) {
+        return ApiResponse.success(service.getTimeline(sortOrder));
+    }
+
+    @GetMapping("/photos/map")
+    public ApiResponse<List<ExifData>> mapPhotos() {
+        return ApiResponse.success(service.getMapPhotos());
+    }
+
+    @PostMapping("/photos/extract-exif")
+    public ApiResponse<Map<String, Integer>> extractExifBatch() {
+        int count = service.extractExifForExisting();
+        return ApiResponse.success(Map.of("extracted", count));
+    }
+
+    @PostMapping("/photos/{id}/extract-exif")
+    public ApiResponse<ExifData> extractExif(@PathVariable Long id) {
+        return ApiResponse.success(service.extractExifForPhoto(id));
+    }
+
     // === 标签 ===
 
     @GetMapping("/tags")
