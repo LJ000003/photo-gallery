@@ -4,6 +4,7 @@ import gsap from 'gsap';
 import PhotoCard from './PhotoCard.vue';
 import TimelineView from './TimelineView.vue';
 import MapView from './MapView.vue';
+import AlbumView from './AlbumView.vue';
 import { usePhotoStore } from '../stores/photo.js';
 
 const LottieLoader = defineAsyncComponent(() => import('./LottieLoader.vue'));
@@ -12,11 +13,12 @@ const photo = usePhotoStore();
 const emit = defineEmits(['view', 'edit', 'delete', 'loadMore', 'batch-delete', 'generate-share']);
 
 const selectedIds = ref(new Set());
-const viewMode = ref('grid'); // grid | timeline | map
+const viewMode = ref('grid'); // grid | album | timeline | map
 const timelineSortOrder = ref('desc');
 
 const viewModes = [
   { key: 'grid', label: '网格' },
+  { key: 'album', label: '相册' },
   { key: 'timeline', label: '时间线' },
   { key: 'map', label: '地图' }
 ];
@@ -191,6 +193,7 @@ watch(() => photo.photos.length, () => {
     </template>
 
     <!-- 时间线视图 -->
+    <AlbumView v-else-if="viewMode === 'album'" @view="p => emit('view', p)" />
     <TimelineView v-else-if="viewMode === 'timeline'" :sort-order="timelineSortOrder" @view="p => emit('view', p)" />
 
     <!-- 地图视图 -->

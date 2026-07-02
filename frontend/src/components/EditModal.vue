@@ -9,20 +9,23 @@ const toast = useToastStore();
 const props = defineProps({ photo: Object });
 const emit = defineEmits(['close', 'saved']);
 
-const { tags: allTags, categories: allCats, loadAll, refreshTags, refreshCategories } = useStore();
+const { tags: allTags, categories: allCats, albums: allAlbums, loadAll, refreshTags, refreshCategories, refreshAlbums } = useStore();
 const editName = ref('');
 const editDesc = ref('');
 const selectedTagIds = ref([]);
 const selectedCatId = ref(null);
+const selectedAlbumIds = ref([]);
 const newTagName = ref('');
 const newTagColor = ref('#00d4ff');
 const newCatName = ref('');
+const newAlbumName = ref('');
 
 onMounted(() => {
   editName.value = props.photo.name;
   editDesc.value = props.photo.description || '';
   selectedTagIds.value = (props.photo.tags || []).map(t => t.id);
   selectedCatId.value = props.photo.category?.id || null;
+  selectedAlbumIds.value = (props.photo.albums || []).map(a => a.id);
   loadAll();
 
   const content = document.querySelector('#editModal .modal-content');
@@ -57,6 +60,12 @@ async function addTag() {
   }
 }
 
+function toggleAlbum(id) {
+  const idx = selectedAlbumIds.value.indexOf(id);
+  if (idx > -1) selectedAlbumIds.value.splice(idx, 1);
+  else selectedAlbumIds.value.push(id);
+}
+
 async function addCat() {
   if (!newCatName.value.trim()) return;
   const res = await api('/api/categories', {
@@ -68,6 +77,20 @@ async function addCat() {
     selectedCatId.value = json.data.id;
     newCatName.value = '';
     refreshCategories();
+  }
+}
+
+async function addAlbum() {
+  if (!newAlbumName.value.trim()) return;
+  const res = await api('/api/albums', {
+    method: 'POST',
+    body: JSON.stringify({ name: newAlbumName.value.trim() })
+  });
+  if (res.ok) {
+    const json = await res.json();
+    selectedAlbumIds.value.push(json.data.id);
+    newAlbumName.value = '';
+    refreshAlbums();
   }
 }
 
@@ -98,7 +121,8 @@ async function onSubmit() {
       name: editName.value.trim(),
       description: editDesc.value.trim(),
       tagIds: selectedTagIds.value,
-      categoryId: selectedCatId.value
+      categoryId: selectedCatId.value,
+      albumIds: selectedAlbumIds.value
     };
 
     const res = await api(`/api/photos/${props.photo.id}`, {
@@ -150,6 +174,19 @@ async function onSubmit() {
           <input type="color" v-model="newTagColor" class="color-pick" />
           <input v-model="newTagName" placeholder="新建标签" @keyup.enter="addTag" />
           <button type="button" class="btn-mini" @click="addTag">+</button>
+        </div>
+        <label>相册</label>
+        <div class="tag-chips">
+          <button v-for="a in allAlbums" :key="a.id" type="button"
+            class="tag-chip album-chip"
+            :class="{ on: selectedAlbumIds.includes(a.id) }"
+            @click="toggleAlbum(a.id)">
+            {{ a.name }}
+          </button>
+        </div>
+        <div class="filter-input" style="margin-top:6px">
+          <input v-model="newAlbumName" placeholder="新建相册" @keyup.enter="addAlbum" />
+          <button type="button" class="btn-mini" @click="addAlbum">+</button>
         </div>
         <button type="submit">保存</button>
       </form>

@@ -35,9 +35,16 @@ public class PhotoController {
             @RequestParam(required = false) List<Long> tagIds,
             @RequestParam(required = false) List<Long> categoryIds,
             @RequestParam(required = false) String q,
+            @RequestParam(required = false) Long albumId,
             @PageableDefault(size = 20) Pageable pageable) {
         if (q != null && !q.isBlank()) {
             return ApiResponse.success(service.search(q, pageable));
+        }
+        if (albumId != null) {
+            if (albumId == 0) {
+                return ApiResponse.success(service.listUnassigned(pageable));
+            }
+            return ApiResponse.success(service.listByAlbum(albumId, pageable));
         }
         return ApiResponse.success(service.listAll(tagIds, categoryIds, pageable));
     }
@@ -81,7 +88,11 @@ public class PhotoController {
         Long categoryId = body.get("categoryId") != null
                 ? ((Number) body.get("categoryId")).longValue()
                 : null;
-        return service.update(id, name, description, tagIds, categoryId);
+        @SuppressWarnings("unchecked")
+        List<Long> albumIds = body.get("albumIds") != null
+                ? ((List<Integer>) body.get("albumIds")).stream().map(Integer::longValue).toList()
+                : null;
+        return service.update(id, name, description, tagIds, categoryId, albumIds);
     }
 
     @DeleteMapping("/photos/{id}")
@@ -167,6 +178,60 @@ public class PhotoController {
         Double cw = body.get("cw") != null ? ((Number) body.get("cw")).doubleValue() : null;
         Double ch = body.get("ch") != null ? ((Number) body.get("ch")).doubleValue() : null;
         service.transformPhoto(id, rotate, mirror, cx, cy, cw, ch);
+        return ApiResponse.success("ok");
+    }
+
+    // === 相册 ===
+
+    @GetMapping("/albums")
+    public ApiResponse<List<Album>> listAlbums() {
+        return ApiResponse.success(service.listAlbums());
+    }
+
+    @PostMapping("/albums")
+    public ApiResponse<Album> createAlbum(@RequestBody Map<String, Object> body) {
+        String name = (String) body.get("name");
+        String description = (String) body.get("description");
+        @SuppressWarnings("unchecked")
+        List<Long> photoIds = body.get("photoIds") != null
+                ? ((List<Integer>) body.get("photoIds")).stream().map(Integer::longValue).toList()
+                : null;
+        return ApiResponse.success(service.createAlbum(name, description, photoIds));
+    }
+
+    @PutMapping("/albums/{id}")
+    public ApiResponse<Album> updateAlbum(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        String name = (String) body.get("name");
+        String description = (String) body.get("description");
+        @SuppressWarnings("unchecked")
+        List<Long> photoIds = body.get("photoIds") != null
+                ? ((List<Integer>) body.get("photoIds")).stream().map(Integer::longValue).toList()
+                : null;
+        return ApiResponse.success(service.updateAlbum(id, name, description, photoIds));
+    }
+
+    @DeleteMapping("/albums/{id}")
+    public ApiResponse<String> deleteAlbum(@PathVariable Long id) {
+        service.deleteAlbum(id);
+        return ApiResponse.success("删除成功");
+    }
+
+    @GetMapping("/albums/{id}/photos")
+    public ApiResponse<Page<Photo>> listAlbumPhotos(
+            @PathVariable Long id,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ApiResponse.success(service.listByAlbum(id, pageable));
+    }
+
+    @PostMapping("/albums/{id}/photos")
+    public ApiResponse<String> addPhotosToAlbum(@PathVariable Long id, @RequestBody List<Long> photoIds) {
+        service.addPhotosToAlbum(id, photoIds);
+        return ApiResponse.success("ok");
+    }
+
+    @DeleteMapping("/albums/{id}/photos")
+    public ApiResponse<String> removePhotosFromAlbum(@PathVariable Long id, @RequestBody List<Long> photoIds) {
+        service.removePhotosFromAlbum(id, photoIds);
         return ApiResponse.success("ok");
     }
 

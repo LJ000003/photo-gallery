@@ -794,6 +794,7 @@ button[type="submit"]:hover,
   border-radius: 10px;
   overflow: hidden;
 }
+.sort-track.sort-2cols { width: 180px; }
 .sort-slider {
   position: absolute;
   top: 0;
@@ -1959,4 +1960,179 @@ button[type="submit"]:hover,
   padding: 0;
 }
 .upload-edit-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+/* ========== 相册 ========== */
+.album-wrap { margin-top: 4px; }
+
+/* 相册卡片网格 */
+.album-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 20px;
+}
+.album-card {
+  position: relative;
+  background: var(--glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.3s, transform 0.2s;
+}
+.album-card:hover { border-color: rgba(0,212,255,0.4); transform: translateY(-3px); }
+.album-card.unassigned:hover { border-color: var(--accent2); }
+.album-cover {
+  width: 100%;
+  padding-top: 75%;
+  position: relative;
+  background: rgba(0,0,0,0.2);
+  overflow: hidden;
+}
+.album-cover img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.album-cover-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+  color: rgba(255,255,255,0.15);
+}
+.album-body { padding: 14px 16px; }
+.album-body h4 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.album-meta {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+.album-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* 新建相册 */
+.btn-create-album {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #fff;
+  font-size: 13px;
+  padding: 8px 18px;
+  border-radius: 8px;
+  margin-left: auto;
+  white-space: nowrap;
+}
+.btn-create-album:hover { box-shadow: var(--glow-cyan); }
+
+/* 相册详情 */
+.album-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.album-detail-header h3 {
+  font-size: 20px;
+  font-weight: 700;
+}
+.album-count {
+  font-size: 14px;
+  color: var(--accent);
+  font-weight: 500;
+  margin-left: 6px;
+}
+.btn-back {
+  background: rgba(255,255,255,0.06);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-back:hover { border-color: var(--accent); color: var(--accent); }
+
+/* 相册编辑弹窗 */
+.album-photo-picker {
+  max-height: 280px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+.album-photo-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+  border: 1px solid transparent;
+}
+.album-photo-item:hover { background: var(--glass-hover); }
+.album-photo-item.selected {
+  background: rgba(0,212,255,0.08);
+  border-color: rgba(0,212,255,0.3);
+}
+.album-photo-item img {
+  width: 50px;
+  height: 35px;
+  object-fit: cover;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.album-photo-name {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.album-photo-check {
+  width: 20px;
+  text-align: center;
+  color: var(--accent);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.album-photo-empty { color: var(--text-dim); text-align: center; padding: 20px; font-size: 13px; }
+.album-edit-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+.album-edit-actions button[type="submit"] { flex: 1; }
+
+/* 相册标签样式 */
+.album-chip { border-color: rgba(168,85,247,0.3) !important; }
+.album-chip.on {
+  background: linear-gradient(135deg, var(--accent2), #7c3aed) !important;
+  border-color: var(--accent2) !important;
+}
+
+.album-loading, .album-empty {
+  text-align: center;
+  color: var(--text-dim);
+  padding: 40px 0;
+  font-size: 14px;
+}
 /* 编辑按钮（照片卡片上已有）保持原样 */

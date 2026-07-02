@@ -1,12 +1,13 @@
 package com.example.demo;
 
-import java.time.LocalDateTime;
-import java.util.HashSet;
-import java.util.Set;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "photos")
@@ -38,6 +39,9 @@ public class Photo {
     @JoinColumn(name = "category_id")
     private Category category;
 
+    @ManyToMany(mappedBy = "photos")
+    private Set<Album> albums = new HashSet<>();
+
     public Photo() {}
 
     public Long getId() { return id; }
@@ -67,4 +71,6 @@ public class Photo {
     public void setTags(Set<Tag> tags) { this.tags = tags; }
     public Category getCategory() { return category; }
     public void setCategory(Category category) { this.category = category; }
+    public Set<Album> getAlbums() { return albums; }
+    public void setAlbums(Set<Album> albums) { this.albums = albums; }
 }

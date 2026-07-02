@@ -27,4 +27,10 @@ public interface PhotoRepository extends JpaRepository<Photo, Long> {
 
     @Query("SELECT p FROM Photo p WHERE LOWER(p.name) LIKE LOWER(CONCAT('%', :q, '%')) OR LOWER(p.description) LIKE LOWER(CONCAT('%', :q, '%'))")
     Page<Photo> search(@Param("q") String q, Pageable pageable);
+
+    @Query("SELECT p FROM Photo p JOIN p.albums a WHERE a.id = :albumId")
+    Page<Photo> findByAlbumId(@Param("albumId") Long albumId, Pageable pageable);
+
+    @Query("SELECT p FROM Photo p WHERE p.albums IS EMPTY")
+    Page<Photo> findUnassigned(Pageable pageable);
 }

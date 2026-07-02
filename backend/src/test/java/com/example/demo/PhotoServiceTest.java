@@ -27,6 +27,8 @@ class PhotoServiceTest {
     @Mock
     private CategoryRepository catRepo;
     @Mock
+    private AlbumRepository albumRepo;
+    @Mock
     private ExifService exifService;
     @Mock
     private ExifDataRepository exifRepo;
@@ -35,7 +37,7 @@ class PhotoServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new PhotoService(photoRepo, tagRepo, catRepo, exifService, exifRepo, "target/test-uploads");
+        service = new PhotoService(photoRepo, tagRepo, catRepo, albumRepo, exifService, exifRepo, "target/test-uploads");
     }
 
     @Test
@@ -94,7 +96,7 @@ class PhotoServiceTest {
         when(photoRepo.findById(1L)).thenReturn(Optional.of(p));
         when(photoRepo.save(any())).thenReturn(p);
 
-        Photo result = service.update(1L, "newName", "newDesc", null, null);
+        Photo result = service.update(1L, "newName", "newDesc", null, null, null);
 
         assertThat(result.getName()).isEqualTo("newName");
         assertThat(result.getDescription()).isEqualTo("newDesc");

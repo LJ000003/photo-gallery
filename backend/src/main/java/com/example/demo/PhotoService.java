@@ -36,16 +36,19 @@ public class PhotoService {
     private final PhotoRepository repo;
     private final TagRepository tagRepo;
     private final CategoryRepository catRepo;
+    private final AlbumRepository albumRepo;
     private final ExifService exifService;
     private final ExifDataRepository exifRepo;
     private final Path uploadDir;
 
     public PhotoService(PhotoRepository repo, TagRepository tagRepo, CategoryRepository catRepo,
+                        AlbumRepository albumRepo,
                         ExifService exifService, ExifDataRepository exifRepo,
                         @Value("${photo.upload-dir:uploads}") String uploadDir) {
         this.repo = repo;
         this.tagRepo = tagRepo;
         this.catRepo = catRepo;
+        this.albumRepo = albumRepo;
         this.exifService = exifService;
         this.exifRepo = exifRepo;
         this.uploadDir = Paths.get(uploadDir).toAbsolutePath().normalize();
@@ -144,13 +147,126 @@ public class PhotoService {
     @CacheEvict(value = "photos", allEntries = true)
     @Transactional
     public Photo update(Long id, String name, String description,
-                        List<Long> tagIds, Long categoryId) {
+                        List<Long> tagIds, Long categoryId, List<Long> albumIds) {
         Photo photo = getById(id);
         if (name != null && !name.isBlank()) photo.setName(name);
         if (description != null) photo.setDescription(description);
         if (tagIds != null) photo.setTags(new HashSet<>(tagRepo.findAllById(tagIds)));
         photo.setCategory(categoryId != null ? catRepo.findById(categoryId).orElse(null) : null);
+        if (albumIds != null) {
+            for (Album a : new HashSet<>(photo.getAlbums())) {
+                if (!albumIds.contains(a.getId())) {
+                    a.getPhotos().remove(photo);
+                    photo.getAlbums().remove(a);
+                    albumRepo.save(a);
+                }
+            }
+            for (Long aid : albumIds) {
+                if (photo.getAlbums().stream().noneMatch(a -> a.getId().equals(aid))) {
+                    Album a = albumRepo.findById(aid).orElse(null);
+                    if (a != null) {
+                        a.getPhotos().add(photo);
+                        photo.getAlbums().add(a);
+                        albumRepo.save(a);
+                    }
+                }
+            }
+        }
         return repo.save(photo);
+    }
+
+    // === 相册 ===
+    public List<Album> listAlbums() { return albumRepo.findAll(); }
+    @Transactional
+    public Album createAlbum(String name, String description, List<Long> photoIds) {
+        Album a = new Album(name);
+        a.setDescription(description);
+        a = albumRepo.save(a);
+        if (photoIds != null && !photoIds.isEmpty()) {
+            Set<Photo> photos = new HashSet<>(repo.findAllById(photoIds));
+            a.setPhotos(photos);
+            for (Photo p : photos) {
+                p.getAlbums().add(a);
+                repo.save(p);
+            }
+            a.setCoverPhotoId(photoIds.get(0));
+            albumRepo.save(a);
+        }
+        return a;
+    }
+    @Transactional
+    public Album updateAlbum(Long id, String name, String description, List<Long> photoIds) {
+        Album a = albumRepo.findById(id).orElseThrow(() -> new RuntimeException("相册不存在"));
+        if (name != null) a.setName(name);
+        if (description != null) a.setDescription(description);
+        if (photoIds != null) {
+            // 清除旧关联
+            for (Photo p : new HashSet<>(a.getPhotos())) {
+                p.getAlbums().remove(a);
+                repo.save(p);
+            }
+            a.getPhotos().clear();
+            // 建立新关联
+            Set<Photo> photos = new HashSet<>(repo.findAllById(photoIds));
+            for (Photo p : photos) {
+                p.getAlbums().add(a);
+                repo.save(p);
+            }
+            a.setPhotos(photos);
+            if (!photos.isEmpty()) {
+                a.setCoverPhotoId(photos.iterator().next().getId());
+            } else {
+                a.setCoverPhotoId(null);
+            }
+        }
+        return albumRepo.save(a);
+    }
+    public void deleteAlbum(Long id) {
+        Album a = albumRepo.findById(id).orElseThrow(() -> new RuntimeException("相册不存在"));
+        for (Photo p : new HashSet<>(a.getPhotos())) {
+            p.getAlbums().remove(a);
+            repo.save(p);
+        }
+        a.getPhotos().clear();
+        albumRepo.delete(a);
+    }
+    public Page<Photo> listByAlbum(Long albumId, Pageable pageable) {
+        return repo.findByAlbumId(albumId, pageable);
+    }
+    public Page<Photo> listUnassigned(Pageable pageable) {
+        return repo.findUnassigned(pageable);
+    }
+    @Transactional
+    public void addPhotosToAlbum(Long albumId, List<Long> photoIds) {
+        Album a = albumRepo.findById(albumId).orElseThrow(() -> new RuntimeException("相册不存在"));
+        for (Long pid : photoIds) {
+            Photo p = repo.findById(pid).orElse(null);
+            if (p != null) {
+                a.getPhotos().add(p);
+                p.getAlbums().add(a);
+                repo.save(p);
+            }
+        }
+        if (a.getCoverPhotoId() == null && !photoIds.isEmpty()) {
+            a.setCoverPhotoId(photoIds.get(0));
+        }
+        albumRepo.save(a);
+    }
+    @Transactional
+    public void removePhotosFromAlbum(Long albumId, List<Long> photoIds) {
+        Album a = albumRepo.findById(albumId).orElseThrow(() -> new RuntimeException("相册不存在"));
+        for (Long pid : photoIds) {
+            Photo p = repo.findById(pid).orElse(null);
+            if (p != null) {
+                a.getPhotos().remove(p);
+                p.getAlbums().remove(a);
+                repo.save(p);
+            }
+        }
+        if (photoIds.contains(a.getCoverPhotoId())) {
+            a.setCoverPhotoId(a.getPhotos().isEmpty() ? null : a.getPhotos().iterator().next().getId());
+        }
+        albumRepo.save(a);
     }
 
     // === 标签 ===
