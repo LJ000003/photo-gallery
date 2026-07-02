@@ -49,6 +49,7 @@ function onClose() {
           :src="`/api/photos/${photo.id}/thumbnail${tokenParam()}`"
           :alt="photo.name"
           decoding="async"
+          loading="lazy"
         />
         <img
           class="img-full"
@@ -56,6 +57,7 @@ function onClose() {
           :src="`/api/photos/${photo.id}/file${tokenParam()}`"
           :alt="photo.name"
           decoding="async"
+          loading="lazy"
           @load="fullLoaded = true"
         />
       </div>

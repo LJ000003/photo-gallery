@@ -17,8 +17,8 @@ export async function api(url, options = {}) {
 
   const res = await fetch(url, { ...options, headers });
 
-  // 401 → token 过期，触发重新锁定
-  if (res.status === 401) {
+  // 401/403 → token 过期或无效，触发重新锁定
+  if (res.status === 401 || res.status === 403) {
     localStorage.removeItem('jwt_token');
     localStorage.removeItem('konami_unlocked');
     window.location.reload();

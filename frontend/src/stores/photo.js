@@ -9,6 +9,7 @@ export const usePhotoStore = defineStore('photo', () => {
   const loading = ref(false);
   const totalCount = ref(0);
   const sortBy = ref('time');
+  const sortOrder = ref('asc');
   const selectedTagIds = ref([]);
   const selectedCategoryIds = ref([]);
   const selectedPhotoIds = ref(new Set());
@@ -20,8 +21,9 @@ export const usePhotoStore = defineStore('photo', () => {
     loading.value = true;
     const myId = ++requestId;
     try {
-      const sortMap = { time: 'createdAt,desc', name: 'name,asc', size: 'fileSize,desc' };
-      let url = `/api/photos?page=${page.value}&size=20&sort=${sortMap[sortBy.value] || 'createdAt,desc'}`;
+      const fieldMap = { time: 'createdAt', name: 'name', size: 'fileSize' };
+      const sortStr = `${fieldMap[sortBy.value]},${sortOrder.value}`;
+      let url = `/api/photos?page=${page.value}&size=20&sort=${sortStr}`;
       selectedTagIds.value.forEach(id => { url += `&tagIds=${id}`; });
       selectedCategoryIds.value.forEach(id => { url += `&categoryIds=${id}`; });
       const res = await api(url);
@@ -32,7 +34,10 @@ export const usePhotoStore = defineStore('photo', () => {
       page.value++;
       hasMore.value = page.value < totalPages;
       totalCount.value = totalElements;
-    } catch {
+    } catch (err) {
+      if (err.message !== '登录已过期，请重新解锁') {
+        console.error('加载照片失败:', err);
+      }
     } finally {
       if (myId === requestId) loading.value = false;
     }
@@ -47,6 +52,16 @@ export const usePhotoStore = defineStore('photo', () => {
     loadMore();
   }
 
+  function setSort(key) {
+    if (sortBy.value === key) {
+      sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc';
+    } else {
+      sortBy.value = key;
+      sortOrder.value = 'asc';
+    }
+    resetAndReload();
+  }
+
   function removePhoto(id) {
     photos.value = photos.value.filter(p => p.id !== id);
     totalCount.value--;
@@ -59,8 +74,8 @@ export const usePhotoStore = defineStore('photo', () => {
   }
 
   return {
-    photos, page, hasMore, loading, totalCount, sortBy,
+    photos, page, hasMore, loading, totalCount, sortBy, sortOrder,
     selectedTagIds, selectedCategoryIds, selectedPhotoIds,
-    loadMore, resetAndReload, removePhoto, removePhotos
+    loadMore, resetAndReload, setSort, removePhoto, removePhotos
   };
 });

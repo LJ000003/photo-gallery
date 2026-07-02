@@ -98,8 +98,12 @@ watch(() => photo.photos.length, () => {
           <div class="sort-slider" :style="{ transform: `translateX(${sortOptions.findIndex(o => o.key === photo.sortBy) * 100}%)` }"></div>
           <button v-for="opt in sortOptions" :key="opt.key"
             class="sort-opt" :class="{ active: photo.sortBy === opt.key }"
-            @click="photo.sortBy = opt.key; photo.resetAndReload()">
+            @click="photo.setSort(opt.key)">
             {{ opt.label }}
+            <span v-if="photo.sortBy === opt.key" class="sort-arrows">
+              <i class="iconfont icon-jiantou_qiehuanxiangshang_o sort-arrow-down" :class="{ active: photo.sortOrder === 'asc' }"></i>
+              <i class="iconfont icon-jiantou_qiehuanxiangshang_o" :class="{ active: photo.sortOrder === 'desc' }"></i>
+            </span>
           </button>
         </div>
       </div>

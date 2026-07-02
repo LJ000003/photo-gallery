@@ -113,6 +113,7 @@ async function onUnlock() {
     const token = await requestToken();
     ui.setToken(token);
     ui.unlock();
+    photo.loadMore();
     toast.success('认证成功');
   } catch (err) {
     toast.error('认证失败，请重试');
