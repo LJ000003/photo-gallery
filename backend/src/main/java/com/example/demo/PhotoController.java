@@ -34,7 +34,11 @@ public class PhotoController {
     public ApiResponse<Page<Photo>> list(
             @RequestParam(required = false) List<Long> tagIds,
             @RequestParam(required = false) List<Long> categoryIds,
+            @RequestParam(required = false) String q,
             @PageableDefault(size = 20) Pageable pageable) {
+        if (q != null && !q.isBlank()) {
+            return ApiResponse.success(service.search(q, pageable));
+        }
         return ApiResponse.success(service.listAll(tagIds, categoryIds, pageable));
     }
 

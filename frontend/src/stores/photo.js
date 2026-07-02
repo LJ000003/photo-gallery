@@ -13,6 +13,7 @@ export const usePhotoStore = defineStore('photo', () => {
   const selectedTagIds = ref([]);
   const selectedCategoryIds = ref([]);
   const selectedPhotoIds = ref(new Set());
+  const searchQuery = ref('');
 
   let requestId = 0;
 
@@ -29,6 +30,7 @@ export const usePhotoStore = defineStore('photo', () => {
       let url = `/api/photos?page=${page.value}&size=20&sort=${sortStr}`;
       selectedTagIds.value.forEach(id => { url += `&tagIds=${id}`; });
       selectedCategoryIds.value.forEach(id => { url += `&categoryIds=${id}`; });
+      if (searchQuery.value) url += `&q=${encodeURIComponent(searchQuery.value)}`;
       const res = await api(url);
       if (myId !== requestId) return;
       const json = await res.json();
@@ -65,6 +67,11 @@ export const usePhotoStore = defineStore('photo', () => {
     resetAndReload();
   }
 
+  function setSearch(q) {
+    searchQuery.value = q;
+    resetAndReload();
+  }
+
   function removePhoto(id) {
     photos.value = photos.value.filter(p => p.id !== id);
     totalCount.value--;
@@ -79,6 +86,6 @@ export const usePhotoStore = defineStore('photo', () => {
   return {
     photos, page, hasMore, loading, totalCount, sortBy, sortOrder,
     selectedTagIds, selectedCategoryIds, selectedPhotoIds,
-    loadMore, resetAndReload, setSort, removePhoto, removePhotos
+    searchQuery, loadMore, resetAndReload, setSort, setSearch, removePhoto, removePhotos
   };
 });

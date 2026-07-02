@@ -24,4 +24,7 @@ public interface PhotoRepository extends JpaRepository<Photo, Long> {
                                             Pageable pageable);
 
     Page<Photo> findByIdIn(List<Long> ids, Pageable pageable);
+
+    @Query("SELECT p FROM Photo p WHERE LOWER(p.name) LIKE LOWER(CONCAT('%', :q, '%')) OR LOWER(p.description) LIKE LOWER(CONCAT('%', :q, '%'))")
+    Page<Photo> search(@Param("q") String q, Pageable pageable);
 }

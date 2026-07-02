@@ -110,6 +110,13 @@ watch(() => photo.photos.length, () => {
   <section class="gallery-section">
     <h2>我的照片 <span v-if="photo.totalCount">({{ photo.totalCount }})</span></h2>
     <div class="gallery-toolbar">
+      <input
+        class="search-input"
+        type="text"
+        placeholder="搜索照片名称或描述..."
+        :value="photo.searchQuery"
+        @input="photo.setSearch($event.target.value)"
+      />
       <label>
         <input type="checkbox" :checked="allSelected" @change="toggleAll" />
         全选

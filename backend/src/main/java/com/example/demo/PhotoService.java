@@ -70,6 +70,11 @@ public class PhotoService {
         return repo.findAll(pageable);
     }
 
+    public Page<Photo> search(String q, Pageable pageable) {
+        if (q == null || q.isBlank()) return repo.findAll(pageable);
+        return repo.search(q.trim(), pageable);
+    }
+
     public Photo getById(Long id) {
         return repo.findById(id)
                 .orElseThrow(() -> new RuntimeException("该照片已被删除或不存在"));
