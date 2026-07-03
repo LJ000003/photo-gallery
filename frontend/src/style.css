@@ -1101,6 +1101,19 @@ button[type="submit"]:hover,
   text-overflow: ellipsis;
   color: var(--text);
 }
+.search-hl {
+  background: rgba(255,200,0,0.35);
+  color: #ffd700;
+  border-radius: 2px;
+}
+.photo-desc {
+  font-size: 12px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 2px 0 4px;
+}
 .photo-meta {
   font-size: 12px;
   color: var(--text-dim);
@@ -2069,6 +2082,26 @@ button[type="submit"]:hover,
 .btn-back:hover { border-color: var(--accent); color: var(--accent); }
 
 /* 相册编辑弹窗 */
+.album-search-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0;
+}
+.album-search-row label { flex-shrink: 0; }
+.album-search-input {
+  flex: 1;
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.06);
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.3s;
+}
+.album-search-input::placeholder { color: var(--text-dim); }
+.album-search-input:focus { border-color: var(--accent); }
 .album-photo-picker {
   max-height: 280px;
   overflow-y: auto;

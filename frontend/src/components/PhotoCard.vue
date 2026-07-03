@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import gsap from 'gsap';
 import { webpUrl } from '../webp.js';
 import { useToastStore } from '../stores/toast.js';
@@ -10,8 +10,20 @@ import ImageEditor from './ImageEditor.vue';
 const confirmFn = useConfirm();
 const toast = useToastStore();
 const photoStore = usePhotoStore();
-const props = defineProps({ photo: Object, selected: Boolean });
+const props = defineProps({ photo: Object, selected: Boolean, searchQuery: String });
 const emit = defineEmits(['view', 'edit', 'delete', 'toggle-select']);
+
+function highlightSegments(text) {
+  if (!text) return [{ text: '', hl: false }];
+  const q = props.searchQuery;
+  if (!q || !q.trim()) return [{ text, hl: false }];
+  const escaped = q.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const parts = text.split(new RegExp(`(${escaped})`, 'gi'));
+  return parts.map(p => ({ text: p, hl: p.toLowerCase() === q.trim().toLowerCase() }));
+}
+
+const nameSegments = computed(() => highlightSegments(props.photo.name));
+const descSegments = computed(() => highlightSegments(props.photo.description));
 
 function tokenParam() {
   const t = localStorage.getItem('jwt_token') || localStorage.getItem('token');
@@ -104,7 +116,12 @@ async function onDelete() {
       </div>
     </div>
     <div class="photo-body">
-      <h4 class="photo-name">{{ photo.name }}</h4>
+      <h4 class="photo-name">
+        <span v-for="(s, i) in nameSegments" :key="i" :class="{ 'search-hl': s.hl }">{{ s.text }}</span>
+      </h4>
+      <p v-if="searchQuery && photo.description" class="photo-desc">
+        <span v-for="(s, i) in descSegments" :key="i" :class="{ 'search-hl': s.hl }">{{ s.text }}</span>
+      </p>
       <p class="photo-meta">{{ formatSize(photo.fileSize) }}<span v-if="photo.category"> · {{ photo.category.name }}</span></p>
       <div v-if="photo.tags && photo.tags.length" class="card-tags">
         <span v-for="t in photo.tags" :key="t.id" class="card-tag" :style="{ background: t.color }">{{ t.name }}</span>

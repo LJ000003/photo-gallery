@@ -2,11 +2,13 @@
 import { ref, onMounted, computed, nextTick, watch } from 'vue';
 import gsap from 'gsap';
 import { api } from '../api.js';
+import { useStore } from '../store.js';
 import { useToastStore } from '../stores/toast.js';
 import { useConfirm } from '../useConfirm.js';
 import AlbumEditModal from './AlbumEditModal.vue';
 
 const emit = defineEmits(['view']);
+const { refreshAlbums } = useStore();
 const toast = useToastStore();
 const confirmFn = useConfirm();
 
@@ -108,6 +110,7 @@ async function deleteAlbum(album) {
   try {
     const res = await api(`/api/albums/${album.id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('删除失败');
+    refreshAlbums();
     toast.success('已删除');
   } catch (err) {
     toast.error(err.message);
@@ -121,11 +124,13 @@ async function onCreateAlbum() {
 
 function onAlbumSaved() {
   editingAlbum.value = null;
+  refreshAlbums();
   loadAlbums();
 }
 
 function onAlbumDeleted() {
   editingAlbum.value = null;
+  refreshAlbums();
   loadAlbums();
 }
 

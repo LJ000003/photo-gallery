@@ -13,7 +13,6 @@ const photo = usePhotoStore();
 const emit = defineEmits(['view', 'edit', 'delete', 'loadMore', 'batch-delete', 'generate-share']);
 
 const selectedIds = ref(new Set());
-const viewMode = ref('grid'); // grid | album | timeline | map
 const timelineSortOrder = ref('desc');
 
 const viewModes = [
@@ -24,11 +23,12 @@ const viewModes = [
 ];
 
 function switchView(key) {
-  if (viewMode.value === key) {
+  if (photo.viewMode === key) {
     if (key === 'timeline') toggleTimelineSort();
     return;
   }
-  viewMode.value = key;
+  photo.viewMode = key;
+  photo.syncUrlState();
 }
 function toggleTimelineSort() {
   timelineSortOrder.value = timelineSortOrder.value === 'desc' ? 'asc' : 'desc';
@@ -133,17 +133,17 @@ watch(() => photo.photos.length, () => {
         <span class="sort-label">视图：</span>
         <div class="view-track">
           <button v-for="vm in viewModes" :key="vm.key"
-            class="view-opt" :class="{ active: viewMode === vm.key }"
+            class="view-opt" :class="{ active: photo.viewMode === vm.key }"
             @click="switchView(vm.key)">
             {{ vm.label }}
-            <span v-if="vm.key === 'timeline' && viewMode === 'timeline'" class="sort-arrows">
+            <span v-if="vm.key === 'timeline' && photo.viewMode === 'timeline'" class="sort-arrows">
               <i class="iconfont icon-jiantou_qiehuanxiangshang_o sort-arrow-down" :class="{ active: timelineSortOrder === 'asc' }"></i>
               <i class="iconfont icon-jiantou_qiehuanxiangshang_o" :class="{ active: timelineSortOrder === 'desc' }"></i>
             </span>
           </button>
         </div>
       </div>
-      <div class="sort-switch" v-if="viewMode === 'grid'">
+      <div class="sort-switch" v-if="photo.viewMode === 'grid'">
         <span class="sort-label">排序方式：</span>
         <div class="sort-track">
           <div class="sort-slider" :style="{ transform: `translateX(${sortOptions.findIndex(o => o.key === photo.sortBy) * 100}%)` }"></div>
@@ -161,7 +161,7 @@ watch(() => photo.photos.length, () => {
     </div>
 
     <!-- 网格视图 -->
-    <template v-if="viewMode === 'grid'">
+    <template v-if="photo.viewMode === 'grid'">
       <div class="gallery">
         <div v-if="photo.loading && photo.photos.length === 0" v-for="i in 6" :key="'s'+i" class="skeleton-card">
           <div class="skeleton-img"></div>
@@ -174,6 +174,7 @@ watch(() => photo.photos.length, () => {
           v-for="(p, i) in photo.photos"
           :key="p.id + '-' + p.fileSize"
           :photo="p"
+          :search-query="photo.searchQuery"
           :selected="isSelected(p.id)"
           :data-insert="i"
           @view="emit('view', p)"
@@ -193,10 +194,10 @@ watch(() => photo.photos.length, () => {
     </template>
 
     <!-- 时间线视图 -->
-    <AlbumView v-else-if="viewMode === 'album'" @view="p => emit('view', p)" />
-    <TimelineView v-else-if="viewMode === 'timeline'" :sort-order="timelineSortOrder" @view="p => emit('view', p)" />
+    <AlbumView v-else-if="photo.viewMode === 'album'" @view="p => emit('view', p)" />
+    <TimelineView v-else-if="photo.viewMode === 'timeline'" :sort-order="timelineSortOrder" @view="p => emit('view', p)" />
 
     <!-- 地图视图 -->
-    <MapView v-else-if="viewMode === 'map'" @view="p => emit('view', p)" />
+    <MapView v-else-if="photo.viewMode === 'map'" @view="p => emit('view', p)" />
   </section>
 </template>

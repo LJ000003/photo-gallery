@@ -2,18 +2,46 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { api } from '../api.js';
 
+function readUrlParams() {
+  const p = new URLSearchParams(window.location.search);
+  return {
+    view: p.get('view') || '',
+    q: p.get('q') || '',
+    sortBy: p.get('sortBy') || 'time',
+    sortOrder: p.get('sortOrder') || 'asc',
+    tags: p.get('tags') ? p.get('tags').split(',').map(Number) : [],
+    cats: p.get('cats') ? p.get('cats').split(',').map(Number) : []
+  };
+}
+
+function syncUrl(state) {
+  const p = new URLSearchParams();
+  if (state.view) p.set('view', state.view);
+  if (state.q) p.set('q', state.q);
+  if (state.sortBy && state.sortBy !== 'time') p.set('sortBy', state.sortBy);
+  if (state.sortOrder && state.sortOrder !== 'asc') p.set('sortOrder', state.sortOrder);
+  if (state.tags && state.tags.length) p.set('tags', state.tags.join(','));
+  if (state.cats && state.cats.length) p.set('cats', state.cats.join(','));
+  const qs = p.toString();
+  const url = window.location.pathname + (qs ? '?' + qs : '');
+  history.replaceState(null, '', url);
+}
+
+const init = readUrlParams();
+
 export const usePhotoStore = defineStore('photo', () => {
   const photos = ref([]);
   const page = ref(0);
   const hasMore = ref(true);
   const loading = ref(false);
   const totalCount = ref(0);
-  const sortBy = ref('time');
-  const sortOrder = ref('asc');
-  const selectedTagIds = ref([]);
-  const selectedCategoryIds = ref([]);
+  const sortBy = ref(init.sortBy);
+  const sortOrder = ref(init.sortOrder);
+  const selectedTagIds = ref(init.tags);
+  const selectedCategoryIds = ref(init.cats);
   const selectedPhotoIds = ref(new Set());
-  const searchQuery = ref('');
+  const searchQuery = ref(init.q);
+  const viewMode = ref(init.view);
 
   let requestId = 0;
 
@@ -48,12 +76,24 @@ export const usePhotoStore = defineStore('photo', () => {
     }
   }
 
+  function syncUrlState() {
+    syncUrl({
+      view: viewMode.value,
+      q: searchQuery.value,
+      sortBy: sortBy.value,
+      sortOrder: sortOrder.value,
+      tags: selectedTagIds.value,
+      cats: selectedCategoryIds.value
+    });
+  }
+
   function resetAndReload() {
     requestId++;
     photos.value = [];
     page.value = 0;
     hasMore.value = true;
     loading.value = false;
+    syncUrlState();
     loadMore();
   }
 
@@ -86,6 +126,7 @@ export const usePhotoStore = defineStore('photo', () => {
   return {
     photos, page, hasMore, loading, totalCount, sortBy, sortOrder,
     selectedTagIds, selectedCategoryIds, selectedPhotoIds,
-    searchQuery, loadMore, resetAndReload, setSort, setSearch, removePhoto, removePhotos
+    searchQuery, viewMode, loadMore, resetAndReload, setSort, setSearch,
+    removePhoto, removePhotos, syncUrlState
   };
 });

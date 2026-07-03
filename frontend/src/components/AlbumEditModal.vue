@@ -1,9 +1,11 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import gsap from 'gsap';
 import { api } from '../api.js';
+import { useStore } from '../store.js';
 import { useToastStore } from '../stores/toast.js';
 
+const { refreshAlbums } = useStore();
 const toast = useToastStore();
 const props = defineProps({ album: Object });
 const emit = defineEmits(['close', 'saved', 'deleted']);
@@ -13,6 +15,16 @@ const description = ref('');
 const allPhotos = ref([]);
 const selectedPhotoIds = ref(new Set());
 const submitting = ref(false);
+const searchQuery = ref('');
+
+const filteredPhotos = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase();
+  if (!q) return allPhotos.value;
+  return allPhotos.value.filter(p =>
+    (p.name && p.name.toLowerCase().includes(q)) ||
+    (p.description && p.description.toLowerCase().includes(q))
+  );
+});
 
 onMounted(async () => {
   name.value = props.album.name || '';
@@ -55,6 +67,7 @@ async function onSubmit() {
       const res = await api('/api/albums', { method: 'POST', body: JSON.stringify({ ...body, photoIds: [...selectedPhotoIds.value] }) });
       if (!res.ok) throw new Error('创建失败');
     }
+    refreshAlbums();
     emit('saved');
   } catch (err) {
     toast.error(err.message);
@@ -68,6 +81,7 @@ async function onDelete() {
   try {
     const res = await api(`/api/albums/${props.album.id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('删除失败');
+    refreshAlbums();
     emit('deleted');
     toast.success('已删除');
   } catch (err) {
@@ -92,9 +106,12 @@ function tokenParam() {
         <input v-model="name" type="text" required />
         <label>描述</label>
         <input v-model="description" type="text" maxlength="500" />
-        <label>已选照片 ({{ selectedPhotoIds.size }})</label>
+        <div class="album-search-row">
+          <label>已选照片 ({{ selectedPhotoIds.size }})</label>
+          <input class="album-search-input" type="text" v-model="searchQuery" placeholder="搜索照片名称或描述..." />
+        </div>
         <div class="album-photo-picker">
-          <div v-for="p in allPhotos" :key="p.id"
+          <div v-for="p in filteredPhotos" :key="p.id"
             class="album-photo-item"
             :class="{ selected: selectedPhotoIds.has(p.id) }"
             @click="togglePhoto(p.id)">

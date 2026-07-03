@@ -13,9 +13,17 @@ import io.jsonwebtoken.security.Keys;
 
 public class JwtUtil {
 
-    // HS256 密钥，生产环境应从环境变量注入
-    private static final String SECRET = System.getenv().getOrDefault(
-            "JWT_SECRET", "demo1-photo-manager-jwt-secret-key-2024-min-256-bits!!");
+    private static final String SECRET = requireEnv("JWT_SECRET");
+
+    private static String requireEnv(String name) {
+        String value = System.getenv(name);
+        if (value == null || value.isBlank()) {
+            throw new IllegalStateException(
+                "必须设置环境变量 " + name + "，例如: export " + name + "=$(openssl rand -base64 32)"
+            );
+        }
+        return value;
+    }
 
     private static final Key KEY = Keys.hmacShaKeyFor(SECRET.getBytes());
 

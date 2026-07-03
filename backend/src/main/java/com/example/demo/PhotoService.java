@@ -177,6 +177,8 @@ public class PhotoService {
 
     // === 相册 ===
     public List<Album> listAlbums() { return albumRepo.findAll(); }
+
+    @CacheEvict(value = "photos", allEntries = true)
     @Transactional
     public Album createAlbum(String name, String description, List<Long> photoIds) {
         Album a = new Album(name);
@@ -194,6 +196,7 @@ public class PhotoService {
         }
         return a;
     }
+    @CacheEvict(value = "photos", allEntries = true)
     @Transactional
     public Album updateAlbum(Long id, String name, String description, List<Long> photoIds) {
         Album a = albumRepo.findById(id).orElseThrow(() -> new RuntimeException("相册不存在"));
@@ -221,6 +224,8 @@ public class PhotoService {
         }
         return albumRepo.save(a);
     }
+    @Transactional
+    @CacheEvict(value = "photos", allEntries = true)
     public void deleteAlbum(Long id) {
         Album a = albumRepo.findById(id).orElseThrow(() -> new RuntimeException("相册不存在"));
         for (Photo p : new HashSet<>(a.getPhotos())) {
@@ -237,6 +242,7 @@ public class PhotoService {
         return repo.findUnassigned(pageable);
     }
     @Transactional
+    @CacheEvict(value = "photos", allEntries = true)
     public void addPhotosToAlbum(Long albumId, List<Long> photoIds) {
         Album a = albumRepo.findById(albumId).orElseThrow(() -> new RuntimeException("相册不存在"));
         for (Long pid : photoIds) {
@@ -253,6 +259,7 @@ public class PhotoService {
         albumRepo.save(a);
     }
     @Transactional
+    @CacheEvict(value = "photos", allEntries = true)
     public void removePhotosFromAlbum(Long albumId, List<Long> photoIds) {
         Album a = albumRepo.findById(albumId).orElseThrow(() -> new RuntimeException("相册不存在"));
         for (Long pid : photoIds) {
