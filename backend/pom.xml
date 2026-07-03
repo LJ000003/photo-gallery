@@ -9,11 +9,11 @@
         <relativePath />
     </parent>
 
-    <groupId>com.example</groupId>
-    <artifactId>demo-backend</artifactId>
+    <groupId>com.hape</groupId>
+    <artifactId>photo-gallery</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>demo-backend</name>
-    <description>Simple separated frontend and backend demo</description>
+    <name>photo-gallery</name>
+    <description>Full-stack photo gallery with EXIF timeline, map view, and JWT auth</description>
 
     <properties>
         <java.version>17</java.version>
@@ -102,6 +102,9 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>com.hape.photogallery.PhotoGalleryApplication</mainClass>
+                </configuration>
             </plugin>
         </plugins>
     </build>
