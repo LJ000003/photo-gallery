@@ -4,10 +4,8 @@ services:
     container_name: photodb
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: root123
-      MYSQL_DATABASE: photodb
-    ports:
-      - "3307:3306"
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-photodb}
     volumes:
       - mysql_data:/var/lib/mysql
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
@@ -16,28 +14,36 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - app-net
 
   app:
     build: ./backend
     container_name: photo-manager
     restart: always
     ports:
-      - "80:8080"
+      - "8080:8080"
     environment:
       SPRING_PROFILES_ACTIVE: prod
-      DB_HOST: mysql
-      DB_USERNAME: root
-      DB_PASSWORD: root123
-      JWT_SECRET: "请替换为 openssl rand -base64 32 的输出"
-      ADMIN_PASSWORD: "photoadmin"
+      DB_HOST: ${DB_HOST:-mysql}
+      DB_USERNAME: ${DB_USERNAME:-root}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
     depends_on:
       mysql:
         condition: service_healthy
     volumes:
       - photo_uploads:/data/photo-uploads
       - photo_logs:/root/logs/photo-manager
+    networks:
+      - app-net
 
 volumes:
   mysql_data:
   photo_uploads:
   photo_logs:
+
+networks:
+  app-net:
+    driver: bridge

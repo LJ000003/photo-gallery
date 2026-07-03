@@ -5,6 +5,7 @@ chcp 65001 > $null
 
 Write-Host "===[1/4] Building frontend ===" -ForegroundColor Cyan
 Set-Location "$PSScriptRoot\frontend"
+if ($env:ADMIN_PASSWORD) { $env:VITE_ADMIN_PASSWORD = $env:ADMIN_PASSWORD }
 npm run build
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 

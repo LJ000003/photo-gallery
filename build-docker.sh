@@ -3,6 +3,7 @@ set -e
 
 echo "=== 1/4 构建前端 ==="
 cd "$(dirname "$0")/frontend"
+export VITE_ADMIN_PASSWORD="${ADMIN_PASSWORD:-photoadmin}"
 npm run build
 
 echo ""
