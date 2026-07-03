@@ -1,10 +1,11 @@
 # Build script: traditional deployment (Nginx + JAR)
-# Output: backend/target/demo-backend-*.jar (with frontend embedded)
+# Output: backend/target/photo-gallery-*.jar (with frontend embedded)
 
 chcp 65001 > $null
 
 Write-Host "===[1/3] Building frontend ===" -ForegroundColor Cyan
 Set-Location "$PSScriptRoot\frontend"
+if ($env:ADMIN_PASSWORD) { $env:VITE_ADMIN_PASSWORD = $env:ADMIN_PASSWORD }
 npm run build
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
@@ -20,7 +21,7 @@ Set-Location "$PSScriptRoot\backend"
 mvn clean package -DskipTests
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-$jar = Get-ChildItem "target\demo-backend-*.jar" | Select-Object -First 1
+$jar = Get-ChildItem "target\photo-gallery-*.jar" | Select-Object -First 1
 Write-Host ""
 Write-Host "Done!" -ForegroundColor Green
 Write-Host "  JAR: backend\$($jar.Name)" -ForegroundColor Green

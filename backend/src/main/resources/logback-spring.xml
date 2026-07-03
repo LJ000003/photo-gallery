@@ -45,5 +45,5 @@
     </root>
 
     <!-- 项目自身代码 DEBUG 级别 -->
-    <logger name="com.example.demo" level="DEBUG" />
+    <logger name="com.hape.photogallery" level="DEBUG" />
 </configuration>

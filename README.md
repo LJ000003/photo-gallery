@@ -17,6 +17,7 @@
 | 数据库 | MySQL + Flyway 迁移 | 8.0+ |
 | 缓存 | Spring Cache + Caffeine | — |
 | EXIF | metadata-extractor | 2.19.0 |
+| 图片编码 | webp-imageio | 0.1.6 |
 | API 文档 | SpringDoc OpenAPI | 2.5.0 |
 | 前端框架 | Vue 3 (Composition API) + Pinia | 3.5 |
 | 构建 | Vite | 5.4 |
@@ -70,69 +71,73 @@
 ## 项目结构
 
 ```
-demo1/
+photo-gallery/
 ├── backend/
-│   ├── src/main/java/com/example/demo/
-│   │   ├── DemoApplication.java              # 应用入口 (@EnableCaching)
-│   │   ├── ApiResponse.java                  # 统一响应体 {code, message, data}
-│   │   ├── SecurityConfig.java               # SecurityFilterChain + CORS
-│   │   ├── JwtUtil.java                      # HS256 JWT 签发与验签
-│   │   ├── JwtAuthFilter.java                # OncePerRequestFilter
-│   │   ├── AuthController.java               # POST /api/auth/unlock
-│   │   ├── ShareController.java              # 分享链接 + 落地面
+│   ├── src/main/java/com/hape/photogallery/
+│   │   ├── PhotoGalleryApplication.java        # 应用入口 (@EnableCaching)
+│   │   ├── ApiResponse.java                    # 统一响应体 {code, message, data}
+│   │   ├── SecurityConfig.java                 # SecurityFilterChain + CORS
+│   │   ├── JwtUtil.java                        # HS256 JWT 签发与验签
+│   │   ├── JwtAuthFilter.java                  # OncePerRequestFilter
+│   │   ├── AuthController.java                 # POST /api/auth/unlock
+│   │   ├── ShareController.java                # 分享链接 + 落地面
 │   │   ├── Photo.java / Tag.java / Category.java / Album.java
-│   │   ├── ExifData.java                     # EXIF 元数据实体
-│   │   ├── PhotoController.java              # 照片 + 标签 + 分类 + 相册 API
-│   │   ├── PhotoService.java                 # 业务逻辑 + 缩略图 + 水印 + WebP
-│   │   ├── PhotoRepository.java              # JPQL 分页 + 筛选 + 搜索
-│   │   ├── ExifService.java                  # metadata-extractor 集成
+│   │   ├── ExifData.java                       # EXIF 元数据实体
+│   │   ├── PhotoController.java                # 照片 + 标签 + 分类 + 相册 API
+│   │   ├── PhotoService.java                   # 业务逻辑 + 缩略图 + 水印 + WebP
+│   │   ├── PhotoRepository.java                # JPQL 分页 + 筛选 + 搜索
+│   │   ├── ExifService.java                    # metadata-extractor 集成
 │   │   ├── ExifDataRepository.java
-│   │   ├── CoordUtil.java                    # WGS-84 → GCJ-02 坐标转换
-│   │   ├── CacheControlFilter.java           # 全局 Cache-Control 头
-│   │   ├── GlobalExceptionHandler.java       # @RestControllerAdvice
-│   │   └── *Exception.java                   # 自定义异常
+│   │   ├── CoordUtil.java                      # WGS-84 → GCJ-02 坐标转换
+│   │   ├── CacheControlFilter.java             # 全局 Cache-Control 头
+│   │   ├── GlobalExceptionHandler.java         # @RestControllerAdvice
+│   │   └── *Exception.java                     # 自定义异常
 │   ├── src/main/resources/
-│   │   ├── application.properties            # 公共配置 + Caffeine
-│   │   ├── application-dev.yml               # 开发环境
-│   │   ├── application-prod.yml              # 生产环境
-│   │   ├── logback-spring.xml                # 控制台 + 按天滚动 + 错误分离
-│   │   ├── db/migration/                     # Flyway V1–V4
-│   │   └── static/                           # 前端构建产物 (SPA)
-│   └── Dockerfile                            # JRE 17 Alpine
+│   │   ├── application.properties              # 公共配置 + Caffeine
+│   │   ├── application-dev.yml                 # 开发环境
+│   │   ├── application-prod.yml                # 生产环境
+│   │   ├── logback-spring.xml                  # 控制台 + 按天滚动 + 错误分离
+│   │   ├── db/migration/                       # Flyway V1–V4
+│   │   └── static/                             # 前端构建产物 (SPA)
+│   └── Dockerfile                              # JRE 17 Alpine
 │
 ├── frontend/
+│   ├── .env                                    # 前端环境变量（本地开发用，不提交）
+│   ├── .env.example                            # 前端环境变量模板
 │   └── src/
-│       ├── main.js                           # 入口
-│       ├── App.vue                           # 根组件 (路由分发)
-│       ├── api.js                            # fetch 封装 + JWT 注入
-│       ├── style.css                         # 全局样式 (暗色毛玻璃)
-│       ├── store.js                          # 标签/分类/相册数据
-│       ├── useConfirm.js                     # 确认弹窗 composable
+│       ├── main.js                             # 入口
+│       ├── App.vue                             # 根组件 (路由分发)
+│       ├── api.js                              # fetch 封装 + JWT 注入
+│       ├── style.css                           # 全局样式 (暗色毛玻璃)
+│       ├── store.js                            # 标签/分类/相册数据
+│       ├── useConfirm.js                       # 确认弹窗 composable
 │       ├── stores/
-│       │   ├── photo.js                      # 照片数据 + 分页 + 排序 + 搜索
-│       │   ├── toast.js                      # 通知队列
-│       │   └── ui.js                         # JWT + 解锁状态 + 弹窗状态
+│       │   ├── photo.js                        # 照片数据 + 分页 + 排序 + 搜索
+│       │   ├── toast.js                        # 通知队列
+│       │   └── ui.js                           # JWT + 解锁状态 + 弹窗状态
 │       └── components/
-│           ├── KonamiGate.vue                # Konami 密码门禁
-│           ├── AppHeader.vue                 # 渐变标题
-│           ├── UploadCard.vue                # 上传区域 (拖拽/粘贴/编辑)
-│           ├── PhotoGallery.vue              # 视图切换 + 搜索 + 排序
-│           ├── PhotoCard.vue                 # 3D 倾斜卡片
-│           ├── ViewModal.vue                 # 大图查看
-│           ├── EditModal.vue                 # 编辑信息 + 分配相册
-│           ├── FilterSidebar.vue             # 分类/标签筛选
-│           ├── AlbumView.vue                 # 相册网格 + 详情
-│           ├── AlbumEditModal.vue            # 相册编辑 + 照片选择器
-│           ├── TimelineView.vue              # EXIF 时间线
-│           ├── MapView.vue                   # 地图聚合标注
-│           ├── ImageEditor.vue               # Canvas 图片编辑器
-│           ├── ShareViewer.vue               # 分享落地面
-│           ├── ToastProvider.vue             # Toast 容器
-│           ├── ConfirmDialog.vue             # 确认弹窗
-│           └── LottieLoader.vue              # Lottie 动画
+│           ├── KonamiGate.vue                  # Konami 密码门禁
+│           ├── AppHeader.vue                   # 渐变标题
+│           ├── UploadCard.vue                  # 上传区域 (拖拽/粘贴/编辑)
+│           ├── PhotoGallery.vue                # 视图切换 + 搜索 + 排序
+│           ├── PhotoCard.vue                   # 3D 倾斜卡片
+│           ├── ViewModal.vue                   # 大图查看
+│           ├── EditModal.vue                   # 编辑信息 + 分配相册
+│           ├── FilterSidebar.vue               # 分类/标签筛选
+│           ├── AlbumView.vue                   # 相册网格 + 详情
+│           ├── AlbumEditModal.vue              # 相册编辑 + 照片选择器
+│           ├── TimelineView.vue                # EXIF 时间线
+│           ├── MapView.vue                     # 地图聚合标注
+│           ├── ImageEditor.vue                 # Canvas 图片编辑器
+│           ├── ShareViewer.vue                 # 分享落地面
+│           ├── ToastProvider.vue               # Toast 容器
+│           ├── ConfirmDialog.vue               # 确认弹窗
+│           └── LottieLoader.vue                # Lottie 动画
 │
-├── docker-compose.yml                        # MySQL + App + 数据卷
-├── build-docker.ps1 / build-docker.sh        # Docker 构建脚本
+├── .env                                        # Docker Compose 环境变量（不提交）
+├── .env.example                                # Docker Compose 环境变量模板
+├── docker-compose.yml                          # MySQL + App + 数据卷
+├── build-docker.ps1 / build-docker.sh          # Docker 构建脚本
 └── build-traditional.ps1 / build-traditional.sh  # 传统构建脚本
 ```
 
@@ -156,18 +161,23 @@ CREATE DATABASE IF NOT EXISTS photodb CHARACTER SET utf8mb4 COLLATE utf8mb4_unic
 |------|------|--------|
 | `DB_USERNAME` | 数据库用户名 | `root` |
 | `DB_PASSWORD` | 数据库密码 | **必填，无默认值** |
+| `JWT_SECRET` | JWT HS256 签名密钥 | **必填，无默认值** |
 | `ADMIN_PASSWORD` | Konami 解锁后的管理密码 | `photoadmin` |
-| `JWT_SECRET` | JWT HS256 签名密钥 | 内置默认值（生产必改） |
+| `VITE_ADMIN_PASSWORD` | 前端密码（构建时注入） | 自动继承 `ADMIN_PASSWORD` |
+
+> `JWT_SECRET` 在 `JwtUtil.java` 启动时通过 `requireEnv()` 强制读取，未设置会直接终止启动。
 
 **Windows (PowerShell):**
 ```powershell
 $env:DB_PASSWORD="你的数据库密码"
+$env:JWT_SECRET="$(openssl rand -base64 32)"   # 或手动指定一段随机字符串
 $env:ADMIN_PASSWORD="你们朋友间的共享密码"
 ```
 
 **Linux / macOS:**
 ```bash
 export DB_PASSWORD=你的数据库密码
+export JWT_SECRET=$(openssl rand -base64 32)
 export ADMIN_PASSWORD=你们朋友间的共享密码
 ```
 
@@ -198,7 +208,7 @@ npm run dev
 3. 输入管理密码 → 后端 BCrypt 验密 → 签发 24h admin JWT
 4. 进入管理系统，开始上传照片
 
-> **密码在哪改？** 前端密码在 `frontend/src/api.js` 第 3 行 `ADMIN_PASSWORD` 常量，默认 `photoadmin`。生产构建前改为你的 `ADMIN_PASSWORD` 环境变量值。
+> **密码配置：** 前端密码通过 `VITE_ADMIN_PASSWORD` 环境变量注入（Vite 构建时静态替换）。开发时可直接修改 `frontend/.env` 文件，生产构建时通过构建脚本自动从 `ADMIN_PASSWORD` 继承。详见 `frontend/.env.example`。
 
 ---
 
@@ -223,8 +233,9 @@ npm run dev
 ### 手动构建
 
 ```bash
-# 1. 修改前端密码常量
-#    编辑 frontend/src/api.js 第 3 行 ADMIN_PASSWORD
+# 1. 设置前端密码（二选一）
+#    方式A: 编辑 frontend/.env，修改 VITE_ADMIN_PASSWORD
+#    方式B: export VITE_ADMIN_PASSWORD=你的密码
 
 # 2. 构建前端
 cd frontend
@@ -239,7 +250,7 @@ cd ../backend
 mvn clean package -DskipTests
 ```
 
-输出 `backend/target/demo-backend-0.0.1-SNAPSHOT.jar`。
+输出 `backend/target/photo-gallery-0.0.1-SNAPSHOT.jar`。
 
 ---
 
@@ -247,31 +258,38 @@ mvn clean package -DskipTests
 
 ### 方式一：Docker Compose（推荐）
 
-#### 1. 上传文件
+#### 1. 创建 .env 文件
+
+参考 `.env.example` 模板在项目根目录创建 `.env`：
 
 ```bash
-scp docker-compose.yml root@<IP>:/opt/app/
-scp backend/Dockerfile root@<IP>:/opt/app/
-scp backend/target/demo-backend-*.jar root@<IP>:/opt/app/
+MYSQL_ROOT_PASSWORD=你的MySQL密码
+MYSQL_DATABASE=photodb
+DB_HOST=mysql
+DB_USERNAME=root
+DB_PASSWORD=${MYSQL_ROOT_PASSWORD}
+JWT_SECRET=$(openssl rand -base64 32)
+ADMIN_PASSWORD=你们朋友间的共享密码
 ```
 
-#### 2. 修改 `docker-compose.yml` 环境变量
+#### 2. 上传文件到服务器
 
-```yaml
-environment:
-  SPRING_PROFILES_ACTIVE: prod
-  DB_HOST: mysql
-  DB_USERNAME: app_user
-  DB_PASSWORD: 生产数据库密码          # ← 改这里
-  ADMIN_PASSWORD: 你们朋友间的共享密码   # ← 改这里
+```bash
+ssh root@<IP> "mkdir -p /opt/photo-gallery/backend/target"
+scp docker-compose.yml .env root@<IP>:/opt/photo-gallery/
+scp backend/Dockerfile root@<IP>:/opt/photo-gallery/backend/
+scp backend/target/photo-gallery-*.jar root@<IP>:/opt/photo-gallery/backend/target/
 ```
 
 #### 3. 启动
 
 ```bash
-cd /opt/app
-docker compose up -d
+ssh root@<IP>
+cd /opt/photo-gallery
+docker compose up -d --build
 ```
+
+首次启动 Flyway 自动建表。访问 `http://<IP>`（docker-compose 端口映射 `80:8080`）。
 
 #### 4. 常用命令
 
@@ -282,68 +300,29 @@ docker compose restart app     # 重启应用
 docker compose down            # 停止并删除容器
 ```
 
----
-
-### 方式二：传统部署（Nginx + Java）
-
-#### 1. 上传
-
-```bash
-scp -r frontend/dist/* root@<IP>:/opt/app/static/
-scp backend/target/demo-backend-*.jar root@<IP>:/opt/app/
-```
-
-#### 2. 创建数据库
-
-```sql
-CREATE DATABASE IF NOT EXISTS photodb CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'app_user'@'localhost' IDENTIFIED BY '生产数据库密码';
-GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, REFERENCES ON photodb.* TO 'app_user'@'localhost';
-FLUSH PRIVILEGES;
-```
-
-#### 3. 配置 Nginx
+#### 5. Nginx 反向代理（可选，配合 HTTPS 推荐）
 
 ```nginx
 server {
     listen 80;
     server_name 你的域名;
 
-    root /opt/app/static;
-    index index.html;
-
     client_max_body_size 20m;
 
-    location /api {
+    location / {
         proxy_pass http://127.0.0.1:8080;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
-    }
-
-    location /share {
-        proxy_pass http://127.0.0.1:8080;
-        proxy_set_header Host $host;
-    }
-
-    location / {
-        try_files $uri $uri/ /index.html;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     }
 }
 ```
 
 ```bash
-nginx -t && nginx -s reload
-```
+nginx -t && systemctl reload nginx
 
-#### 4. 启动
-
-```bash
-nohup java -jar /opt/app/demo-backend-0.0.1-SNAPSHOT.jar \
-  --spring.profiles.active=prod \
-  --DB_USERNAME=app_user \
-  --DB_PASSWORD=生产数据库密码 \
-  --ADMIN_PASSWORD=你们朋友间的共享密码 \
-  > /opt/app/app.log 2>&1 &
+# 免费 SSL 证书
+certbot --nginx -d 你的域名
 ```
 
 ---
@@ -388,7 +367,7 @@ nohup java -jar /opt/app/demo-backend-0.0.1-SNAPSHOT.jar \
 | 配置 | 位置 | 说明 |
 |------|------|------|
 | `ADMIN_PASSWORD` | 环境变量 | 管理密码，前后端需一致 |
-| `JWT_SECRET` | `JwtUtil.java` | HS256 签名密钥，默认内置值仅用于开发 |
+| `JWT_SECRET` | 环境变量 | HS256 签名密钥，`JwtUtil.java` 启动时从环境变量读取 |
 | JWT 有效期 admin | 24 小时 | `JwtUtil.java` `issueAdmin(24*60*60*1000)` |
 | JWT 有效期 viewer | 7 天 | `AuthController.java` 默认 7 天 |
 | BCrypt | `SecurityConfig.java` | 密码存储使用 BCrypt 哈希 |

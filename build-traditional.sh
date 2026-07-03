@@ -3,6 +3,7 @@ set -e
 
 echo "=== 1/3 构建前端 ==="
 cd "$(dirname "$0")/frontend"
+export VITE_ADMIN_PASSWORD="${ADMIN_PASSWORD:-photoadmin}"
 npm run build
 
 echo ""
@@ -16,7 +17,7 @@ echo "=== 3/3 构建后端 JAR ==="
 cd "$(dirname "$0")/backend"
 mvn clean package -DskipTests
 
-JAR=$(ls target/demo-backend-*.jar | head -1)
+JAR=$(ls target/photo-gallery-*.jar | head -1)
 echo ""
 echo "✓ 构建完成"
 echo "  JAR: backend/$JAR"

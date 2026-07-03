@@ -5,6 +5,7 @@ chcp 65001 > $null
 
 Write-Host "===[1/4] Building frontend ===" -ForegroundColor Cyan
 Set-Location "$PSScriptRoot\frontend"
+if ($env:ADMIN_PASSWORD) { $env:VITE_ADMIN_PASSWORD = $env:ADMIN_PASSWORD }
 npm run build
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
@@ -27,7 +28,7 @@ docker compose up -d --build
 
 Write-Host ""
 Write-Host "Done!" -ForegroundColor Green
-Write-Host "  URL: http://localhost:8080" -ForegroundColor Green
+Write-Host "  URL: http://localhost" -ForegroundColor Green
 Write-Host "  Status: docker compose ps" -ForegroundColor Green
 Write-Host "  Logs: docker compose logs -f app" -ForegroundColor Green
 Write-Host "  Stop: docker compose down" -ForegroundColor Green

@@ -1,6 +1,6 @@
 // 封装 fetch，写操作自动附带 JWT；401 时触发重新锁定
 
-const ADMIN_PASSWORD = 'photoadmin';
+const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || 'photoadmin';
 
 export async function api(url, options = {}) {
   const token = localStorage.getItem('jwt_token');
