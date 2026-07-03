@@ -28,7 +28,7 @@ docker compose up -d --build
 
 Write-Host ""
 Write-Host "Done!" -ForegroundColor Green
-Write-Host "  URL: http://localhost:8080" -ForegroundColor Green
+Write-Host "  URL: http://localhost" -ForegroundColor Green
 Write-Host "  Status: docker compose ps" -ForegroundColor Green
 Write-Host "  Logs: docker compose logs -f app" -ForegroundColor Green
 Write-Host "  Stop: docker compose down" -ForegroundColor Green

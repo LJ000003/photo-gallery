@@ -24,7 +24,7 @@ docker compose up -d --build
 
 echo ""
 echo "✓ 部署完成"
-echo "  访问: http://localhost:8080"
+echo "  访问: http://localhost"
 echo "  状态: docker compose ps"
 echo "  日志: docker compose logs -f app"
 echo "  停止: docker compose down"

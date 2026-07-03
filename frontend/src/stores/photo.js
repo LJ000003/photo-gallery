@@ -5,7 +5,7 @@ import { api } from '../api.js';
 function readUrlParams() {
   const p = new URLSearchParams(window.location.search);
   return {
-    view: p.get('view') || '',
+    view: p.get('view') || 'grid',
     q: p.get('q') || '',
     sortBy: p.get('sortBy') || 'time',
     sortOrder: p.get('sortOrder') || 'asc',
@@ -122,6 +122,9 @@ export const usePhotoStore = defineStore('photo', () => {
     photos.value = photos.value.filter(p => !set.has(p.id));
     totalCount.value -= ids.length;
   }
+
+  // 首次加载时同步默认状态到 URL
+  syncUrlState();
 
   return {
     photos, page, hasMore, loading, totalCount, sortBy, sortOrder,

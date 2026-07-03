@@ -17,6 +17,7 @@
 | 数据库 | MySQL + Flyway 迁移 | 8.0+ |
 | 缓存 | Spring Cache + Caffeine | — |
 | EXIF | metadata-extractor | 2.19.0 |
+| 图片编码 | webp-imageio | 0.1.6 |
 | API 文档 | SpringDoc OpenAPI | 2.5.0 |
 | 前端框架 | Vue 3 (Composition API) + Pinia | 3.5 |
 | 构建 | Vite | 5.4 |
@@ -160,19 +161,23 @@ CREATE DATABASE IF NOT EXISTS photodb CHARACTER SET utf8mb4 COLLATE utf8mb4_unic
 |------|------|--------|
 | `DB_USERNAME` | 数据库用户名 | `root` |
 | `DB_PASSWORD` | 数据库密码 | **必填，无默认值** |
+| `JWT_SECRET` | JWT HS256 签名密钥 | **必填，无默认值** |
 | `ADMIN_PASSWORD` | Konami 解锁后的管理密码 | `photoadmin` |
 | `VITE_ADMIN_PASSWORD` | 前端密码（构建时注入） | 自动继承 `ADMIN_PASSWORD` |
-| `JWT_SECRET` | JWT HS256 签名密钥 | 内置默认值（生产必改） |
+
+> `JWT_SECRET` 在 `JwtUtil.java` 启动时通过 `requireEnv()` 强制读取，未设置会直接终止启动。
 
 **Windows (PowerShell):**
 ```powershell
 $env:DB_PASSWORD="你的数据库密码"
+$env:JWT_SECRET="$(openssl rand -base64 32)"   # 或手动指定一段随机字符串
 $env:ADMIN_PASSWORD="你们朋友间的共享密码"
 ```
 
 **Linux / macOS:**
 ```bash
 export DB_PASSWORD=你的数据库密码
+export JWT_SECRET=$(openssl rand -base64 32)
 export ADMIN_PASSWORD=你们朋友间的共享密码
 ```
 
@@ -284,7 +289,7 @@ cd /opt/photo-gallery
 docker compose up -d --build
 ```
 
-首次启动 Flyway 自动建表。访问 `http://<IP>:8080`（若改为 80 端口则直接访问 IP）。
+首次启动 Flyway 自动建表。访问 `http://<IP>`（docker-compose 端口映射 `80:8080`）。
 
 #### 4. 常用命令
 
