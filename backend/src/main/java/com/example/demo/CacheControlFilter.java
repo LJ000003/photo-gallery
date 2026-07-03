@@ -28,9 +28,9 @@ public class CacheControlFilter extends OncePerRequestFilter {
 
         if ("GET".equalsIgnoreCase(request.getMethod())) {
             if (path.matches(".*/photos/\\d+/file$")) {
-                response.setHeader("Cache-Control", "max-age=2592000, immutable");
+                response.setHeader("Cache-Control", "max-age=2592000");
             } else if (!response.containsHeader("Cache-Control")) {
-                response.setHeader("Cache-Control", "max-age=30, must-revalidate");
+                response.setHeader("Cache-Control", "max-age=5, must-revalidate, private");
             }
         } else {
             response.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");

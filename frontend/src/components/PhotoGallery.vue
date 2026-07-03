@@ -2,6 +2,9 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted, defineAsyncComponent } from 'vue';
 import gsap from 'gsap';
 import PhotoCard from './PhotoCard.vue';
+import TimelineView from './TimelineView.vue';
+import MapView from './MapView.vue';
+import AlbumView from './AlbumView.vue';
 import { usePhotoStore } from '../stores/photo.js';
 
 const LottieLoader = defineAsyncComponent(() => import('./LottieLoader.vue'));
@@ -10,6 +13,26 @@ const photo = usePhotoStore();
 const emit = defineEmits(['view', 'edit', 'delete', 'loadMore', 'batch-delete', 'generate-share']);
 
 const selectedIds = ref(new Set());
+const timelineSortOrder = ref('desc');
+
+const viewModes = [
+  { key: 'grid', label: '网格' },
+  { key: 'album', label: '相册' },
+  { key: 'timeline', label: '时间线' },
+  { key: 'map', label: '地图' }
+];
+
+function switchView(key) {
+  if (photo.viewMode === key) {
+    if (key === 'timeline') toggleTimelineSort();
+    return;
+  }
+  photo.viewMode = key;
+  photo.syncUrlState();
+}
+function toggleTimelineSort() {
+  timelineSortOrder.value = timelineSortOrder.value === 'desc' ? 'asc' : 'desc';
+}
 
 function isSelected(id) { return selectedIds.value.has(id); }
 function toggleSelect(id) {
@@ -18,12 +41,19 @@ function toggleSelect(id) {
   selectedIds.value = new Set(s);
 }
 const allSelected = computed(() =>
-  photo.photos.length > 0 && photo.photos.every(p => selectedIds.value.has(p.id))
+  photo.totalCount > 0 && selectedIds.value.size === photo.totalCount
 );
-function toggleAll() {
-  selectedIds.value = allSelected.value
-    ? new Set()
-    : new Set(photo.photos.map(p => p.id));
+
+async function toggleAll() {
+  if (allSelected.value) {
+    selectedIds.value = new Set();
+    return;
+  }
+  // Load remaining pages
+  while (photo.hasMore && !photo.loading) {
+    await photo.loadMore();
+  }
+  selectedIds.value = new Set(photo.photos.map(p => p.id));
 }
 function batchDelete() {
   if (selectedIds.value.size === 0) return;
@@ -82,6 +112,13 @@ watch(() => photo.photos.length, () => {
   <section class="gallery-section">
     <h2>我的照片 <span v-if="photo.totalCount">({{ photo.totalCount }})</span></h2>
     <div class="gallery-toolbar">
+      <input
+        class="search-input"
+        type="text"
+        placeholder="搜索照片名称或描述..."
+        :value="photo.searchQuery"
+        @input="photo.setSearch($event.target.value)"
+      />
       <label>
         <input type="checkbox" :checked="allSelected" @change="toggleAll" />
         全选
@@ -92,7 +129,21 @@ watch(() => photo.photos.length, () => {
       <button v-if="selectedIds.size > 0" class="btn-del" @click="batchDelete">
         批量删除 ({{ selectedIds.size }})
       </button>
-      <div class="sort-switch">
+      <div class="view-switch">
+        <span class="sort-label">视图：</span>
+        <div class="view-track">
+          <button v-for="vm in viewModes" :key="vm.key"
+            class="view-opt" :class="{ active: photo.viewMode === vm.key }"
+            @click="switchView(vm.key)">
+            {{ vm.label }}
+            <span v-if="vm.key === 'timeline' && photo.viewMode === 'timeline'" class="sort-arrows">
+              <i class="iconfont icon-jiantou_qiehuanxiangshang_o sort-arrow-down" :class="{ active: timelineSortOrder === 'asc' }"></i>
+              <i class="iconfont icon-jiantou_qiehuanxiangshang_o" :class="{ active: timelineSortOrder === 'desc' }"></i>
+            </span>
+          </button>
+        </div>
+      </div>
+      <div class="sort-switch" v-if="photo.viewMode === 'grid'">
         <span class="sort-label">排序方式：</span>
         <div class="sort-track">
           <div class="sort-slider" :style="{ transform: `translateX(${sortOptions.findIndex(o => o.key === photo.sortBy) * 100}%)` }"></div>
@@ -109,34 +160,44 @@ watch(() => photo.photos.length, () => {
       </div>
     </div>
 
-    <div class="gallery">
-      <!-- 骨架屏 -->
-      <div v-if="photo.loading && photo.photos.length === 0" v-for="i in 6" :key="'s'+i" class="skeleton-card">
-        <div class="skeleton-img"></div>
-        <div class="skeleton-body">
-          <div class="skeleton-line"></div>
-          <div class="skeleton-line"></div>
+    <!-- 网格视图 -->
+    <template v-if="photo.viewMode === 'grid'">
+      <div class="gallery">
+        <div v-if="photo.loading && photo.photos.length === 0" v-for="i in 6" :key="'s'+i" class="skeleton-card">
+          <div class="skeleton-img"></div>
+          <div class="skeleton-body">
+            <div class="skeleton-line"></div>
+            <div class="skeleton-line"></div>
+          </div>
         </div>
+        <PhotoCard
+          v-for="(p, i) in photo.photos"
+          :key="p.id + '-' + p.fileSize"
+          :photo="p"
+          :search-query="photo.searchQuery"
+          :selected="isSelected(p.id)"
+          :data-insert="i"
+          @view="emit('view', p)"
+          @edit="emit('edit', p)"
+          @delete="emit('delete', p.id)"
+          @toggle-select="toggleSelect"
+        />
       </div>
-      <PhotoCard
-        v-for="(p, i) in photo.photos"
-        :key="p.id"
-        :photo="p"
-        :selected="isSelected(p.id)"
-        :data-insert="i"
-        @view="emit('view', p)"
-        @edit="emit('edit', p)"
-        @delete="emit('delete', p.id)"
-        @toggle-select="toggleSelect"
-      />
-    </div>
-    <div v-if="photo.loading && photo.photos.length > 0" class="sentinel">
-      <LottieLoader name="loading" :size="60" />
-    </div>
-    <div v-else-if="!photo.hasMore && photo.photos.length > 0" class="end-hint">没有更多了</div>
-    <div v-if="!photo.hasMore && !photo.loading && photo.photos.length === 0" class="empty-state">
-      <LottieLoader name="empty" :size="160" />
-      <p class="empty-hint">还没有照片，上传第一张吧</p>
-    </div>
+      <div v-if="photo.loading && photo.photos.length > 0" class="sentinel">
+        <LottieLoader name="loading" :size="60" />
+      </div>
+      <div v-else-if="!photo.hasMore && photo.photos.length > 0" class="end-hint">没有更多了</div>
+      <div v-if="!photo.hasMore && !photo.loading && photo.photos.length === 0" class="empty-state">
+        <LottieLoader name="empty" :size="160" />
+        <p class="empty-hint">还没有照片，上传第一张吧</p>
+      </div>
+    </template>
+
+    <!-- 时间线视图 -->
+    <AlbumView v-else-if="photo.viewMode === 'album'" @view="p => emit('view', p)" />
+    <TimelineView v-else-if="photo.viewMode === 'timeline'" :sort-order="timelineSortOrder" @view="p => emit('view', p)" />
+
+    <!-- 地图视图 -->
+    <MapView v-else-if="photo.viewMode === 'map'" @view="p => emit('view', p)" />
   </section>
 </template>

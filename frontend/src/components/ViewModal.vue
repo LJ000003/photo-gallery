@@ -1,8 +1,9 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import gsap from 'gsap';
+import { webpUrl } from '../webp.js';
 
-defineProps({ photo: Object });
+const props = defineProps({ photo: Object });
 const emit = defineEmits(['close']);
 
 const isMobile = 'ontouchstart' in window;
@@ -10,7 +11,10 @@ const fullLoaded = ref(false);
 
 function tokenParam() {
   const t = localStorage.getItem('jwt_token') || localStorage.getItem('token');
-  return t ? `?token=${t}` : '';
+  let q = t ? `?token=${t}` : '';
+  const v = props.photo.fileSize ? `v=${props.photo.fileSize}` : '';
+  if (v) q += q ? `&${v}` : `?${v}`;
+  return q;
 }
 
 onMounted(() => {
@@ -54,7 +58,7 @@ function onClose() {
         <img
           class="img-full"
           :class="{ show: fullLoaded }"
-          :src="`/api/photos/${photo.id}/file${tokenParam()}`"
+          :src="`${webpUrl(photo.id)}${tokenParam()}`"
           :alt="photo.name"
           decoding="async"
           loading="lazy"

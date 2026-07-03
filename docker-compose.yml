@@ -6,8 +6,6 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: root123
       MYSQL_DATABASE: photodb
-      MYSQL_USER: app_user
-      MYSQL_PASSWORD: app_pass
     ports:
       - "3307:3306"
     volumes:
@@ -24,12 +22,14 @@ services:
     container_name: photo-manager
     restart: always
     ports:
-      - "8080:8080"
+      - "80:8080"
     environment:
       SPRING_PROFILES_ACTIVE: prod
       DB_HOST: mysql
-      DB_USERNAME: app_user
-      DB_PASSWORD: app_pass
+      DB_USERNAME: root
+      DB_PASSWORD: root123
+      JWT_SECRET: "请替换为 openssl rand -base64 32 的输出"
+      ADMIN_PASSWORD: "photoadmin"
     depends_on:
       mysql:
         condition: service_healthy

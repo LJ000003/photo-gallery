@@ -100,10 +100,34 @@ async function onGenerateShare(ids) {
 }
 
 function copyShareLink() {
-  navigator.clipboard.writeText(shareUrl.value).then(() => {
+  const text = shareUrl.value;
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(() => {
+      toast.success('链接已复制，分享给朋友吧');
+      shareModal.value = null;
+    }).catch(() => fallbackCopy(text));
+  } else {
+    fallbackCopy(text);
+  }
+}
+
+function fallbackCopy(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.left = '-9999px';
+  ta.style.top = '-9999px';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  try {
+    document.execCommand('copy');
     toast.success('链接已复制，分享给朋友吧');
     shareModal.value = null;
-  }).catch(() => toast.error('复制失败，请手动复制'));
+  } catch (e) {
+    toast.error('复制失败，请手动复制');
+  }
+  document.body.removeChild(ta);
 }
 
 async function onUnlock() {

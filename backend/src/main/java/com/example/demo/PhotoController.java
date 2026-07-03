@@ -34,7 +34,18 @@ public class PhotoController {
     public ApiResponse<Page<Photo>> list(
             @RequestParam(required = false) List<Long> tagIds,
             @RequestParam(required = false) List<Long> categoryIds,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) Long albumId,
             @PageableDefault(size = 20) Pageable pageable) {
+        if (q != null && !q.isBlank()) {
+            return ApiResponse.success(service.search(q, pageable));
+        }
+        if (albumId != null) {
+            if (albumId == 0) {
+                return ApiResponse.success(service.listUnassigned(pageable));
+            }
+            return ApiResponse.success(service.listByAlbum(albumId, pageable));
+        }
         return ApiResponse.success(service.listAll(tagIds, categoryIds, pageable));
     }
 
@@ -48,9 +59,10 @@ public class PhotoController {
                         @RequestParam(value = "name", required = false) String name,
                         @RequestParam(value = "description", required = false) String description,
                         @RequestParam(value = "tagIds", required = false) List<Long> tagIds,
-                        @RequestParam(value = "categoryId", required = false) Long categoryId)
+                        @RequestParam(value = "categoryId", required = false) Long categoryId,
+                        @RequestParam(value = "watermark", required = false) String watermark)
             throws IOException {
-        return service.upload(file, name, description, tagIds, categoryId);
+        return service.upload(file, name, description, tagIds, categoryId, watermark);
     }
 
     @PostMapping("/photos/batch")
@@ -59,9 +71,10 @@ public class PhotoController {
             @RequestParam(value = "name", required = false) String name,
             @RequestParam(value = "description", required = false) String description,
             @RequestParam(value = "tagIds", required = false) List<Long> tagIds,
-            @RequestParam(value = "categoryId", required = false) Long categoryId)
+            @RequestParam(value = "categoryId", required = false) Long categoryId,
+            @RequestParam(value = "watermark", required = false) String watermark)
             throws IOException {
-        return ApiResponse.success(service.batchUpload(files, name, description, tagIds, categoryId));
+        return ApiResponse.success(service.batchUpload(files, name, description, tagIds, categoryId, watermark));
     }
 
     @PutMapping("/photos/{id}")
@@ -75,7 +88,11 @@ public class PhotoController {
         Long categoryId = body.get("categoryId") != null
                 ? ((Number) body.get("categoryId")).longValue()
                 : null;
-        return service.update(id, name, description, tagIds, categoryId);
+        @SuppressWarnings("unchecked")
+        List<Long> albumIds = body.get("albumIds") != null
+                ? ((List<Integer>) body.get("albumIds")).stream().map(Integer::longValue).toList()
+                : null;
+        return service.update(id, name, description, tagIds, categoryId, albumIds);
     }
 
     @DeleteMapping("/photos/{id}")
@@ -99,6 +116,14 @@ public class PhotoController {
                 .body(resource);
     }
 
+    @GetMapping("/photos/{id}/webp")
+    public ResponseEntity<Resource> getWebp(@PathVariable Long id) {
+        Resource resource = new FileSystemResource(service.getWebpPath(id));
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("image/webp"))
+                .body(resource);
+    }
+
     @GetMapping("/photos/{id}/thumbnail")
     public ResponseEntity<Resource> getThumbnail(@PathVariable Long id) {
         Photo photo = service.getById(id);
@@ -113,6 +138,101 @@ public class PhotoController {
     public ApiResponse<Map<String, Integer>> migrateThumbnails() {
         int count = service.migrateThumbnails();
         return ApiResponse.success(Map.of("generated", count));
+    }
+
+    @PostMapping("/photos/migrate-webp")
+    public ApiResponse<Map<String, Integer>> migrateWebp() {
+        int count = service.migrateWebp();
+        return ApiResponse.success(Map.of("generated", count));
+    }
+
+    @GetMapping("/photos/timeline")
+    public ApiResponse<List<ExifData>> timeline(
+            @RequestParam(defaultValue = "desc") String sortOrder) {
+        return ApiResponse.success(service.getTimeline(sortOrder));
+    }
+
+    @GetMapping("/photos/map")
+    public ApiResponse<List<ExifData>> mapPhotos() {
+        return ApiResponse.success(service.getMapPhotos());
+    }
+
+    @PostMapping("/photos/extract-exif")
+    public ApiResponse<Map<String, Integer>> extractExifBatch() {
+        int count = service.extractExifForExisting();
+        return ApiResponse.success(Map.of("extracted", count));
+    }
+
+    @PostMapping("/photos/{id}/extract-exif")
+    public ApiResponse<ExifData> extractExif(@PathVariable Long id) {
+        return ApiResponse.success(service.extractExifForPhoto(id));
+    }
+
+    @PostMapping("/photos/{id}/transform")
+    public ApiResponse<String> transform(@PathVariable Long id, @RequestBody Map<String, Object> body)
+            throws IOException {
+        int rotate = body.get("rotate") != null ? ((Number) body.get("rotate")).intValue() : 0;
+        String mirror = (String) body.getOrDefault("mirror", "none");
+        Double cx = body.get("cx") != null ? ((Number) body.get("cx")).doubleValue() : null;
+        Double cy = body.get("cy") != null ? ((Number) body.get("cy")).doubleValue() : null;
+        Double cw = body.get("cw") != null ? ((Number) body.get("cw")).doubleValue() : null;
+        Double ch = body.get("ch") != null ? ((Number) body.get("ch")).doubleValue() : null;
+        service.transformPhoto(id, rotate, mirror, cx, cy, cw, ch);
+        return ApiResponse.success("ok");
+    }
+
+    // === 相册 ===
+
+    @GetMapping("/albums")
+    public ApiResponse<List<Album>> listAlbums() {
+        return ApiResponse.success(service.listAlbums());
+    }
+
+    @PostMapping("/albums")
+    public ApiResponse<Album> createAlbum(@RequestBody Map<String, Object> body) {
+        String name = (String) body.get("name");
+        String description = (String) body.get("description");
+        @SuppressWarnings("unchecked")
+        List<Long> photoIds = body.get("photoIds") != null
+                ? ((List<Integer>) body.get("photoIds")).stream().map(Integer::longValue).toList()
+                : null;
+        return ApiResponse.success(service.createAlbum(name, description, photoIds));
+    }
+
+    @PutMapping("/albums/{id}")
+    public ApiResponse<Album> updateAlbum(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        String name = (String) body.get("name");
+        String description = (String) body.get("description");
+        @SuppressWarnings("unchecked")
+        List<Long> photoIds = body.get("photoIds") != null
+                ? ((List<Integer>) body.get("photoIds")).stream().map(Integer::longValue).toList()
+                : null;
+        return ApiResponse.success(service.updateAlbum(id, name, description, photoIds));
+    }
+
+    @DeleteMapping("/albums/{id}")
+    public ApiResponse<String> deleteAlbum(@PathVariable Long id) {
+        service.deleteAlbum(id);
+        return ApiResponse.success("删除成功");
+    }
+
+    @GetMapping("/albums/{id}/photos")
+    public ApiResponse<Page<Photo>> listAlbumPhotos(
+            @PathVariable Long id,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ApiResponse.success(service.listByAlbum(id, pageable));
+    }
+
+    @PostMapping("/albums/{id}/photos")
+    public ApiResponse<String> addPhotosToAlbum(@PathVariable Long id, @RequestBody List<Long> photoIds) {
+        service.addPhotosToAlbum(id, photoIds);
+        return ApiResponse.success("ok");
+    }
+
+    @DeleteMapping("/albums/{id}/photos")
+    public ApiResponse<String> removePhotosFromAlbum(@PathVariable Long id, @RequestBody List<Long> photoIds) {
+        service.removePhotosFromAlbum(id, photoIds);
+        return ApiResponse.success("ok");
     }
 
     // === 标签 ===

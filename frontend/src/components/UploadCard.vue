@@ -4,6 +4,7 @@ import gsap from 'gsap';
 import { useStore } from '../store.js';
 import { useToastStore } from '../stores/toast.js';
 import { api } from '../api.js';
+import ImageEditor from './ImageEditor.vue';
 
 const toast = useToastStore();
 const LottieLoader = defineAsyncComponent(() => import('./LottieLoader.vue'));
@@ -17,6 +18,7 @@ const preview = ref(null);
 const fileLabel = ref(null);
 const uploadName = ref('');
 const uploadDesc = ref('');
+const watermark = ref('');
 const previewSrc = ref('');
 const showPreview = ref(false);
 const submitting = ref(false);
@@ -25,6 +27,11 @@ const previews = ref([]); // { name, url }
 const selectedTagIds = ref([]);
 const selectedCatId = ref(null);
 const dragOver = ref(false);
+const editorVisible = ref(false);
+const editorSrc = ref('');
+const editingIndex = ref(-1);
+const editedBlobs = ref({}); // index -> Blob
+const previewEditedSrc = ref('');
 
 async function extractErrorMessage(res) {
   try {
@@ -38,6 +45,8 @@ async function extractErrorMessage(res) {
 function onFileChange(e) {
   const files = e.target.files;
   revokePreviews();
+  editedBlobs.value = {};
+  if (previewEditedSrc.value) { URL.revokeObjectURL(previewEditedSrc.value); previewEditedSrc.value = ''; }
   selectedCount.value = files.length;
   if (files.length === 0) return;
 
@@ -109,7 +118,27 @@ function clearSelection() {
   previewSrc.value = '';
   selectedCount.value = 0;
   revokePreviews();
+  editedBlobs.value = {};
+  if (previewEditedSrc.value) { URL.revokeObjectURL(previewEditedSrc.value); previewEditedSrc.value = ''; }
   if (fileInput.value) fileInput.value.value = '';
+}
+
+function openEditor(index) {
+  editingIndex.value = index;
+  editorSrc.value = editedBlobs.value[index]
+    ? URL.createObjectURL(editedBlobs.value[index])
+    : previews.value.length > 0 ? previews.value[index].url : previewSrc.value;
+  editorVisible.value = true;
+}
+
+function onEditorDone({ blob }) {
+  if (editingIndex.value >= 0) {
+    if (previewEditedSrc.value) URL.revokeObjectURL(previewEditedSrc.value);
+    previewEditedSrc.value = URL.createObjectURL(blob);
+    editedBlobs.value = { ...editedBlobs.value, [editingIndex.value]: blob };
+  }
+  editorVisible.value = false;
+  editingIndex.value = -1;
 }
 
 async function onSubmit() {
@@ -117,13 +146,18 @@ async function onSubmit() {
   if (files.length === 0) { toast.error('请选择照片'); return; }
 
   const fd = new FormData();
-  for (const f of files) {
+  const fileArray = Array.from(files);
+  for (let i = 0; i < fileArray.length; i++) {
+    const f = editedBlobs.value[i]
+      ? new File([editedBlobs.value[i]], fileArray[i].name, { type: 'image/jpeg' })
+      : fileArray[i];
     fd.append('files', f);
   }
   fd.append('name', uploadName.value.trim());
   fd.append('description', uploadDesc.value.trim());
   selectedTagIds.value.forEach(id => fd.append('tagIds', id));
   if (selectedCatId.value) fd.append('categoryId', selectedCatId.value);
+  if (watermark.value.trim()) fd.append('watermark', watermark.value.trim());
 
   submitting.value = true;
   try {
@@ -136,11 +170,15 @@ async function onSubmit() {
       }
     } else {
       const singleFd = new FormData();
-      singleFd.append('file', files[0]);
+      const singleFile = editedBlobs.value[0]
+        ? new File([editedBlobs.value[0]], files[0].name, { type: 'image/jpeg' })
+        : files[0];
+      singleFd.append('file', singleFile);
       singleFd.append('name', uploadName.value.trim());
       singleFd.append('description', uploadDesc.value.trim());
       selectedTagIds.value.forEach(id => singleFd.append('tagIds', id));
       if (selectedCatId.value) singleFd.append('categoryId', selectedCatId.value);
+      if (watermark.value.trim()) singleFd.append('watermark', watermark.value.trim());
       const res = await api('/api/photos', { method: 'POST', body: singleFd });
       if (!res.ok) {
         const msg = await extractErrorMessage(res);
@@ -183,11 +221,15 @@ async function onSubmit() {
           <span class="file-icon">+</span>
           <span>{{ selectedCount > 0 ? `已选 ${selectedCount} 张` : '点击选择 / 拖拽 / 粘贴 (Ctrl+V)' }}</span>
         </label>
-        <img ref="preview" v-if="showPreview" :src="previewSrc" alt="预览" />
+        <div v-if="showPreview" class="single-preview-wrap">
+          <img ref="preview" :src="editedBlobs[0] ? previewEditedSrc : previewSrc" alt="预览" />
+          <button type="button" class="upload-edit-btn" @click="openEditor(0)" title="编辑图片">✎</button>
+        </div>
       </div>
       <div v-if="previews.length > 0" class="preview-grid">
-        <div v-for="p in previews" :key="p.name" class="preview-item">
-          <img :src="p.url" :alt="p.name" />
+        <div v-for="(p, i) in previews" :key="p.name" class="preview-item">
+          <img :src="editedBlobs[i] ? URL.createObjectURL(editedBlobs[i]) : p.url" :alt="p.name" />
+          <button type="button" class="upload-edit-btn" @click="openEditor(i)" title="编辑图片">✎</button>
           <span>{{ p.name }}</span>
         </div>
       </div>
@@ -209,6 +251,7 @@ async function onSubmit() {
       <div class="form-row">
         <input v-model="uploadName" type="text" placeholder="照片名称（可选）" />
         <input v-model="uploadDesc" type="text" maxlength="500" placeholder="照片描述（可选）" />
+        <input v-model="watermark" type="text" maxlength="30" placeholder="水印文字（可选）" />
         <button type="submit" :disabled="submitting">
           <span v-if="submitting" class="btn-loading">
             <LottieLoader name="uploading" :size="20" />
@@ -221,4 +264,5 @@ async function onSubmit() {
       </div>
     </form>
   </section>
+  <ImageEditor :src="editorSrc" :visible="editorVisible" @close="editorVisible = false" @done="onEditorDone" />
 </template>
