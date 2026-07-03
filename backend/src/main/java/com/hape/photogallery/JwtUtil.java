@@ -1,6 +1,7 @@
 package com.hape.photogallery;
 
 import java.security.Key;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.List;
 
@@ -25,7 +26,7 @@ public class JwtUtil {
         return value;
     }
 
-    private static final Key KEY = Keys.hmacShaKeyFor(SECRET.getBytes());
+    private static final Key KEY = Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8));
 
     /** 签发 admin JWT */
     public static String issueAdmin(long durationMs) {

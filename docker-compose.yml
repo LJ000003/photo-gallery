@@ -22,7 +22,7 @@ services:
     container_name: photo-manager
     restart: always
     ports:
-      - "8080:8080"
+      - "80:8080"
     environment:
       SPRING_PROFILES_ACTIVE: prod
       DB_HOST: ${DB_HOST:-mysql}
