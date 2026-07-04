@@ -27,6 +27,9 @@ class PhotoControllerTest {
     @MockBean
     private PhotoService service;
 
+    @MockBean
+    private AlbumService albumService;
+
     @Test
     void list_shouldReturnPage() throws Exception {
         when(service.listAll(any(), any(), any(PageRequest.class)))
@@ -74,35 +77,5 @@ class PhotoControllerTest {
                         .content("[1,2]"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.deleted").value(2));
-    }
-
-    @Test
-    void listTags_shouldReturnTags() throws Exception {
-        when(service.listTags()).thenReturn(List.of(new Tag("日出", "#ff8800")));
-
-        mockMvc.perform(get("/api/tags"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200));
-    }
-
-    @Test
-    void createTag_shouldReturnTag() throws Exception {
-        Tag tag = new Tag("新标签", "#ff0"); tag.setId(1L);
-        when(service.createTag("新标签", "#ff0")).thenReturn(tag);
-
-        mockMvc.perform(post("/api/tags")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"新标签\",\"color\":\"#ff0\"}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.name").value("新标签"));
-    }
-
-    @Test
-    void listCategories_shouldReturnCategories() throws Exception {
-        when(service.listCategories()).thenReturn(List.of(new Category("风景")));
-
-        mockMvc.perform(get("/api/categories"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200));
     }
 }

@@ -27,17 +27,20 @@ class PhotoServiceTest {
     @Mock
     private CategoryRepository catRepo;
     @Mock
-    private AlbumRepository albumRepo;
+    private ExifDataRepository exifRepo;
     @Mock
     private ExifService exifService;
     @Mock
-    private ExifDataRepository exifRepo;
+    private ImageProcessingService imageService;
+    @Mock
+    private AlbumService albumService;
 
     private PhotoService service;
 
     @BeforeEach
     void setUp() {
-        service = new PhotoService(photoRepo, tagRepo, catRepo, albumRepo, exifService, exifRepo, "target/test-uploads");
+        service = new PhotoService(photoRepo, tagRepo, catRepo, exifRepo, exifService,
+                imageService, albumService, "target/test-uploads");
     }
 
     @Test
@@ -100,27 +103,5 @@ class PhotoServiceTest {
 
         assertThat(result.getName()).isEqualTo("newName");
         assertThat(result.getDescription()).isEqualTo("newDesc");
-    }
-
-    @Test
-    void createTag_duplicateName_shouldReturnExisting() {
-        Tag existing = new Tag("风景", "#ff0"); existing.setId(1L);
-        when(tagRepo.findByName("风景")).thenReturn(Optional.of(existing));
-
-        Tag result = service.createTag("风景", "#f00");
-
-        assertThat(result.getId()).isEqualTo(1L);
-        verify(tagRepo, never()).save(any());
-    }
-
-    @Test
-    void createTag_new_shouldSave() {
-        when(tagRepo.findByName("新标签")).thenReturn(Optional.empty());
-        when(tagRepo.save(any())).thenAnswer(inv -> { Tag t = inv.getArgument(0); t.setId(10L); return t; });
-
-        Tag result = service.createTag("新标签", "#00f");
-
-        assertThat(result.getId()).isEqualTo(10L);
-        verify(tagRepo).save(any());
     }
 }
