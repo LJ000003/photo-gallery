@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useUiStore } from '../stores/ui'
 import { api } from '../api'
 import L from 'leaflet'
@@ -24,6 +24,7 @@ const items = ref<MapExifItem[]>([])
 const loading = ref(true)
 const mapContainer = ref<HTMLElement | null>(null)
 let map: L.Map | null = null
+let mapResizeObs: ResizeObserver | null = null
 
 function tokenParam(): string {
   const t = ui.token
@@ -80,10 +81,10 @@ function initMap(): void {
     markers.push(latlng)
     const marker = L.marker(latlng)
     marker.bindPopup(`
-      <div style="text-align:center;">
+      <div style="text-align:center;max-width:200px;">
         <img src="${exif.photoThumbnail}${tokenParam()}" alt="${exif.photoName}"
-          style="width:120px;height:80px;object-fit:cover;border-radius:6px;margin-bottom:4px;" />
-        <p style="margin:0;font-size:13px;">${exif.photoName}</p>
+          style="width:100%;max-width:160px;height:auto;aspect-ratio:3/2;object-fit:cover;border-radius:6px;margin-bottom:4px;" />
+        <p style="margin:0;font-size:13px;word-break:break-all;">${exif.photoName}</p>
       </div>
     `)
     marker.on('click', () => {
@@ -97,7 +98,24 @@ function initMap(): void {
   if (markers.length > 0) {
     map.fitBounds(markers, { padding: [40, 40] })
   }
+
+  if (mapContainer.value) {
+    mapResizeObs = new ResizeObserver(() => {
+      map?.invalidateSize()
+    })
+    mapResizeObs.observe(mapContainer.value)
+  }
+
+  requestAnimationFrame(() => {
+    map?.invalidateSize()
+  })
 }
+
+onUnmounted(() => {
+  mapResizeObs?.disconnect()
+  map?.remove()
+  map = null
+})
 </script>
 
 <template>

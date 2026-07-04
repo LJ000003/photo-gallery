@@ -54,6 +54,7 @@
     "vue-tsc": "^3.3.6"
   },
   "dependencies": {
+    "@tanstack/vue-virtual": "^3.13.31",
     "gsap": "^3.15.0",
     "leaflet": "^1.9.4",
     "leaflet.markercluster": "^1.5.3",

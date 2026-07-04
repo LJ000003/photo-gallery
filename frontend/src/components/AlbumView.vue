@@ -10,7 +10,17 @@ import type { Album } from '../types/album'
 import type { Photo } from '../types/photo'
 import type { ApiResponse, PageResponse } from '../types/api'
 
-const emit = defineEmits<{ view: [p: object] }>()
+const props = defineProps<{
+  sortBy: string
+  sortOrder: string
+}>()
+
+const emit = defineEmits<{
+  view: [p: object]
+  'update:sortBy': [key: string]
+  'update:sortOrder': [order: string]
+}>()
+
 const { refreshAlbums } = useStore()
 const toast = useToastStore()
 const confirmFn = useConfirm()
@@ -24,17 +34,13 @@ const photoHasMore = ref(false)
 const photoLoading = ref(false)
 const editingAlbum = ref<Album | { id: null; name: string; description: string } | null>(null)
 
-const sortBy = ref('time')
-const sortOrder = ref('desc')
-
-function setSort(key: string): void {
-  if (sortBy.value === key) {
-    sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
+function handleSort(key: string): void {
+  if (props.sortBy === key) {
+    emit('update:sortOrder', props.sortOrder === 'asc' ? 'desc' : 'asc')
   } else {
-    sortBy.value = key
-    sortOrder.value = 'asc'
+    emit('update:sortBy', key)
+    emit('update:sortOrder', 'asc')
   }
-  if (selectedAlbum.value) loadAlbumPhotos(true)
 }
 
 async function loadAlbums(): Promise<void> {
@@ -52,8 +58,8 @@ async function loadAlbums(): Promise<void> {
 
 const sortedAlbums = computed(() => {
   const list = [...albums.value]
-  const dir = sortOrder.value === 'asc' ? 1 : -1
-  if (sortBy.value === 'name') {
+  const dir = props.sortOrder === 'asc' ? 1 : -1
+  if (props.sortBy === 'name') {
     list.sort((a, b) => dir * a.name.localeCompare(b.name))
   } else {
     list.sort((a, b) => dir * (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()))
@@ -84,7 +90,7 @@ async function loadAlbumPhotos(reset: boolean): Promise<void> {
   if (photoLoading.value || !photoHasMore.value || !selectedAlbum.value) return
   photoLoading.value = true
   const fieldMap: Record<string, string> = { time: 'createdAt', name: 'name' }
-  const sortStr = `${fieldMap[sortBy.value]},${sortOrder.value}`
+  const sortStr = `${fieldMap[props.sortBy]},${props.sortOrder}`
   try {
     const url =
       selectedAlbum.value.id === 0
@@ -163,6 +169,10 @@ watch(
   },
 )
 
+watch([() => props.sortBy, () => props.sortOrder], () => {
+  if (selectedAlbum.value) loadAlbumPhotos(true)
+})
+
 watch(albumPhotos, () => {
   nextTick(() => {
     if (albumPhotos.value.length <= 20) {
@@ -194,49 +204,6 @@ onMounted(loadAlbums)
   <div class="album-wrap">
     <template v-if="!selectedAlbum">
       <div class="gallery-toolbar">
-        <div class="sort-switch">
-          <span class="sort-label">排序方式：</span>
-          <div class="sort-track sort-2cols">
-            <div
-              class="sort-slider"
-              :style="{ transform: `translateX(${sortBy === 'time' ? 0 : 100}%)` }"
-            ></div>
-            <button
-              class="sort-opt"
-              :class="{ active: sortBy === 'time' }"
-              @click="setSort('time')"
-            >
-              时间
-              <span v-if="sortBy === 'time'" class="sort-arrows">
-                <i
-                  class="iconfont icon-jiantou_qiehuanxiangshang_o sort-arrow-down"
-                  :class="{ active: sortOrder === 'asc' }"
-                ></i>
-                <i
-                  class="iconfont icon-jiantou_qiehuanxiangshang_o"
-                  :class="{ active: sortOrder === 'desc' }"
-                ></i>
-              </span>
-            </button>
-            <button
-              class="sort-opt"
-              :class="{ active: sortBy === 'name' }"
-              @click="setSort('name')"
-            >
-              名称
-              <span v-if="sortBy === 'name'" class="sort-arrows">
-                <i
-                  class="iconfont icon-jiantou_qiehuanxiangshang_o sort-arrow-down"
-                  :class="{ active: sortOrder === 'asc' }"
-                ></i>
-                <i
-                  class="iconfont icon-jiantou_qiehuanxiangshang_o"
-                  :class="{ active: sortOrder === 'desc' }"
-                ></i>
-              </span>
-            </button>
-          </div>
-        </div>
         <button class="btn-create-album" @click="onCreateAlbum">+ 新建相册</button>
       </div>
       <div class="album-grid">
@@ -287,39 +254,39 @@ onMounted(loadAlbums)
           <div class="sort-track sort-2cols">
             <div
               class="sort-slider"
-              :style="{ transform: `translateX(${sortBy === 'time' ? 0 : 100}%)` }"
+              :style="{ transform: `translateX(${props.sortBy === 'time' ? 0 : 100}%)` }"
             ></div>
             <button
               class="sort-opt"
-              :class="{ active: sortBy === 'time' }"
-              @click="setSort('time')"
+              :class="{ active: props.sortBy === 'time' }"
+              @click="handleSort('time')"
             >
               时间
-              <span v-if="sortBy === 'time'" class="sort-arrows">
+              <span v-if="props.sortBy === 'time'" class="sort-arrows">
                 <i
                   class="iconfont icon-jiantou_qiehuanxiangshang_o sort-arrow-down"
-                  :class="{ active: sortOrder === 'asc' }"
+                  :class="{ active: props.sortOrder === 'asc' }"
                 ></i>
                 <i
                   class="iconfont icon-jiantou_qiehuanxiangshang_o"
-                  :class="{ active: sortOrder === 'desc' }"
+                  :class="{ active: props.sortOrder === 'desc' }"
                 ></i>
               </span>
             </button>
             <button
               class="sort-opt"
-              :class="{ active: sortBy === 'name' }"
-              @click="setSort('name')"
+              :class="{ active: props.sortBy === 'name' }"
+              @click="handleSort('name')"
             >
               名称
-              <span v-if="sortBy === 'name'" class="sort-arrows">
+              <span v-if="props.sortBy === 'name'" class="sort-arrows">
                 <i
                   class="iconfont icon-jiantou_qiehuanxiangshang_o sort-arrow-down"
-                  :class="{ active: sortOrder === 'asc' }"
+                  :class="{ active: props.sortOrder === 'asc' }"
                 ></i>
                 <i
                   class="iconfont icon-jiantou_qiehuanxiangshang_o"
-                  :class="{ active: sortOrder === 'desc' }"
+                  :class="{ active: props.sortOrder === 'desc' }"
                 ></i>
               </span>
             </button>

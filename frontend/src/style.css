@@ -579,6 +579,34 @@ body {
   color: var(--text-dim);
 }
 
+/* === 上传进度条 === */
+.upload-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+.progress-track {
+  flex: 1;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  border-radius: 3px;
+  transition: width 0.2s ease;
+}
+.progress-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  min-width: 36px;
+  text-align: right;
+}
+
 /* === 按钮 === */
 button {
   border: none;
@@ -906,12 +934,19 @@ button[type='submit']:hover,
   }
 }
 
+/* === 工具栏居中组 === */
+.toolbar-center {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 auto;
+}
+
 /* === 排序开关 === */
 .sort-switch {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-left: auto;
 }
 .sort-label {
   font-size: 13px;
@@ -921,13 +956,13 @@ button[type='submit']:hover,
 .sort-track {
   position: relative;
   display: flex;
-  width: 270px;
+  width: 272px;
   border: 1px solid var(--border);
   border-radius: 10px;
   overflow: hidden;
 }
 .sort-track.sort-2cols {
-  width: 180px;
+  width: 182px;
 }
 .sort-slider {
   position: absolute;
@@ -1165,6 +1200,12 @@ button[type='submit']:hover,
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 20px;
+}
+.gallery-virt {
+  min-height: 200px;
+}
+.gallery-virt-row {
+  will-change: transform;
 }
 
 .empty-hint {
@@ -2119,7 +2160,10 @@ button[type='submit']:hover,
     margin-left: 0;
   }
   .sort-track {
-    width: 225px;
+    width: 227px;
+  }
+  .sort-track.sort-2cols {
+    width: 152px;
   }
   .sort-opt {
     width: 75px;
@@ -2173,6 +2217,57 @@ button[type='submit']:hover,
     height: 22px;
     top: 6px;
     left: 6px;
+  }
+
+  /* 工具栏居中组 — 窄屏换行 */
+  .toolbar-center {
+    width: 100%;
+    flex: none;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0;
+  }
+  .toolbar-center .search-input {
+    flex: 1 1 100%;
+    max-width: 100%;
+    width: 100%;
+  }
+  .toolbar-center .sort-label {
+    display: none;
+  }
+  .view-track {
+    margin: 0 auto;
+  }
+  .view-opt {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+  .sort-opt {
+    font-size: 12px;
+  }
+
+  /* 时间线 */
+  .timeline-wrap {
+    margin-top: 16px;
+    padding: 0 4px;
+  }
+
+  /* 地图 */
+  .map-wrap {
+    margin-top: 16px;
+    min-height: 0;
+    width: 100%;
+  }
+  .map-container {
+    height: calc(100vh - 260px);
+    min-height: 300px;
+    width: 100% !important;
+    margin: 0 auto;
+    border-radius: 8px;
+  }
+  .leaflet-control-zoom {
+    display: none;
   }
 }
 
@@ -2521,3 +2616,23 @@ button[type='submit']:hover,
   font-size: 14px;
 }
 /* 编辑按钮（照片卡片上已有）保持原样 */
+
+/* ========== 触屏设备：重置悬浮效果 ========== */
+@media (hover: none) {
+  .photo-card:hover {
+    border-color: var(--border);
+    z-index: auto;
+  }
+  .photo-card:hover::before {
+    opacity: 0;
+  }
+  .photo-card:hover .photo-thumb img {
+    transform: none;
+  }
+  .photo-thumb:hover .photo-overlay {
+    opacity: 0;
+  }
+  .photo-card:hover .card-check {
+    opacity: 0;
+  }
+}

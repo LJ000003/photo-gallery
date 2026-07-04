@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
+import { ref, computed, watch, onUnmounted, defineAsyncComponent } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import gsap from 'gsap'
+import { useWindowVirtualizer } from '@tanstack/vue-virtual'
 import PhotoCard from '../components/PhotoCard.vue'
 import UploadCard from '../components/UploadCard.vue'
 import { usePhotoStore } from '../stores/photo'
@@ -82,36 +82,75 @@ watch(
   },
 )
 
-function onScroll(): void {
-  if (!photo.hasMore || photo.loading) return
-  if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 200) {
+// --- 虚拟滚动 ---
+const gridRef = ref<HTMLDivElement | null>(null)
+const containerWidth = ref(0)
+let resizeObs: ResizeObserver | null = null
+
+const GAP = 20
+
+const columns = computed(() => {
+  const w = containerWidth.value
+  const min = w < 600 ? 150 : 260
+  if (w < min) return 1
+  return Math.max(1, Math.floor((w + GAP) / (min + GAP)))
+})
+
+const rows = computed(() => {
+  const cols = columns.value
+  const result: (typeof photo.photos)[] = []
+  for (let i = 0; i < photo.photos.length; i += cols) {
+    result.push(photo.photos.slice(i, i + cols))
+  }
+  return result
+})
+
+const virtualCount = computed(() => {
+  let n = rows.value.length
+  if (photo.loading && photo.hasMore) n++
+  else if (!photo.hasMore && photo.photos.length > 0) n++
+  return n
+})
+
+const virtualizer = useWindowVirtualizer(
+  computed(() => ({
+    count: virtualCount.value,
+    estimateSize: () => 360,
+    overscan: 3,
+    scrollMargin: 0,
+    measureElement: (el: Element) => el.getBoundingClientRect().height,
+  })),
+)
+
+const virtualItems = computed(() => virtualizer.value.getVirtualItems())
+
+// 接近底部时触发加载
+watch(virtualItems, (items) => {
+  if (items.length === 0 || !photo.hasMore || photo.loading) return
+  const lastIdx = items[items.length - 1].index
+  if (lastIdx >= rows.value.length - 3) {
     photo.loadMore()
   }
-}
-
-onMounted(() => {
-  window.addEventListener('scroll', onScroll, { passive: true })
-})
-onUnmounted(() => {
-  window.removeEventListener('scroll', onScroll)
 })
 
-let prevCount = 0
 watch(
-  () => photo.photos.length,
-  () => {
-    if (photo.photos.length === prevCount) return
-    const newCards = photo.photos.slice(prevCount)
-    prevCount = photo.photos.length
-    nextTick(() => {
-      gsap.fromTo(
-        newCards.map((_, i) => `.photo-card[data-insert="${prevCount - newCards.length + i}"]`),
-        { y: 40, opacity: 0 },
-        { y: 0, opacity: 1, stagger: 0.06, duration: 0.6, ease: 'expo.out' },
-      )
-    })
+  gridRef,
+  (el) => {
+    resizeObs?.disconnect()
+    if (el) {
+      containerWidth.value = el.getBoundingClientRect().width
+      resizeObs = new ResizeObserver(([entry]) => {
+        containerWidth.value = entry.contentRect.width
+      })
+      resizeObs.observe(el)
+    }
   },
+  { immediate: true },
 )
+
+onUnmounted(() => {
+  resizeObs?.disconnect()
+})
 
 function onUploaded(): void {
   photo.resetAndReload()
@@ -130,13 +169,6 @@ const sortOptions: { key: SortField; label: string }[] = [
       我的照片 <span v-if="photo.totalCount">({{ photo.totalCount }})</span>
     </h2>
     <div class="gallery-toolbar">
-      <input
-        class="search-input"
-        type="text"
-        placeholder="搜索照片名称或描述..."
-        :value="photo.searchQuery"
-        @input="photo.setSearch(($event.target as HTMLInputElement).value)"
-      />
       <label>
         <input type="checkbox" :checked="allSelected" @change="toggleAll" />
         全选
@@ -147,97 +179,141 @@ const sortOptions: { key: SortField; label: string }[] = [
       <button v-if="selectedIds.size > 0" class="btn-del" @click="batchDelete">
         批量删除 ({{ selectedIds.size }})
       </button>
-      <div class="view-switch">
-        <span class="sort-label">视图：</span>
-        <div class="view-track">
-          <router-link
-            to="/"
-            class="view-opt"
-            :class="{ active: route.path === '/' }"
-            @click.prevent="switchView('/')"
-            >网格</router-link
-          >
-          <router-link to="/albums" class="view-opt" :class="{ active: route.path === '/albums' }"
-            >相册</router-link
-          >
-          <router-link
-            to="/timeline"
-            class="view-opt"
-            :class="{ active: route.path === '/timeline' }"
-            >时间线</router-link
-          >
-          <router-link to="/map" class="view-opt" :class="{ active: route.path === '/map' }"
-            >地图</router-link
-          >
+      <div class="toolbar-center">
+        <input
+          class="search-input"
+          type="text"
+          placeholder="搜索照片名称或描述..."
+          :value="photo.searchQuery"
+          @input="photo.setSearch(($event.target as HTMLInputElement).value)"
+        />
+        <div class="view-switch">
+          <span class="sort-label">视图：</span>
+          <div class="view-track">
+            <router-link
+              to="/"
+              class="view-opt"
+              :class="{ active: route.path === '/' }"
+              @click.prevent="switchView('/')"
+              >网格</router-link
+            >
+            <router-link to="/albums" class="view-opt" :class="{ active: route.path === '/albums' }"
+              >相册</router-link
+            >
+            <router-link
+              to="/timeline"
+              class="view-opt"
+              :class="{ active: route.path === '/timeline' }"
+              >时间线</router-link
+            >
+            <router-link to="/map" class="view-opt" :class="{ active: route.path === '/map' }"
+              >地图</router-link
+            >
+          </div>
         </div>
-      </div>
-      <div class="sort-switch">
-        <span class="sort-label">排序方式：</span>
-        <div class="sort-track">
-          <div
-            class="sort-slider"
-            :style="{
-              transform: `translateX(${sortOptions.findIndex((o) => o.key === photo.sortBy) * 100}%)`,
-            }"
-          ></div>
-          <button
-            v-for="opt in sortOptions"
-            :key="opt.key"
-            class="sort-opt"
-            :class="{ active: photo.sortBy === opt.key }"
-            @click="photo.setSort(opt.key)"
-          >
-            {{ opt.label }}
-            <span v-if="photo.sortBy === opt.key" class="sort-arrows">
-              <i
-                class="iconfont icon-jiantou_qiehuanxiangshang_o sort-arrow-down"
-                :class="{ active: photo.sortOrder === 'asc' }"
-              ></i>
-              <i
-                class="iconfont icon-jiantou_qiehuanxiangshang_o"
-                :class="{ active: photo.sortOrder === 'desc' }"
-              ></i>
-            </span>
-          </button>
+        <div class="sort-switch">
+          <span class="sort-label">排序方式：</span>
+          <div class="sort-track">
+            <div
+              class="sort-slider"
+              :style="{
+                transform: `translateX(${sortOptions.findIndex((o) => o.key === photo.sortBy) * 100}%)`,
+              }"
+            ></div>
+            <button
+              v-for="opt in sortOptions"
+              :key="opt.key"
+              class="sort-opt"
+              :class="{ active: photo.sortBy === opt.key }"
+              @click="photo.setSort(opt.key)"
+            >
+              {{ opt.label }}
+              <span v-if="photo.sortBy === opt.key" class="sort-arrows">
+                <i
+                  class="iconfont icon-jiantou_qiehuanxiangshang_o sort-arrow-down"
+                  :class="{ active: photo.sortOrder === 'asc' }"
+                ></i>
+                <i
+                  class="iconfont icon-jiantou_qiehuanxiangshang_o"
+                  :class="{ active: photo.sortOrder === 'desc' }"
+                ></i>
+              </span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
 
     <UploadCard @uploaded="onUploaded" />
 
-    <div class="gallery">
-      <div
-        v-for="i in 6"
-        v-if="photo.loading && photo.photos.length === 0"
-        :key="'s' + i"
-        class="skeleton-card"
-      >
+    <!-- 骨架屏（首次加载） -->
+    <div v-if="photo.loading && photo.photos.length === 0" class="gallery">
+      <div v-for="i in 6" :key="'s' + i" class="skeleton-card">
         <div class="skeleton-img"></div>
         <div class="skeleton-body">
           <div class="skeleton-line"></div>
           <div class="skeleton-line"></div>
         </div>
       </div>
-      <PhotoCard
-        v-for="(p, i) in photo.photos"
-        :key="p.id + '-' + p.fileSize"
-        :photo="p"
-        :search-query="photo.searchQuery"
-        :selected="isSelected(p.id)"
-        :data-insert="i"
-        @view="ui.viewPhoto = p"
-        @edit="ui.editPhoto = p"
-        @delete="deletePhoto"
-        @toggle-select="toggleSelect"
-      />
     </div>
-    <div v-if="photo.loading && photo.photos.length > 0" class="sentinel">
-      <LottieLoader name="loading" :size="60" />
-    </div>
-    <div v-else-if="!photo.hasMore && photo.photos.length > 0" class="end-hint">没有更多了</div>
-    <div v-if="!photo.hasMore && !photo.loading && photo.photos.length === 0" class="empty-state">
+
+    <!-- 空状态 -->
+    <div
+      v-else-if="!photo.hasMore && !photo.loading && photo.photos.length === 0"
+      class="empty-state"
+    >
       <LottieLoader name="empty" :size="160" />
       <p class="empty-hint">还没有照片，上传第一张吧</p>
+    </div>
+
+    <!-- 虚拟滚动网格 -->
+    <div
+      v-else
+      ref="gridRef"
+      class="gallery-virt"
+      :style="{ height: virtualizer.getTotalSize() + 'px', width: '100%', position: 'relative' }"
+    >
+      <div
+        v-for="vr in virtualItems"
+        :key="vr.index"
+        :ref="(el) => virtualizer.measureElement(el as Element)"
+        :data-index="vr.index"
+        class="gallery-virt-row"
+        :style="{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          transform: `translateY(${vr.start}px)`,
+        }"
+      >
+        <!-- 照片行 -->
+        <div
+          v-if="vr.index < rows.length"
+          class="gallery"
+          :style="{ gridTemplateColumns: `repeat(${columns}, 1fr)`, paddingBottom: GAP + 'px' }"
+        >
+          <PhotoCard
+            v-for="p in rows[vr.index]"
+            :key="p.id + '-' + p.fileSize"
+            :photo="p"
+            :search-query="photo.searchQuery"
+            :selected="isSelected(p.id)"
+            @view="ui.viewPhoto = p"
+            @edit="ui.editPhoto = p"
+            @delete="deletePhoto"
+            @toggle-select="toggleSelect"
+          />
+        </div>
+
+        <!-- 加载中 -->
+        <div v-else-if="photo.loading" class="sentinel">
+          <LottieLoader name="loading" :size="60" />
+        </div>
+
+        <!-- 到底了 -->
+        <div v-else class="end-hint">没有更多了</div>
+      </div>
     </div>
 
     <!-- 分享弹窗 -->
