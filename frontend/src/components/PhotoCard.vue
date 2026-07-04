@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import gsap from 'gsap'
 import { webpUrl } from '../webp'
+import { api } from '../api'
 import { useToastStore } from '../stores/toast'
 import { usePhotoStore } from '../stores/photo'
 import { useConfirm } from '../useConfirm'
@@ -61,12 +62,8 @@ function openImageEditor(): void {
 async function onImageEditDone({ params }: { params: TransformParams; blob: Blob }): Promise<void> {
   editorVisible.value = false
   try {
-    const res = await fetch(`/api/photos/${props.photo.id}/transform`, {
+    const res = await api(`/api/photos/${props.photo.id}/transform`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('jwt_token') || localStorage.getItem('token')}`,
-      },
       body: JSON.stringify(params),
     })
     if (res.ok) {

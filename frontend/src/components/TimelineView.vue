@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
 import { useUiStore } from '../stores/ui'
+import { api } from '../api'
 import type { TimelineExifItem } from '../types/view'
 
 const props = defineProps<{
@@ -38,9 +39,7 @@ function tokenParam(): string {
 async function fetchTimeline(): Promise<void> {
   loading.value = true
   try {
-    const res = await fetch(`/api/photos/timeline?sortOrder=${props.sortOrder || 'desc'}`, {
-      headers: { Authorization: `Bearer ${ui.token}` },
-    })
+    const res = await api(`/api/photos/timeline?sortOrder=${props.sortOrder || 'desc'}`)
     const data = await res.json()
     if (data.code === 200) items.value = data.data || []
   } catch (e) {

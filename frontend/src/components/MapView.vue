@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, nextTick } from 'vue'
 import { useUiStore } from '../stores/ui'
+import { api } from '../api'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import 'leaflet.markercluster/dist/MarkerCluster.css'
@@ -31,9 +32,7 @@ function tokenParam(): string {
 
 onMounted(async () => {
   try {
-    const res = await fetch('/api/photos/map', {
-      headers: { Authorization: `Bearer ${ui.token}` },
-    })
+    const res = await api('/api/photos/map')
     const data = await res.json()
     if (data.code === 200) items.value = data.data || []
   } catch (e) {

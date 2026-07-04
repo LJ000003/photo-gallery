@@ -4,22 +4,23 @@ const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || 'photoadmin'
 
 export async function api(
   url: string,
-  options: RequestInit & { body?: unknown } = {},
+  options: RequestInit & { body?: unknown; token?: string; skipAuth?: boolean } = {},
 ): Promise<Response> {
-  const token = localStorage.getItem('jwt_token')
+  const { token: customToken, skipAuth, ...fetchOptions } = options
+  const token = customToken ?? localStorage.getItem('jwt_token')
   const headers: Record<string, string> = {}
 
   if (token) {
     headers['Authorization'] = 'Bearer ' + token
   }
 
-  if (!(options.body instanceof FormData)) {
+  if (!(fetchOptions.body instanceof FormData)) {
     headers['Content-Type'] = 'application/json'
   }
 
-  const res = await fetch(url, { ...options, headers })
+  const res = await fetch(url, { ...fetchOptions, headers })
 
-  if (res.status === 401 || res.status === 403) {
+  if (!skipAuth && (res.status === 401 || res.status === 403)) {
     localStorage.removeItem('jwt_token')
     localStorage.removeItem('konami_unlocked')
     window.location.reload()
