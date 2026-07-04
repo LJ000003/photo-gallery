@@ -15,7 +15,15 @@ const router = useRouter()
 const route = useRoute()
 const photo = usePhotoStore()
 const ui = useUiStore()
-const { deletePhoto, deletePhotos, generateShare, shareModal, shareUrl, shareLoading, copyShareLink } = usePhotoActions()
+const {
+  deletePhoto,
+  deletePhotos,
+  generateShare,
+  shareModal,
+  shareUrl,
+  shareLoading,
+  copyShareLink,
+} = usePhotoActions()
 
 const selectedIds = ref(new Set<number>())
 
@@ -24,14 +32,16 @@ function switchView(key: string): void {
   router.push(key)
 }
 
-function isSelected(id: number): boolean { return selectedIds.value.has(id) }
+function isSelected(id: number): boolean {
+  return selectedIds.value.has(id)
+}
 function toggleSelect(id: number): void {
   const s = selectedIds.value
   s.has(id) ? s.delete(id) : s.add(id)
   selectedIds.value = new Set(s)
 }
-const allSelected = computed(() =>
-  photo.totalCount > 0 && selectedIds.value.size === photo.totalCount
+const allSelected = computed(
+  () => photo.totalCount > 0 && selectedIds.value.size === photo.totalCount,
 )
 
 async function toggleAll(): Promise<void> {
@@ -42,7 +52,7 @@ async function toggleAll(): Promise<void> {
   while (photo.hasMore && !photo.loading) {
     await photo.loadMore()
   }
-  selectedIds.value = new Set(photo.photos.map(p => p.id))
+  selectedIds.value = new Set(photo.photos.map((p) => p.id))
 }
 function batchDelete(): void {
   if (selectedIds.value.size === 0) return
@@ -55,16 +65,22 @@ function onGenerateShare(): void {
   generateShare([...selectedIds.value])
 }
 
-watch(() => photo.photos, () => {
-  const currentIds = new Set(photo.photos.map(p => p.id))
-  let changed = false
-  for (const id of selectedIds.value) {
-    if (!currentIds.has(id)) { changed = true; break }
-  }
-  if (changed) {
-    selectedIds.value = new Set([...selectedIds.value].filter(id => currentIds.has(id)))
-  }
-})
+watch(
+  () => photo.photos,
+  () => {
+    const currentIds = new Set(photo.photos.map((p) => p.id))
+    let changed = false
+    for (const id of selectedIds.value) {
+      if (!currentIds.has(id)) {
+        changed = true
+        break
+      }
+    }
+    if (changed) {
+      selectedIds.value = new Set([...selectedIds.value].filter((id) => currentIds.has(id)))
+    }
+  },
+)
 
 function onScroll(): void {
   if (!photo.hasMore || photo.loading) return
@@ -73,22 +89,29 @@ function onScroll(): void {
   }
 }
 
-onMounted(() => { window.addEventListener('scroll', onScroll, { passive: true }) })
-onUnmounted(() => { window.removeEventListener('scroll', onScroll) })
+onMounted(() => {
+  window.addEventListener('scroll', onScroll, { passive: true })
+})
+onUnmounted(() => {
+  window.removeEventListener('scroll', onScroll)
+})
 
 let prevCount = 0
-watch(() => photo.photos.length, () => {
-  if (photo.photos.length === prevCount) return
-  const newCards = photo.photos.slice(prevCount)
-  prevCount = photo.photos.length
-  nextTick(() => {
-    gsap.fromTo(
-      newCards.map((_, i) => `.photo-card[data-insert="${prevCount - newCards.length + i}"]`),
-      { y: 40, opacity: 0 },
-      { y: 0, opacity: 1, stagger: 0.06, duration: 0.6, ease: 'expo.out' }
-    )
-  })
-})
+watch(
+  () => photo.photos.length,
+  () => {
+    if (photo.photos.length === prevCount) return
+    const newCards = photo.photos.slice(prevCount)
+    prevCount = photo.photos.length
+    nextTick(() => {
+      gsap.fromTo(
+        newCards.map((_, i) => `.photo-card[data-insert="${prevCount - newCards.length + i}"]`),
+        { y: 40, opacity: 0 },
+        { y: 0, opacity: 1, stagger: 0.06, duration: 0.6, ease: 'expo.out' },
+      )
+    })
+  },
+)
 
 function onUploaded(): void {
   photo.resetAndReload()
@@ -97,13 +120,15 @@ function onUploaded(): void {
 const sortOptions: { key: SortField; label: string }[] = [
   { key: 'time', label: '时间' },
   { key: 'name', label: '名称' },
-  { key: 'size', label: '大小' }
+  { key: 'size', label: '大小' },
 ]
 </script>
 
 <template>
   <section class="gallery-section">
-    <h2>我的照片 <span v-if="photo.totalCount">({{ photo.totalCount }})</span></h2>
+    <h2>
+      我的照片 <span v-if="photo.totalCount">({{ photo.totalCount }})</span>
+    </h2>
     <div class="gallery-toolbar">
       <input
         class="search-input"
@@ -125,24 +150,53 @@ const sortOptions: { key: SortField; label: string }[] = [
       <div class="view-switch">
         <span class="sort-label">视图：</span>
         <div class="view-track">
-          <router-link to="/" class="view-opt" :class="{ active: route.path === '/' }"
-            @click.prevent="switchView('/')">网格</router-link>
-          <router-link to="/albums" class="view-opt" :class="{ active: route.path === '/albums' }">相册</router-link>
-          <router-link to="/timeline" class="view-opt" :class="{ active: route.path === '/timeline' }">时间线</router-link>
-          <router-link to="/map" class="view-opt" :class="{ active: route.path === '/map' }">地图</router-link>
+          <router-link
+            to="/"
+            class="view-opt"
+            :class="{ active: route.path === '/' }"
+            @click.prevent="switchView('/')"
+            >网格</router-link
+          >
+          <router-link to="/albums" class="view-opt" :class="{ active: route.path === '/albums' }"
+            >相册</router-link
+          >
+          <router-link
+            to="/timeline"
+            class="view-opt"
+            :class="{ active: route.path === '/timeline' }"
+            >时间线</router-link
+          >
+          <router-link to="/map" class="view-opt" :class="{ active: route.path === '/map' }"
+            >地图</router-link
+          >
         </div>
       </div>
       <div class="sort-switch">
         <span class="sort-label">排序方式：</span>
         <div class="sort-track">
-          <div class="sort-slider" :style="{ transform: `translateX(${sortOptions.findIndex(o => o.key === photo.sortBy) * 100}%)` }"></div>
-          <button v-for="opt in sortOptions" :key="opt.key"
-            class="sort-opt" :class="{ active: photo.sortBy === opt.key }"
-            @click="photo.setSort(opt.key)">
+          <div
+            class="sort-slider"
+            :style="{
+              transform: `translateX(${sortOptions.findIndex((o) => o.key === photo.sortBy) * 100}%)`,
+            }"
+          ></div>
+          <button
+            v-for="opt in sortOptions"
+            :key="opt.key"
+            class="sort-opt"
+            :class="{ active: photo.sortBy === opt.key }"
+            @click="photo.setSort(opt.key)"
+          >
             {{ opt.label }}
             <span v-if="photo.sortBy === opt.key" class="sort-arrows">
-              <i class="iconfont icon-jiantou_qiehuanxiangshang_o sort-arrow-down" :class="{ active: photo.sortOrder === 'asc' }"></i>
-              <i class="iconfont icon-jiantou_qiehuanxiangshang_o" :class="{ active: photo.sortOrder === 'desc' }"></i>
+              <i
+                class="iconfont icon-jiantou_qiehuanxiangshang_o sort-arrow-down"
+                :class="{ active: photo.sortOrder === 'asc' }"
+              ></i>
+              <i
+                class="iconfont icon-jiantou_qiehuanxiangshang_o"
+                :class="{ active: photo.sortOrder === 'desc' }"
+              ></i>
             </span>
           </button>
         </div>
@@ -152,7 +206,12 @@ const sortOptions: { key: SortField; label: string }[] = [
     <UploadCard @uploaded="onUploaded" />
 
     <div class="gallery">
-      <div v-if="photo.loading && photo.photos.length === 0" v-for="i in 6" :key="'s'+i" class="skeleton-card">
+      <div
+        v-for="i in 6"
+        v-if="photo.loading && photo.photos.length === 0"
+        :key="'s' + i"
+        class="skeleton-card"
+      >
         <div class="skeleton-img"></div>
         <div class="skeleton-body">
           <div class="skeleton-line"></div>
@@ -188,7 +247,12 @@ const sortOptions: { key: SortField; label: string }[] = [
         <p class="share-hint">链接 7 天内有效，拿到链接的人可直接查看</p>
         <div v-if="shareLoading" class="share-loading">生成中...</div>
         <div v-else-if="shareUrl" class="share-row">
-          <input :value="shareUrl" readonly class="share-input" @focus="($event.target as HTMLInputElement).select()" />
+          <input
+            :value="shareUrl"
+            readonly
+            class="share-input"
+            @focus="($event.target as HTMLInputElement).select()"
+          />
           <button class="btn-primary" @click="copyShareLink">复制链接</button>
         </div>
         <button class="modal-close" @click="shareModal = null">✕</button>

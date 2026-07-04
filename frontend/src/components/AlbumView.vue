@@ -43,7 +43,11 @@ async function loadAlbums(): Promise<void> {
     const res = await api('/api/albums')
     const data: ApiResponse<Album[]> = await res.json()
     albums.value = data.data || []
-  } catch { albums.value = [] } finally { loading.value = false }
+  } catch {
+    albums.value = []
+  } finally {
+    loading.value = false
+  }
 }
 
 const sortedAlbums = computed(() => {
@@ -66,18 +70,26 @@ function selectAlbum(album: Album | null): void {
   loadAlbumPhotos(true)
 }
 
-function backToList(): void { selectedAlbum.value = null; albumPhotos.value = [] }
+function backToList(): void {
+  selectedAlbum.value = null
+  albumPhotos.value = []
+}
 
 async function loadAlbumPhotos(reset: boolean): Promise<void> {
-  if (reset) { photoPage.value = 0; albumPhotos.value = []; photoHasMore.value = true }
+  if (reset) {
+    photoPage.value = 0
+    albumPhotos.value = []
+    photoHasMore.value = true
+  }
   if (photoLoading.value || !photoHasMore.value || !selectedAlbum.value) return
   photoLoading.value = true
   const fieldMap: Record<string, string> = { time: 'createdAt', name: 'name' }
   const sortStr = `${fieldMap[sortBy.value]},${sortOrder.value}`
   try {
-    const url = selectedAlbum.value.id === 0
-      ? `/api/photos?albumId=0&page=${photoPage.value}&size=20&sort=${sortStr}`
-      : `/api/albums/${selectedAlbum.value.id}/photos?page=${photoPage.value}&size=20&sort=${sortStr}`
+    const url =
+      selectedAlbum.value.id === 0
+        ? `/api/photos?albumId=0&page=${photoPage.value}&size=20&sort=${sortStr}`
+        : `/api/albums/${selectedAlbum.value.id}/photos?page=${photoPage.value}&size=20&sort=${sortStr}`
     const res = await api(url)
     const json: ApiResponse<PageResponse<Photo>> = await res.json()
     const { content, last, totalElements } = json.data
@@ -87,7 +99,11 @@ async function loadAlbumPhotos(reset: boolean): Promise<void> {
     if (!selectedAlbum.value.photoCount && totalElements !== undefined) {
       selectedAlbum.value.photoCount = totalElements
     }
-  } catch { /* ignore */ } finally { photoLoading.value = false }
+  } catch {
+    /* ignore */
+  } finally {
+    photoLoading.value = false
+  }
 }
 
 function onScroll(): void {
@@ -107,8 +123,8 @@ function openEdit(album: Album): void {
 }
 
 async function deleteAlbum(album: Album): Promise<void> {
-  if (!await confirmFn(`确定删除相册「${album.name}」？照片不会被删除。`, '删除相册')) return
-  albums.value = albums.value.filter(a => a.id !== album.id)
+  if (!(await confirmFn(`确定删除相册「${album.name}」？照片不会被删除。`, '删除相册'))) return
+  albums.value = albums.value.filter((a) => a.id !== album.id)
   try {
     const res = await api(`/api/albums/${album.id}`, { method: 'DELETE' })
     if (!res.ok) throw new Error('删除失败')
@@ -136,18 +152,25 @@ function onAlbumDeleted(): void {
   loadAlbums()
 }
 
-watch(() => selectedAlbum.value, (v) => {
-  if (v) {
-    window.addEventListener('scroll', onScroll, { passive: true })
-  } else {
-    window.removeEventListener('scroll', onScroll)
-  }
-})
+watch(
+  () => selectedAlbum.value,
+  (v) => {
+    if (v) {
+      window.addEventListener('scroll', onScroll, { passive: true })
+    } else {
+      window.removeEventListener('scroll', onScroll)
+    }
+  },
+)
 
 watch(albumPhotos, () => {
   nextTick(() => {
     if (albumPhotos.value.length <= 20) {
-      gsap.fromTo('.photo-card', { y: 30, opacity: 0 }, { y: 0, opacity: 1, stagger: 0.04, duration: 0.5, ease: 'expo.out' })
+      gsap.fromTo(
+        '.photo-card',
+        { y: 30, opacity: 0 },
+        { y: 0, opacity: 1, stagger: 0.04, duration: 0.5, ease: 'expo.out' },
+      )
     }
   })
 })
@@ -174,19 +197,42 @@ onMounted(loadAlbums)
         <div class="sort-switch">
           <span class="sort-label">排序方式：</span>
           <div class="sort-track sort-2cols">
-            <div class="sort-slider" :style="{ transform: `translateX(${sortBy === 'time' ? 0 : 100}%)` }"></div>
-            <button class="sort-opt" :class="{ active: sortBy === 'time' }" @click="setSort('time')">
+            <div
+              class="sort-slider"
+              :style="{ transform: `translateX(${sortBy === 'time' ? 0 : 100}%)` }"
+            ></div>
+            <button
+              class="sort-opt"
+              :class="{ active: sortBy === 'time' }"
+              @click="setSort('time')"
+            >
               时间
               <span v-if="sortBy === 'time'" class="sort-arrows">
-                <i class="iconfont icon-jiantou_qiehuanxiangshang_o sort-arrow-down" :class="{ active: sortOrder === 'asc' }"></i>
-                <i class="iconfont icon-jiantou_qiehuanxiangshang_o" :class="{ active: sortOrder === 'desc' }"></i>
+                <i
+                  class="iconfont icon-jiantou_qiehuanxiangshang_o sort-arrow-down"
+                  :class="{ active: sortOrder === 'asc' }"
+                ></i>
+                <i
+                  class="iconfont icon-jiantou_qiehuanxiangshang_o"
+                  :class="{ active: sortOrder === 'desc' }"
+                ></i>
               </span>
             </button>
-            <button class="sort-opt" :class="{ active: sortBy === 'name' }" @click="setSort('name')">
+            <button
+              class="sort-opt"
+              :class="{ active: sortBy === 'name' }"
+              @click="setSort('name')"
+            >
               名称
               <span v-if="sortBy === 'name'" class="sort-arrows">
-                <i class="iconfont icon-jiantou_qiehuanxiangshang_o sort-arrow-down" :class="{ active: sortOrder === 'asc' }"></i>
-                <i class="iconfont icon-jiantou_qiehuanxiangshang_o" :class="{ active: sortOrder === 'desc' }"></i>
+                <i
+                  class="iconfont icon-jiantou_qiehuanxiangshang_o sort-arrow-down"
+                  :class="{ active: sortOrder === 'asc' }"
+                ></i>
+                <i
+                  class="iconfont icon-jiantou_qiehuanxiangshang_o"
+                  :class="{ active: sortOrder === 'desc' }"
+                ></i>
               </span>
             </button>
           </div>
@@ -205,12 +251,18 @@ onMounted(loadAlbums)
         </div>
         <div v-for="a in sortedAlbums" :key="a.id" class="album-card" @click="selectAlbum(a)">
           <div class="album-cover">
-            <img v-if="a.coverPhotoId" :src="`/api/photos/${a.coverPhotoId}/thumbnail${tokenParam()}`" loading="lazy" />
+            <img
+              v-if="a.coverPhotoId"
+              :src="`/api/photos/${a.coverPhotoId}/thumbnail${tokenParam()}`"
+              loading="lazy"
+            />
             <div v-else class="album-cover-placeholder">?</div>
           </div>
           <div class="album-body">
             <h4>{{ a.name }}</h4>
-            <p class="album-meta">{{ a.photoCount }} 张<span v-if="a.createdAt"> · {{ formatDate(a.createdAt) }}</span></p>
+            <p class="album-meta">
+              {{ a.photoCount }} 张<span v-if="a.createdAt"> · {{ formatDate(a.createdAt) }}</span>
+            </p>
             <div class="album-actions">
               <button class="btn-edit" @click.stop="openEdit(a)">编辑</button>
               <button class="btn-del" @click.stop="deleteAlbum(a)">删除</button>
@@ -219,29 +271,56 @@ onMounted(loadAlbums)
         </div>
       </div>
       <div v-if="loading" class="album-loading">加载中...</div>
-      <div v-if="!loading && albums.length === 0" class="album-empty">暂无相册，在编辑照片时可以将其分配到此处的相册</div>
+      <div v-if="!loading && albums.length === 0" class="album-empty">
+        暂无相册，在编辑照片时可以将其分配到此处的相册
+      </div>
     </template>
 
     <template v-else>
       <div class="album-detail-header">
         <button class="btn-back" @click="backToList">← 返回</button>
-        <h3>{{ selectedAlbum.name }} <span class="album-count">({{ selectedAlbum.photoCount }})</span></h3>
+        <h3>
+          {{ selectedAlbum.name }} <span class="album-count">({{ selectedAlbum.photoCount }})</span>
+        </h3>
         <div class="sort-switch">
           <span class="sort-label">排序方式：</span>
           <div class="sort-track sort-2cols">
-            <div class="sort-slider" :style="{ transform: `translateX(${sortBy === 'time' ? 0 : 100}%)` }"></div>
-            <button class="sort-opt" :class="{ active: sortBy === 'time' }" @click="setSort('time')">
+            <div
+              class="sort-slider"
+              :style="{ transform: `translateX(${sortBy === 'time' ? 0 : 100}%)` }"
+            ></div>
+            <button
+              class="sort-opt"
+              :class="{ active: sortBy === 'time' }"
+              @click="setSort('time')"
+            >
               时间
               <span v-if="sortBy === 'time'" class="sort-arrows">
-                <i class="iconfont icon-jiantou_qiehuanxiangshang_o sort-arrow-down" :class="{ active: sortOrder === 'asc' }"></i>
-                <i class="iconfont icon-jiantou_qiehuanxiangshang_o" :class="{ active: sortOrder === 'desc' }"></i>
+                <i
+                  class="iconfont icon-jiantou_qiehuanxiangshang_o sort-arrow-down"
+                  :class="{ active: sortOrder === 'asc' }"
+                ></i>
+                <i
+                  class="iconfont icon-jiantou_qiehuanxiangshang_o"
+                  :class="{ active: sortOrder === 'desc' }"
+                ></i>
               </span>
             </button>
-            <button class="sort-opt" :class="{ active: sortBy === 'name' }" @click="setSort('name')">
+            <button
+              class="sort-opt"
+              :class="{ active: sortBy === 'name' }"
+              @click="setSort('name')"
+            >
               名称
               <span v-if="sortBy === 'name'" class="sort-arrows">
-                <i class="iconfont icon-jiantou_qiehuanxiangshang_o sort-arrow-down" :class="{ active: sortOrder === 'asc' }"></i>
-                <i class="iconfont icon-jiantou_qiehuanxiangshang_o" :class="{ active: sortOrder === 'desc' }"></i>
+                <i
+                  class="iconfont icon-jiantou_qiehuanxiangshang_o sort-arrow-down"
+                  :class="{ active: sortOrder === 'asc' }"
+                ></i>
+                <i
+                  class="iconfont icon-jiantou_qiehuanxiangshang_o"
+                  :class="{ active: sortOrder === 'desc' }"
+                ></i>
               </span>
             </button>
           </div>
@@ -250,7 +329,11 @@ onMounted(loadAlbums)
       <div class="gallery">
         <div v-for="p in albumPhotos" :key="p.id" class="photo-card" @click="emit('view', p)">
           <div class="photo-thumb">
-            <img :src="`/api/photos/${p.id}/thumbnail${tokenParam()}`" :alt="p.name" loading="lazy" />
+            <img
+              :src="`/api/photos/${p.id}/thumbnail${tokenParam()}`"
+              :alt="p.name"
+              loading="lazy"
+            />
             <div class="photo-overlay"><button class="btn-view mini">查看</button></div>
           </div>
           <div class="photo-body">
@@ -261,9 +344,20 @@ onMounted(loadAlbums)
       </div>
       <div v-if="photoLoading" class="sentinel">加载中...</div>
       <div v-if="!photoHasMore && albumPhotos.length > 0" class="end-hint">没有更多了</div>
-      <div v-if="!photoLoading && albumPhotos.length === 0 && selectedAlbum.id !== 0" class="empty-hint">此相册还没有照片</div>
+      <div
+        v-if="!photoLoading && albumPhotos.length === 0 && selectedAlbum.id !== 0"
+        class="empty-hint"
+      >
+        此相册还没有照片
+      </div>
     </template>
 
-    <AlbumEditModal v-if="editingAlbum" :album="editingAlbum" @close="editingAlbum = null" @saved="onAlbumSaved" @deleted="onAlbumDeleted" />
+    <AlbumEditModal
+      v-if="editingAlbum"
+      :album="editingAlbum"
+      @close="editingAlbum = null"
+      @saved="onAlbumSaved"
+      @deleted="onAlbumDeleted"
+    />
   </div>
 </template>

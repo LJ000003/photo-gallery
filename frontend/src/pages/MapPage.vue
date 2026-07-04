@@ -20,6 +20,6 @@ const ui = useUiStore()
         </div>
       </div>
     </div>
-    <MapView @view="p => ui.viewPhoto = p as Photo" />
+    <MapView @view="(p) => (ui.viewPhoto = p as Photo)" />
   </section>
 </template>

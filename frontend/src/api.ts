@@ -2,7 +2,10 @@ import type { ApiResponse } from './types/api'
 
 const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || 'photoadmin'
 
-export async function api(url: string, options: RequestInit & { body?: unknown } = {}): Promise<Response> {
+export async function api(
+  url: string,
+  options: RequestInit & { body?: unknown } = {},
+): Promise<Response> {
   const token = localStorage.getItem('jwt_token')
   const headers: Record<string, string> = {}
 
@@ -30,7 +33,7 @@ export async function requestToken(): Promise<string> {
   const res = await fetch('/api/auth/unlock', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ password: ADMIN_PASSWORD })
+    body: JSON.stringify({ password: ADMIN_PASSWORD }),
   })
   if (!res.ok) throw new Error('认证失败')
   const data: ApiResponse<{ token: string }> = await res.json()

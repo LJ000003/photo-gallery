@@ -11,14 +11,18 @@ vi.mock('vue-router', () => ({
 import { usePhotoStore } from '../photo'
 
 function mockFetchOk(pageResponse: unknown) {
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-    status: 200,
-    ok: true,
-    json: () => Promise.resolve({
-      code: 200,
-      data: pageResponse,
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({
+      status: 200,
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          code: 200,
+          data: pageResponse,
+        }),
     }),
-  }))
+  )
 }
 
 beforeEach(() => {

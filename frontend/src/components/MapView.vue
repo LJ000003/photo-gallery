@@ -32,7 +32,7 @@ function tokenParam(): string {
 onMounted(async () => {
   try {
     const res = await fetch('/api/photos/map', {
-      headers: { Authorization: `Bearer ${ui.token}` }
+      headers: { Authorization: `Bearer ${ui.token}` },
     })
     const data = await res.json()
     if (data.code === 200) items.value = data.data || []
@@ -51,21 +51,27 @@ function initMap(): void {
     center: [35, 105],
     zoom: 4,
     worldCopyJump: false,
-    maxBounds: [[-85, -180], [85, 180]],
+    maxBounds: [
+      [-85, -180],
+      [85, 180],
+    ],
     maxBoundsViscosity: 1.0,
-    minZoom: 2
+    minZoom: 2,
   })
-  L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
-    attribution: '&copy; 高德地图',
-    subdomains: '1234',
-    maxZoom: 18
-  }).addTo(map)
+  L.tileLayer(
+    'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
+    {
+      attribution: '&copy; 高德地图',
+      subdomains: '1234',
+      maxZoom: 18,
+    },
+  ).addTo(map)
 
   const clusterGroup = L.markerClusterGroup({
     maxClusterRadius: 60,
     spiderfyOnMaxZoom: true,
     showCoverageOnHover: false,
-    zoomToBoundsOnClick: true
+    zoomToBoundsOnClick: true,
   })
 
   const markers: L.LatLngTuple[] = []

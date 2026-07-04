@@ -49,19 +49,23 @@ function onFileChange(e: Event): void {
   if (!files) return
   revokePreviews()
   editedBlobs.value = {}
-  if (previewEditedSrc.value) { URL.revokeObjectURL(previewEditedSrc.value); previewEditedSrc.value = '' }
+  if (previewEditedSrc.value) {
+    URL.revokeObjectURL(previewEditedSrc.value)
+    previewEditedSrc.value = ''
+  }
   selectedCount.value = files.length
   if (files.length === 0) return
 
   if (files.length === 1) {
     const reader = new FileReader()
     reader.onload = (ev) => {
-      previewSrc.value = ev.target?.result as string || ''
+      previewSrc.value = (ev.target?.result as string) || ''
       showPreview.value = true
       nextTick(() => {
-        gsap.fromTo(preview.value,
+        gsap.fromTo(
+          preview.value,
           { scale: 0.85, opacity: 0 },
-          { scale: 1, opacity: 1, duration: 0.5, ease: 'expo.out' }
+          { scale: 1, opacity: 1, duration: 0.5, ease: 'expo.out' },
         )
       })
     }
@@ -69,9 +73,9 @@ function onFileChange(e: Event): void {
   } else {
     showPreview.value = false
     previewSrc.value = ''
-    previews.value = Array.from(files).map(f => ({
+    previews.value = Array.from(files).map((f) => ({
       name: f.name,
-      url: URL.createObjectURL(f)
+      url: URL.createObjectURL(f),
     }))
   }
 }
@@ -88,7 +92,9 @@ function onDragOver(e: DragEvent): void {
   e.preventDefault()
   dragOver.value = true
 }
-function onDragLeave(): void { dragOver.value = false }
+function onDragLeave(): void {
+  dragOver.value = false
+}
 function onDrop(e: DragEvent): void {
   e.preventDefault()
   dragOver.value = false
@@ -101,8 +107,12 @@ function onPaste(e: ClipboardEvent): void {
   }
 }
 
-onMounted(() => { document.addEventListener('paste', onPaste) })
-onUnmounted(() => { document.removeEventListener('paste', onPaste) })
+onMounted(() => {
+  document.addEventListener('paste', onPaste)
+})
+onUnmounted(() => {
+  document.removeEventListener('paste', onPaste)
+})
 
 function revokePreviews(): void {
   for (const p of previews.value) URL.revokeObjectURL(p.url)
@@ -121,7 +131,10 @@ function clearSelection(): void {
   selectedCount.value = 0
   revokePreviews()
   editedBlobs.value = {}
-  if (previewEditedSrc.value) { URL.revokeObjectURL(previewEditedSrc.value); previewEditedSrc.value = '' }
+  if (previewEditedSrc.value) {
+    URL.revokeObjectURL(previewEditedSrc.value)
+    previewEditedSrc.value = ''
+  }
   if (fileInput.value) fileInput.value.value = ''
 }
 
@@ -129,7 +142,9 @@ function openEditor(index: number): void {
   editingIndex.value = index
   editorSrc.value = editedBlobs.value[index]
     ? URL.createObjectURL(editedBlobs.value[index])
-    : previews.value.length > 0 ? previews.value[index].url : previewSrc.value
+    : previews.value.length > 0
+      ? previews.value[index].url
+      : previewSrc.value
   editorVisible.value = true
 }
 
@@ -145,7 +160,10 @@ function onEditorDone({ blob }: ImageEditResult): void {
 
 async function onSubmit(): Promise<void> {
   const files = fileInput.value?.files
-  if (!files || files.length === 0) { toast.error('请选择照片'); return }
+  if (!files || files.length === 0) {
+    toast.error('请选择照片')
+    return
+  }
 
   const fd = new FormData()
   const fileArray = Array.from(files)
@@ -157,7 +175,7 @@ async function onSubmit(): Promise<void> {
   }
   fd.append('name', uploadName.value.trim())
   fd.append('description', uploadDesc.value.trim())
-  selectedTagIds.value.forEach(id => fd.append('tagIds', String(id)))
+  selectedTagIds.value.forEach((id) => fd.append('tagIds', String(id)))
   if (selectedCatId.value) fd.append('categoryId', String(selectedCatId.value))
   if (watermark.value.trim()) fd.append('watermark', watermark.value.trim())
 
@@ -177,7 +195,7 @@ async function onSubmit(): Promise<void> {
       singleFd.append('file', singleFile)
       singleFd.append('name', uploadName.value.trim())
       singleFd.append('description', uploadDesc.value.trim())
-      selectedTagIds.value.forEach(id => singleFd.append('tagIds', String(id)))
+      selectedTagIds.value.forEach((id) => singleFd.append('tagIds', String(id)))
       if (selectedCatId.value) singleFd.append('categoryId', String(selectedCatId.value))
       if (watermark.value.trim()) singleFd.append('watermark', watermark.value.trim())
       const res = await api('/api/photos', { method: 'POST', body: singleFd })
@@ -195,10 +213,14 @@ async function onSubmit(): Promise<void> {
     gsap.to('.upload-card', {
       keyframes: [
         { borderColor: 'rgba(255,255,255,0.08)', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' },
-        { borderColor: 'rgba(0,212,255,0.6)', boxShadow: '0 8px 32px rgba(0,0,0,0.3), 0 0 30px rgba(0,212,255,0.4)' },
+        {
+          borderColor: 'rgba(0,212,255,0.6)',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.3), 0 0 30px rgba(0,212,255,0.4)',
+        },
         { borderColor: 'rgba(255,255,255,0.08)', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' },
       ],
-      duration: 1, ease: 'expo.out'
+      duration: 1,
+      ease: 'expo.out',
     })
     emit('uploaded')
   } catch (err) {
@@ -215,22 +237,40 @@ async function onSubmit(): Promise<void> {
     <h2>上传照片</h2>
     <form @submit.prevent="onSubmit">
       <div class="file-area">
-        <input ref="fileInput" type="file" id="fileInput" accept="image/*" multiple @change="onFileChange" />
-        <label ref="fileLabel" for="fileInput"
+        <input
+          id="fileInput"
+          ref="fileInput"
+          type="file"
+          accept="image/*"
+          multiple
+          @change="onFileChange"
+        />
+        <label
+          ref="fileLabel"
+          for="fileInput"
           :class="{ 'preview-hidden': showPreview, 'drag-over': dragOver }"
-          @dragover="onDragOver" @dragleave="onDragLeave" @drop="onDrop">
+          @dragover="onDragOver"
+          @dragleave="onDragLeave"
+          @drop="onDrop"
+        >
           <span class="file-icon">+</span>
-          <span>{{ selectedCount > 0 ? `已选 ${selectedCount} 张` : '点击选择 / 拖拽 / 粘贴 (Ctrl+V)' }}</span>
+          <span>{{
+            selectedCount > 0 ? `已选 ${selectedCount} 张` : '点击选择 / 拖拽 / 粘贴 (Ctrl+V)'
+          }}</span>
         </label>
         <div v-if="showPreview" class="single-preview-wrap">
           <img ref="preview" :src="editedBlobs[0] ? previewEditedSrc : previewSrc" alt="预览" />
-          <button type="button" class="upload-edit-btn" @click="openEditor(0)" title="编辑图片">✎</button>
+          <button type="button" class="upload-edit-btn" title="编辑图片" @click="openEditor(0)">
+            ✎
+          </button>
         </div>
       </div>
       <div v-if="previews.length > 0" class="preview-grid">
         <div v-for="(p, i) in previews" :key="p.name" class="preview-item">
           <img :src="editedBlobs[i] ? _URL.createObjectURL(editedBlobs[i]) : p.url" :alt="p.name" />
-          <button type="button" class="upload-edit-btn" @click="openEditor(i)" title="编辑图片">✎</button>
+          <button type="button" class="upload-edit-btn" title="编辑图片" @click="openEditor(i)">
+            ✎
+          </button>
           <span>{{ p.name }}</span>
         </div>
       </div>
@@ -240,11 +280,17 @@ async function onSubmit(): Promise<void> {
           <option v-for="c in allCats" :key="c.id" :value="c.id">{{ c.name }}</option>
         </select>
         <div class="tag-chips">
-          <button v-for="t in allTags" :key="t.id" type="button"
+          <button
+            v-for="t in allTags"
+            :key="t.id"
+            type="button"
             class="tag-chip"
             :class="{ on: selectedTagIds.includes(t.id) }"
-            :style="selectedTagIds.includes(t.id) ? { background: t.color, borderColor: t.color } : {}"
-            @click="toggleTag(t.id)">
+            :style="
+              selectedTagIds.includes(t.id) ? { background: t.color, borderColor: t.color } : {}
+            "
+            @click="toggleTag(t.id)"
+          >
             {{ t.name }}
           </button>
         </div>
@@ -265,5 +311,10 @@ async function onSubmit(): Promise<void> {
       </div>
     </form>
   </section>
-  <ImageEditor :src="editorSrc" :visible="editorVisible" @close="editorVisible = false" @done="onEditorDone" />
+  <ImageEditor
+    :src="editorSrc"
+    :visible="editorVisible"
+    @close="editorVisible = false"
+    @done="onEditorDone"
+  />
 </template>

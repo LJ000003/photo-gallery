@@ -1,0 +1,7 @@
+{
+  "name": "photo-gallery",
+  "private": true,
+  "scripts": {
+    "prepare": "cd frontend && npx husky"
+  }
+}

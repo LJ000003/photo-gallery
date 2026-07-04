@@ -20,6 +20,6 @@ const ui = useUiStore()
         </div>
       </div>
     </div>
-    <AlbumView @view="p => ui.viewPhoto = p as Photo" />
+    <AlbumView @view="(p) => (ui.viewPhoto = p as Photo)" />
   </section>
 </template>

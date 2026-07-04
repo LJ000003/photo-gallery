@@ -23,8 +23,18 @@ vi.mock('gsap', () => ({
 
 vi.mock('../../store', () => ({
   useStore: () => ({
-    tags: { value: [{ id: 1, name: 'nature', color: '#00ff00' }, { id: 2, name: 'urban', color: '#ff0000' }] },
-    categories: { value: [{ id: 1, name: 'landscape' }, { id: 2, name: 'portrait' }] },
+    tags: {
+      value: [
+        { id: 1, name: 'nature', color: '#00ff00' },
+        { id: 2, name: 'urban', color: '#ff0000' },
+      ],
+    },
+    categories: {
+      value: [
+        { id: 1, name: 'landscape' },
+        { id: 2, name: 'portrait' },
+      ],
+    },
     albums: { value: [{ id: 1, name: 'vacation' }] },
     loadAll: vi.fn(),
     refreshTags: vi.fn(),
@@ -34,7 +44,9 @@ vi.mock('../../store', () => ({
 }))
 
 vi.mock('../../api', () => ({
-  api: vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ data: {}, code: 200 }) }),
+  api: vi
+    .fn()
+    .mockResolvedValue({ ok: true, json: () => Promise.resolve({ data: {}, code: 200 }) }),
   requestToken: vi.fn(),
 }))
 

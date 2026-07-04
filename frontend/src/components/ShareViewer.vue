@@ -18,7 +18,7 @@ async function load(): Promise<void> {
   loading.value = true
   try {
     const res = await fetch(`/api/share/view?page=${page.value}&size=20`, {
-      headers: { Authorization: `Bearer ${token}` }
+      headers: { Authorization: `Bearer ${token}` },
     })
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
@@ -36,7 +36,11 @@ async function load(): Promise<void> {
     loading.value = false
     nextTick(() => {
       if (photos.value.length > 0) {
-        gsap.fromTo('.photo-card', { y: 30, opacity: 0 }, { y: 0, opacity: 1, stagger: 0.05, duration: 0.5, ease: 'expo.out' })
+        gsap.fromTo(
+          '.photo-card',
+          { y: 30, opacity: 0 },
+          { y: 0, opacity: 1, stagger: 0.05, duration: 0.5, ease: 'expo.out' },
+        )
       }
     })
   }
@@ -66,7 +70,12 @@ onMounted(() => {
     <p class="share-sub">此链接仅可查看，无法编辑或删除</p>
 
     <div class="gallery">
-      <div v-if="loading && photos.length === 0" v-for="i in 6" :key="'s'+i" class="skeleton-card">
+      <div
+        v-for="i in 6"
+        v-if="loading && photos.length === 0"
+        :key="'s' + i"
+        class="skeleton-card"
+      >
         <div class="skeleton-img"></div>
         <div class="skeleton-body">
           <div class="skeleton-line"></div>
@@ -97,9 +106,12 @@ onMounted(() => {
 
     <div v-if="viewPhoto" class="modal" @click.self="viewPhoto = null">
       <div class="modal-content">
-        <img :src="`${webpUrl(viewPhoto.id)}?token=${token}`" :alt="viewPhoto.name"
+        <img
+          :src="`${webpUrl(viewPhoto.id)}?token=${token}`"
+          :alt="viewPhoto.name"
           loading="lazy"
-          style="max-width:90vw;max-height:80vh;border-radius:10px;" />
+          style="max-width: 90vw; max-height: 80vh; border-radius: 10px"
+        />
         <h3>{{ viewPhoto.name }}</h3>
         <p v-if="viewPhoto.description" class="view-desc">{{ viewPhoto.description }}</p>
         <button class="modal-close" @click="viewPhoto = null">✕</button>

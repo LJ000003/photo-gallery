@@ -27,5 +27,15 @@ export const useUiStore = defineStore('ui', () => {
     localStorage.setItem('jwt_token', t)
   }
 
-  return { viewPhoto, editPhoto, showBackTop, sidebarOpen, unlocked, token, reLock, unlock, setToken }
+  return {
+    viewPhoto,
+    editPhoto,
+    showBackTop,
+    sidebarOpen,
+    unlocked,
+    token,
+    reLock,
+    unlock,
+    setToken,
+  }
 })

@@ -39,7 +39,7 @@ async function fetchTimeline(): Promise<void> {
   loading.value = true
   try {
     const res = await fetch(`/api/photos/timeline?sortOrder=${props.sortOrder || 'desc'}`, {
-      headers: { Authorization: `Bearer ${ui.token}` }
+      headers: { Authorization: `Bearer ${ui.token}` },
     })
     const data = await res.json()
     if (data.code === 200) items.value = data.data || []
@@ -66,7 +66,8 @@ watch(() => props.sortOrder, fetchTimeline)
         <div class="timeline-month">{{ month }}</div>
         <div class="timeline-cards">
           <div
-            v-for="exif in photos" :key="exif.id"
+            v-for="exif in photos"
+            :key="exif.id"
             class="timeline-card"
             @click="emit('view', { id: exif.photoId, name: exif.photoName })"
           >

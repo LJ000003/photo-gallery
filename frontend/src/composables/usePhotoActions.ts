@@ -36,7 +36,7 @@ export function usePhotoActions() {
     try {
       const res = await api('/api/photos/batch', {
         method: 'DELETE',
-        body: JSON.stringify(ids)
+        body: JSON.stringify(ids),
       })
       if (!res.ok) throw new Error(await extractErrorMessage(res))
       photo.removePhotos(ids)
@@ -54,7 +54,7 @@ export function usePhotoActions() {
     try {
       const res = await api('/api/share/generate', {
         method: 'POST',
-        body: JSON.stringify({ photoIds: ids, expireDays: 7 })
+        body: JSON.stringify({ photoIds: ids, expireDays: 7 }),
       })
       if (!res.ok) {
         const msg = await extractErrorMessage(res)
@@ -73,10 +73,13 @@ export function usePhotoActions() {
   function copyShareLink(): void {
     const text = shareUrl.value
     if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard.writeText(text).then(() => {
-        toast.success('链接已复制，分享给朋友吧')
-        shareModal.value = null
-      }).catch(() => fallbackCopy(text))
+      navigator.clipboard
+        .writeText(text)
+        .then(() => {
+          toast.success('链接已复制，分享给朋友吧')
+          shareModal.value = null
+        })
+        .catch(() => fallbackCopy(text))
     } else {
       fallbackCopy(text)
     }
@@ -101,5 +104,13 @@ export function usePhotoActions() {
     document.body.removeChild(ta)
   }
 
-  return { shareModal, shareUrl, shareLoading, deletePhoto, deletePhotos, generateShare, copyShareLink }
+  return {
+    shareModal,
+    shareUrl,
+    shareLoading,
+    deletePhoto,
+    deletePhotos,
+    generateShare,
+    copyShareLink,
+  }
 }

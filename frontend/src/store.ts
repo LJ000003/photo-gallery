@@ -8,13 +8,23 @@ import type { ApiResponse } from './types/api'
 const tags: Ref<Tag[]> = ref([])
 const categories: Ref<Category[]> = ref([])
 const albums: Ref<Album[]> = ref([])
-let loadPromise: Promise<{ tags: Ref<Tag[]>; categories: Ref<Category[]>; albums: Ref<Album[]> }> | null = null
+let loadPromise: Promise<{
+  tags: Ref<Tag[]>
+  categories: Ref<Category[]>
+  albums: Ref<Album[]>
+}> | null = null
 
-async function loadAll(): Promise<{ tags: Ref<Tag[]>; categories: Ref<Category[]>; albums: Ref<Album[]> }> {
+async function loadAll(): Promise<{
+  tags: Ref<Tag[]>
+  categories: Ref<Category[]>
+  albums: Ref<Album[]>
+}> {
   if (loadPromise) return loadPromise
   loadPromise = (async () => {
     const [tRes, cRes, aRes] = await Promise.all([
-      api('/api/tags'), api('/api/categories'), api('/api/albums')
+      api('/api/tags'),
+      api('/api/categories'),
+      api('/api/albums'),
     ])
     tags.value = ((await tRes.json()) as ApiResponse<Tag[]>).data
     categories.value = ((await cRes.json()) as ApiResponse<Category[]>).data

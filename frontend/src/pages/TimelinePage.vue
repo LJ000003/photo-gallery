@@ -24,14 +24,20 @@ function toggleTimelineSort(): void {
           <router-link to="/timeline" class="view-opt" :class="{ active: true }">
             时间线
             <span class="sort-arrows">
-              <i class="iconfont icon-jiantou_qiehuanxiangshang_o sort-arrow-down" :class="{ active: timelineSortOrder === 'asc' }"></i>
-              <i class="iconfont icon-jiantou_qiehuanxiangshang_o" :class="{ active: timelineSortOrder === 'desc' }"></i>
+              <i
+                class="iconfont icon-jiantou_qiehuanxiangshang_o sort-arrow-down"
+                :class="{ active: timelineSortOrder === 'asc' }"
+              ></i>
+              <i
+                class="iconfont icon-jiantou_qiehuanxiangshang_o"
+                :class="{ active: timelineSortOrder === 'desc' }"
+              ></i>
             </span>
           </router-link>
           <router-link to="/map" class="view-opt">地图</router-link>
         </div>
       </div>
     </div>
-    <TimelineView :sort-order="timelineSortOrder" @view="p => ui.viewPhoto = p as Photo" />
+    <TimelineView :sort-order="timelineSortOrder" @view="(p) => (ui.viewPhoto = p as Photo)" />
   </section>
 </template>

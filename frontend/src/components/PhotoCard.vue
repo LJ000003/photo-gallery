@@ -24,7 +24,10 @@ const emit = defineEmits<{
   toggleSelect: [id: number]
 }>()
 
-interface HighlightSegment { text: string; hl: boolean }
+interface HighlightSegment {
+  text: string
+  hl: boolean
+}
 
 function highlightSegments(text: string | undefined): HighlightSegment[] {
   if (!text) return [{ text: '', hl: false }]
@@ -32,7 +35,7 @@ function highlightSegments(text: string | undefined): HighlightSegment[] {
   if (!q || !q.trim()) return [{ text, hl: false }]
   const escaped = q.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const parts = text.split(new RegExp(`(${escaped})`, 'gi'))
-  return parts.map(p => ({ text: p, hl: p.toLowerCase() === q.trim().toLowerCase() }))
+  return parts.map((p) => ({ text: p, hl: p.toLowerCase() === q.trim().toLowerCase() }))
 }
 
 const nameSegments = computed(() => highlightSegments(props.photo.name))
@@ -62,9 +65,9 @@ async function onImageEditDone({ params }: { params: TransformParams; blob: Blob
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('jwt_token') || localStorage.getItem('token')}`
+        Authorization: `Bearer ${localStorage.getItem('jwt_token') || localStorage.getItem('token')}`,
       },
-      body: JSON.stringify(params)
+      body: JSON.stringify(params),
     })
     if (res.ok) {
       toast.success('图片编辑完成')
@@ -89,15 +92,27 @@ function tiltOn(e: MouseEvent): void {
   const rect = card.getBoundingClientRect()
   const x = (e.clientX - rect.left) / rect.width - 0.5
   const y = (e.clientY - rect.top) / rect.height - 0.5
-  gsap.to(card, { rotateY: x * 8, rotateX: -y * 8, duration: 0.2, overwrite: 'auto', ease: 'power1.out' })
+  gsap.to(card, {
+    rotateY: x * 8,
+    rotateX: -y * 8,
+    duration: 0.2,
+    overwrite: 'auto',
+    ease: 'power1.out',
+  })
 }
 
 function tiltOff(): void {
-  gsap.to(cardRef.value, { rotateY: 0, rotateX: 0, duration: 0.4, overwrite: 'auto', ease: 'power1.out' })
+  gsap.to(cardRef.value, {
+    rotateY: 0,
+    rotateX: 0,
+    duration: 0.4,
+    overwrite: 'auto',
+    ease: 'power1.out',
+  })
 }
 
 async function onDelete(): Promise<void> {
-  if (!await confirmFn('确定要删除这张照片吗？', '删除照片')) return
+  if (!(await confirmFn('确定要删除这张照片吗？', '删除照片'))) return
   await gsap.to(cardRef.value, {
     scale: 0.7,
     opacity: 0,
@@ -105,7 +120,7 @@ async function onDelete(): Promise<void> {
     y: -30,
     filter: 'blur(8px)',
     duration: 0.4,
-    ease: 'power1.in'
+    ease: 'power1.in',
   })
   emit('delete', props.photo.id)
 }
@@ -121,31 +136,53 @@ async function onDelete(): Promise<void> {
     @mouseleave="tiltOff"
   >
     <div class="card-check" @click.stop="emit('toggleSelect', photo.id)">
-      <span class="check-mark" v-if="selected">✓</span>
+      <span v-if="selected" class="check-mark">✓</span>
     </div>
     <div class="photo-thumb" @click="$emit('view')">
-      <img :src="`/api/photos/${photo.id}/thumbnail${tokenParam()}`" :alt="photo.name" loading="lazy" />
+      <img
+        :src="`/api/photos/${photo.id}/thumbnail${tokenParam()}`"
+        :alt="photo.name"
+        loading="lazy"
+      />
       <div class="photo-overlay">
         <button class="btn-view" @click.stop="$emit('view')">查看</button>
       </div>
     </div>
     <div class="photo-body">
       <h4 class="photo-name">
-        <span v-for="(s, i) in nameSegments" :key="i" :class="{ 'search-hl': s.hl }">{{ s.text }}</span>
+        <span v-for="(s, i) in nameSegments" :key="i" :class="{ 'search-hl': s.hl }">{{
+          s.text
+        }}</span>
       </h4>
       <p v-if="searchQuery && photo.description" class="photo-desc">
-        <span v-for="(s, i) in descSegments" :key="i" :class="{ 'search-hl': s.hl }">{{ s.text }}</span>
+        <span v-for="(s, i) in descSegments" :key="i" :class="{ 'search-hl': s.hl }">{{
+          s.text
+        }}</span>
       </p>
-      <p class="photo-meta">{{ formatSize(photo.fileSize) }}<span v-if="photo.category"> · {{ photo.category.name }}</span></p>
+      <p class="photo-meta">
+        {{ formatSize(photo.fileSize)
+        }}<span v-if="photo.category"> · {{ photo.category.name }}</span>
+      </p>
       <div v-if="photo.tags && photo.tags.length" class="card-tags">
-        <span v-for="t in photo.tags" :key="t.id" class="card-tag" :style="{ background: t.color }">{{ t.name }}</span>
+        <span
+          v-for="t in photo.tags"
+          :key="t.id"
+          class="card-tag"
+          :style="{ background: t.color }"
+          >{{ t.name }}</span
+        >
       </div>
       <div class="photo-actions">
         <button class="btn-edit" @click="$emit('edit')">编辑</button>
-        <button class="btn-img-edit" @click="openImageEditor" title="编辑图片">✂</button>
+        <button class="btn-img-edit" title="编辑图片" @click="openImageEditor">✂</button>
         <button class="btn-del" @click="onDelete">删除</button>
       </div>
     </div>
   </div>
-  <ImageEditor :src="editorSrc" :visible="editorVisible" @close="editorVisible = false" @done="onImageEditDone" />
+  <ImageEditor
+    :src="editorSrc"
+    :visible="editorVisible"
+    @close="editorVisible = false"
+    @done="onImageEditDone"
+  />
 </template>

@@ -17,7 +17,15 @@ const emit = defineEmits<{
   saved: []
 }>()
 
-const { tags: allTags, categories: allCats, albums: allAlbums, loadAll, refreshTags, refreshCategories, refreshAlbums } = useStore()
+const {
+  tags: allTags,
+  categories: allCats,
+  albums: allAlbums,
+  loadAll,
+  refreshTags,
+  refreshCategories,
+  refreshAlbums,
+} = useStore()
 const editName = ref('')
 const editDesc = ref('')
 const selectedTagIds = ref<number[]>([])
@@ -38,14 +46,12 @@ onMounted(() => {
 
   const content = document.querySelector('#editModal .modal-content')
   const backdrop = document.querySelector('#editModal .modal-backdrop')
-  gsap.fromTo(content,
+  gsap.fromTo(
+    content,
     { scale: 0.85, opacity: 0 },
-    { scale: 1, opacity: 1, duration: 0.35, ease: 'expo.out' }
+    { scale: 1, opacity: 1, duration: 0.35, ease: 'expo.out' },
   )
-  gsap.fromTo(backdrop,
-    { opacity: 0 },
-    { opacity: 1, duration: 0.35, ease: 'none' }
-  )
+  gsap.fromTo(backdrop, { opacity: 0 }, { opacity: 1, duration: 0.35, ease: 'none' })
 })
 
 function toggleTag(id: number): void {
@@ -58,7 +64,7 @@ async function addTag(): Promise<void> {
   if (!newTagName.value.trim()) return
   const res = await api('/api/tags', {
     method: 'POST',
-    body: JSON.stringify({ name: newTagName.value.trim(), color: newTagColor.value })
+    body: JSON.stringify({ name: newTagName.value.trim(), color: newTagColor.value }),
   })
   if (res.ok) {
     const json: ApiResponse<Tag> = await res.json()
@@ -78,7 +84,7 @@ async function addCat(): Promise<void> {
   if (!newCatName.value.trim()) return
   const res = await api('/api/categories', {
     method: 'POST',
-    body: JSON.stringify({ name: newCatName.value.trim() })
+    body: JSON.stringify({ name: newCatName.value.trim() }),
   })
   if (res.ok) {
     const json: ApiResponse<Category> = await res.json()
@@ -92,7 +98,7 @@ async function addAlbum(): Promise<void> {
   if (!newAlbumName.value.trim()) return
   const res = await api('/api/albums', {
     method: 'POST',
-    body: JSON.stringify({ name: newAlbumName.value.trim() })
+    body: JSON.stringify({ name: newAlbumName.value.trim() }),
   })
   if (res.ok) {
     const json: ApiResponse<Album> = await res.json()
@@ -106,8 +112,11 @@ function onClose(): void {
   const content = document.querySelector('#editModal .modal-content')
   const backdrop = document.querySelector('#editModal .modal-backdrop')
   gsap.to(content, {
-    scale: 0.9, opacity: 0, duration: 0.2, ease: 'power1.in',
-    onComplete: () => emit('close')
+    scale: 0.9,
+    opacity: 0,
+    duration: 0.2,
+    ease: 'power1.in',
+    onComplete: () => emit('close'),
   })
   gsap.to(backdrop, { opacity: 0, duration: 0.2, ease: 'none' })
 }
@@ -122,7 +131,10 @@ async function extractErrorMessage(res: Response): Promise<string> {
 }
 
 async function onSubmit(): Promise<void> {
-  if (!editName.value.trim()) { toast.error('请输入照片名称'); return }
+  if (!editName.value.trim()) {
+    toast.error('请输入照片名称')
+    return
+  }
 
   try {
     const body = {
@@ -130,12 +142,12 @@ async function onSubmit(): Promise<void> {
       description: editDesc.value.trim(),
       tagIds: selectedTagIds.value,
       categoryId: selectedCatId.value,
-      albumIds: selectedAlbumIds.value
+      albumIds: selectedAlbumIds.value,
     }
 
     const res = await api(`/api/photos/${props.photo.id}`, {
       method: 'PUT',
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
     })
     if (!res.ok) {
       const msg = await extractErrorMessage(res)
@@ -160,39 +172,49 @@ async function onSubmit(): Promise<void> {
         <label>描述</label>
         <input v-model="editDesc" type="text" maxlength="500" />
         <label>分类</label>
-        <select v-model="selectedCatId" class="mini-select" style="width:100%">
+        <select v-model="selectedCatId" class="mini-select" style="width: 100%">
           <option :value="null">无分类</option>
           <option v-for="c in allCats" :key="c.id" :value="c.id">{{ c.name }}</option>
         </select>
-        <div class="filter-input" style="margin-top:6px">
+        <div class="filter-input" style="margin-top: 6px">
           <input v-model="newCatName" placeholder="新建分类" @keyup.enter="addCat" />
           <button type="button" class="btn-mini" @click="addCat">+</button>
         </div>
         <label>标签</label>
         <div class="tag-chips">
-          <button v-for="t in allTags" :key="t.id" type="button"
+          <button
+            v-for="t in allTags"
+            :key="t.id"
+            type="button"
             class="tag-chip"
             :class="{ on: selectedTagIds.includes(t.id) }"
-            :style="selectedTagIds.includes(t.id) ? { background: t.color, borderColor: t.color } : {}"
-            @click="toggleTag(t.id)">
+            :style="
+              selectedTagIds.includes(t.id) ? { background: t.color, borderColor: t.color } : {}
+            "
+            @click="toggleTag(t.id)"
+          >
             {{ t.name }}
           </button>
         </div>
-        <div class="filter-input" style="margin-top:6px">
-          <input type="color" v-model="newTagColor" class="color-pick" />
+        <div class="filter-input" style="margin-top: 6px">
+          <input v-model="newTagColor" type="color" class="color-pick" />
           <input v-model="newTagName" placeholder="新建标签" @keyup.enter="addTag" />
           <button type="button" class="btn-mini" @click="addTag">+</button>
         </div>
         <label>相册</label>
         <div class="tag-chips">
-          <button v-for="a in allAlbums" :key="a.id" type="button"
+          <button
+            v-for="a in allAlbums"
+            :key="a.id"
+            type="button"
             class="tag-chip album-chip"
             :class="{ on: selectedAlbumIds.includes(a.id) }"
-            @click="toggleAlbum(a.id)">
+            @click="toggleAlbum(a.id)"
+          >
             {{ a.name }}
           </button>
         </div>
-        <div class="filter-input" style="margin-top:6px">
+        <div class="filter-input" style="margin-top: 6px">
           <input v-model="newAlbumName" placeholder="新建相册" @keyup.enter="addAlbum" />
           <button type="button" class="btn-mini" @click="addAlbum">+</button>
         </div>

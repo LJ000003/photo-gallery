@@ -12,10 +12,16 @@ export function useConfirm(): (message: string, title?: string) => Promise<boole
           return h(ConfirmDialog, {
             title,
             message,
-            onConfirm: () => { destroy(); resolve(true) },
-            onCancel: () => { destroy(); resolve(false) }
+            onConfirm: () => {
+              destroy()
+              resolve(true)
+            },
+            onCancel: () => {
+              destroy()
+              resolve(false)
+            },
           })
-        }
+        },
       })
 
       function destroy() {

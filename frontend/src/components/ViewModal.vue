@@ -22,14 +22,12 @@ onMounted(() => {
   const content = document.querySelector('#viewModal .modal-content')
   const backdrop = document.querySelector('#viewModal .modal-backdrop')
   const dur = isMobile ? 0.2 : 0.35
-  gsap.fromTo(content,
+  gsap.fromTo(
+    content,
     { scale: 0.95, opacity: 0 },
-    { scale: 1, opacity: 1, duration: dur, ease: 'expo.out' }
+    { scale: 1, opacity: 1, duration: dur, ease: 'expo.out' },
   )
-  gsap.fromTo(backdrop,
-    { opacity: 0 },
-    { opacity: 1, duration: dur, ease: 'none' }
-  )
+  gsap.fromTo(backdrop, { opacity: 0 }, { opacity: 1, duration: dur, ease: 'none' })
 })
 
 function onClose(): void {
@@ -37,8 +35,11 @@ function onClose(): void {
   const backdrop = document.querySelector('#viewModal .modal-backdrop')
   const dur = isMobile ? 0.15 : 0.2
   gsap.to(content, {
-    scale: 0.95, opacity: 0, duration: dur, ease: 'power1.in',
-    onComplete: () => emit('close')
+    scale: 0.95,
+    opacity: 0,
+    duration: dur,
+    ease: 'power1.in',
+    onComplete: () => emit('close'),
   })
   gsap.to(backdrop, { opacity: 0, duration: dur, ease: 'none' })
 }

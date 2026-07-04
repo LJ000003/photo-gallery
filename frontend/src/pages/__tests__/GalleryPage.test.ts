@@ -57,7 +57,10 @@ describe('GalleryPage', () => {
           }),
         ],
         stubs: {
-          PhotoCard: { template: '<div class="photo-card-stub">{{ photo?.name }}</div>', props: ['photo', 'selected', 'searchQuery', 'dataInsert'] },
+          PhotoCard: {
+            template: '<div class="photo-card-stub">{{ photo?.name }}</div>',
+            props: ['photo', 'selected', 'searchQuery', 'dataInsert'],
+          },
           UploadCard: { template: '<div class="upload-card-stub"><h2>上传照片</h2></div>' },
           LottieLoader: { template: '<div class="lottie-stub"></div>' },
         },
@@ -163,7 +166,10 @@ describe('GalleryPage', () => {
           }),
         ],
         stubs: {
-          PhotoCard: { template: '<div class="photo-card-stub">{{ photo.name }}</div>', props: ['photo', 'selected', 'searchQuery', 'dataInsert'] },
+          PhotoCard: {
+            template: '<div class="photo-card-stub">{{ photo.name }}</div>',
+            props: ['photo', 'selected', 'searchQuery', 'dataInsert'],
+          },
           UploadCard: true,
           LottieLoader: true,
         },

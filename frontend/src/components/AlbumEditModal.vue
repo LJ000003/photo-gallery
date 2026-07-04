@@ -27,9 +27,10 @@ const searchQuery = ref('')
 const filteredPhotos = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
   if (!q) return allPhotos.value
-  return allPhotos.value.filter(p =>
-    (p.name && p.name.toLowerCase().includes(q)) ||
-    (p.description && p.description.toLowerCase().includes(q))
+  return allPhotos.value.filter(
+    (p) =>
+      (p.name && p.name.toLowerCase().includes(q)) ||
+      (p.description && p.description.toLowerCase().includes(q)),
   )
 })
 
@@ -43,7 +44,9 @@ onMounted(async () => {
     allPhotos.value = data.data?.content || []
     if (props.album.id) {
       selectedPhotoIds.value = new Set(
-        allPhotos.value.filter(p => p.albums && p.albums.some(a => a.id === props.album.id)).map(p => p.id)
+        allPhotos.value
+          .filter((p) => p.albums && p.albums.some((a) => a.id === props.album.id))
+          .map((p) => p.id),
       )
     }
   } catch (e) {
@@ -51,7 +54,12 @@ onMounted(async () => {
   }
 
   const el = document.querySelector('#albumEditModal .modal-content')
-  if (el) gsap.fromTo(el, { scale: 0.85, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.35, ease: 'expo.out' })
+  if (el)
+    gsap.fromTo(
+      el,
+      { scale: 0.85, opacity: 0 },
+      { scale: 1, opacity: 1, duration: 0.35, ease: 'expo.out' },
+    )
 })
 
 function togglePhoto(id: number): void {
@@ -65,12 +73,22 @@ function onClose(): void {
 }
 
 async function onSubmit(): Promise<void> {
-  if (!name.value.trim()) { toast.error('请输入相册名称'); return }
+  if (!name.value.trim()) {
+    toast.error('请输入相册名称')
+    return
+  }
   submitting.value = true
   try {
-    const body = { name: name.value.trim(), description: description.value.trim(), photoIds: [...selectedPhotoIds.value] }
+    const body = {
+      name: name.value.trim(),
+      description: description.value.trim(),
+      photoIds: [...selectedPhotoIds.value],
+    }
     if (props.album.id) {
-      const res = await api(`/api/albums/${props.album.id}`, { method: 'PUT', body: JSON.stringify(body) })
+      const res = await api(`/api/albums/${props.album.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      })
       if (!res.ok) throw new Error('保存失败')
     } else {
       const res = await api('/api/albums', { method: 'POST', body: JSON.stringify(body) })
@@ -118,14 +136,26 @@ function tokenParam(): string {
         <input v-model="description" type="text" maxlength="500" />
         <div class="album-search-row">
           <label>已选照片 ({{ selectedPhotoIds.size }})</label>
-          <input class="album-search-input" type="text" v-model="searchQuery" placeholder="搜索照片名称或描述..." />
+          <input
+            v-model="searchQuery"
+            class="album-search-input"
+            type="text"
+            placeholder="搜索照片名称或描述..."
+          />
         </div>
         <div class="album-photo-picker">
-          <div v-for="p in filteredPhotos" :key="p.id"
+          <div
+            v-for="p in filteredPhotos"
+            :key="p.id"
             class="album-photo-item"
             :class="{ selected: selectedPhotoIds.has(p.id) }"
-            @click="togglePhoto(p.id)">
-            <img :src="`/api/photos/${p.id}/thumbnail${tokenParam()}`" :alt="p.name" loading="lazy" />
+            @click="togglePhoto(p.id)"
+          >
+            <img
+              :src="`/api/photos/${p.id}/thumbnail${tokenParam()}`"
+              :alt="p.name"
+              loading="lazy"
+            />
             <span class="album-photo-name">{{ p.name }}</span>
             <span class="album-photo-check">{{ selectedPhotoIds.has(p.id) ? '✓' : '' }}</span>
           </div>

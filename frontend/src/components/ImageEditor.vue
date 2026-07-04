@@ -34,21 +34,40 @@ function initImage(): void {
   mirrorV.value = false
   cropMode.value = false
   resetCrop()
-  if (img) { img.onload = null; img.src = '' }
+  if (img) {
+    img.onload = null
+    img.src = ''
+  }
   img = new Image()
   img.onload = () => {
     imgNatural = { w: img!.naturalWidth, h: img!.naturalHeight }
     nextTick(() => draw())
   }
-  img.onerror = () => { /* silently handle load errors */ }
+  img.onerror = () => {
+    /* silently handle load errors */
+  }
   if (props.src) img.src = props.src
 }
 
-watch(() => props.visible, (v) => { if (v) nextTick(() => initImage()) })
+watch(
+  () => props.visible,
+  (v) => {
+    if (v) nextTick(() => initImage())
+  },
+)
 
-onMounted(() => { if (props.visible) nextTick(() => initImage()) })
+onMounted(() => {
+  if (props.visible) nextTick(() => initImage())
+})
 
-watch(() => props.src, (v) => { if (v && props.visible && img) { img.src = v } })
+watch(
+  () => props.src,
+  (v) => {
+    if (v && props.visible && img) {
+      img.src = v
+    }
+  },
+)
 
 function draw(): void {
   if (!canvas.value || !img) return
@@ -65,12 +84,15 @@ function draw(): void {
   ctx.fillStyle = '#1a1a2e'
   ctx.fillRect(0, 0, c.width, c.height)
 
-  const iw = imgNatural.w, ih = imgNatural.h
+  const iw = imgNatural.w,
+    ih = imgNatural.h
   let dw: number, dh: number, dx: number, dy: number
   if (iw / ih > c.width / c.height) {
-    dw = c.width * 0.85; dh = dw * (ih / iw)
+    dw = c.width * 0.85
+    dh = dw * (ih / iw)
   } else {
-    dh = c.height * 0.85; dw = dh * (iw / ih)
+    dh = c.height * 0.85
+    dw = dh * (iw / ih)
   }
   dx = (c.width - dw) / 2
   dy = (c.height - dh) / 2
@@ -85,8 +107,10 @@ function draw(): void {
 
   if (cropMode.value) {
     const cr = crop.value
-    const cx = dx + cr.x * dw, cy = dy + cr.y * dh
-    const cw = cr.w * dw, ch = cr.h * dh
+    const cx = dx + cr.x * dw,
+      cy = dy + cr.y * dh
+    const cw = cr.w * dw,
+      ch = cr.h * dh
     ctx.strokeStyle = '#00d4ff'
     ctx.lineWidth = 2
     ctx.setLineDash([6, 3])
@@ -99,8 +123,10 @@ function draw(): void {
     ctx.fillRect(cx + cw, cy, c.width - cx - cw, ch)
 
     const handles = [
-      { x: cx, y: cy, c: 'tl' }, { x: cx + cw, y: cy, c: 'tr' },
-      { x: cx, y: cy + ch, c: 'bl' }, { x: cx + cw, y: cy + ch, c: 'br' }
+      { x: cx, y: cy, c: 'tl' },
+      { x: cx + cw, y: cy, c: 'tr' },
+      { x: cx, y: cy + ch, c: 'bl' },
+      { x: cx + cw, y: cy + ch, c: 'br' },
     ]
     for (const h of handles) {
       ctx.fillStyle = '#00d4ff'
@@ -116,14 +142,21 @@ function getPos(e: MouseEvent): { x: number; y: number; rx: number; ry: number }
 
 function imgRect(): { dx: number; dy: number; dw: number; dh: number } {
   const pc = canvas.value!.parentElement!
-  const cw = pc.clientWidth - 40, ch = pc.clientHeight - 140
+  const cw = pc.clientWidth - 40,
+    ch = pc.clientHeight - 140
   const rotated = rotation.value === 90 || rotation.value === 270
   const iw = rotated ? imgNatural.h : imgNatural.w
   const ih = rotated ? imgNatural.w : imgNatural.h
   let dw: number, dh: number, dx: number, dy: number
-  if (iw / ih > cw / ch) { dw = cw * 0.85; dh = dw * (ih / iw) }
-  else { dh = ch * 0.85; dw = dh * (iw / ih) }
-  dx = (cw - dw) / 2; dy = (ch - dh) / 2
+  if (iw / ih > cw / ch) {
+    dw = cw * 0.85
+    dh = dw * (ih / iw)
+  } else {
+    dh = ch * 0.85
+    dw = dh * (iw / ih)
+  }
+  dx = (cw - dw) / 2
+  dy = (ch - dh) / 2
   return { dx, dy, dw, dh }
 }
 
@@ -132,13 +165,23 @@ function onMouseDown(e: MouseEvent): void {
   const p = getPos(e)
   const ir = imgRect()
   const cr = crop.value
-  const cx = ir.dx + cr.x * ir.dw, cy = ir.dy + cr.y * ir.dh
-  const cw = cr.w * ir.dw, ch = cr.h * ir.dh
-  const handles: Record<string, [number, number]> = { tl: [cx, cy], tr: [cx + cw, cy], bl: [cx, cy + ch], br: [cx + cw, cy + ch] }
+  const cx = ir.dx + cr.x * ir.dw,
+    cy = ir.dy + cr.y * ir.dh
+  const cw = cr.w * ir.dw,
+    ch = cr.h * ir.dh
+  const handles: Record<string, [number, number]> = {
+    tl: [cx, cy],
+    tr: [cx + cw, cy],
+    bl: [cx, cy + ch],
+    br: [cx + cw, cy + ch],
+  }
 
   let corner: string | null = null
   for (const [k, [hx, hy]] of Object.entries(handles)) {
-    if (Math.abs(p.x - hx) < 10 && Math.abs(p.y - hy) < 10) { corner = k; break }
+    if (Math.abs(p.x - hx) < 10 && Math.abs(p.y - hy) < 10) {
+      corner = k
+      break
+    }
   }
   if (!corner && p.x >= cx && p.x <= cx + cw && p.y >= cy && p.y <= cy + ch) {
     corner = 'move'
@@ -169,32 +212,66 @@ function onMouseMove(e: MouseEvent): void {
   const { mx, my, mw, mh } = dragStart.value
 
   if (dragCorner.value === 'move') {
-    crop.value = { x: Math.max(0, Math.min(mx + dx, 1 - mw)), y: Math.max(0, Math.min(my + dy, 1 - mh)), w: mw, h: mh }
+    crop.value = {
+      x: Math.max(0, Math.min(mx + dx, 1 - mw)),
+      y: Math.max(0, Math.min(my + dy, 1 - mh)),
+      w: mw,
+      h: mh,
+    }
   } else {
-    let nx = mx, ny = my, nw = mw, nh = mh
-    if (dragCorner.value?.includes('l')) { nx = Math.max(0, Math.min(mx + dx, mx + mw - 0.02)); nw = mx + mw - nx }
-    if (dragCorner.value?.includes('r')) { nw = Math.max(0.02, Math.min(mw + dx, 1 - mx)) }
-    if (dragCorner.value?.includes('t')) { ny = Math.max(0, Math.min(my + dy, my + mh - 0.02)); nh = my + mh - ny }
-    if (dragCorner.value?.includes('b')) { nh = Math.max(0.02, Math.min(mh + dy, 1 - my)) }
+    let nx = mx,
+      ny = my,
+      nw = mw,
+      nh = mh
+    if (dragCorner.value?.includes('l')) {
+      nx = Math.max(0, Math.min(mx + dx, mx + mw - 0.02))
+      nw = mx + mw - nx
+    }
+    if (dragCorner.value?.includes('r')) {
+      nw = Math.max(0.02, Math.min(mw + dx, 1 - mx))
+    }
+    if (dragCorner.value?.includes('t')) {
+      ny = Math.max(0, Math.min(my + dy, my + mh - 0.02))
+      nh = my + mh - ny
+    }
+    if (dragCorner.value?.includes('b')) {
+      nh = Math.max(0.02, Math.min(mh + dy, 1 - my))
+    }
     crop.value = { x: nx, y: ny, w: nw, h: nh }
   }
   draw()
 }
 
-function onMouseUp(): void { dragging.value = false; dragCorner.value = null }
+function onMouseUp(): void {
+  dragging.value = false
+  dragCorner.value = null
+}
 
-function doRotate(dir: number): void { rotation.value = (rotation.value + dir + 360) % 360; draw() }
+function doRotate(dir: number): void {
+  rotation.value = (rotation.value + dir + 360) % 360
+  draw()
+}
 function doMirror(dir: 'h' | 'v'): void {
   if (dir === 'h') mirrorH.value = !mirrorH.value
   else mirrorV.value = !mirrorV.value
   draw()
 }
-function doReset(): void { rotation.value = 0; mirrorH.value = false; mirrorV.value = false; resetCrop(); draw() }
-function toggleCropMode(): void { cropMode.value = !cropMode.value; draw() }
+function doReset(): void {
+  rotation.value = 0
+  mirrorH.value = false
+  mirrorV.value = false
+  resetCrop()
+  draw()
+}
+function toggleCropMode(): void {
+  cropMode.value = !cropMode.value
+  draw()
+}
 
 function confirm(): void {
   if (!img) return
-  const srcW = imgNatural.w, srcH = imgNatural.h
+  const srcW = imgNatural.w,
+    srcH = imgNatural.h
   const rotated = rotation.value === 90 || rotation.value === 270
   const outW = rotated ? srcH : srcW
   const outH = rotated ? srcW : srcH
@@ -237,12 +314,16 @@ function confirm(): void {
     cx: cropMode.value ? crop.value.x : null,
     cy: cropMode.value ? crop.value.y : null,
     cw: cropMode.value ? crop.value.w : null,
-    ch: cropMode.value ? crop.value.h : null
+    ch: cropMode.value ? crop.value.h : null,
   }
 
-  finalCanvas.toBlob((blob) => {
-    if (blob) emit('done', { blob, params: transformParams })
-  }, 'image/jpeg', 0.92)
+  finalCanvas.toBlob(
+    (blob) => {
+      if (blob) emit('done', { blob, params: transformParams })
+    },
+    'image/jpeg',
+    0.92,
+  )
 }
 </script>
 
@@ -252,18 +333,40 @@ function confirm(): void {
       <div class="editor-backdrop" @click="emit('close')"></div>
       <div class="editor-panel">
         <div class="editor-toolbar">
-          <button type="button" @click="doRotate(90)" title="左旋90°">↺</button>
-          <button type="button" @click="doRotate(-90)" title="右旋90°">↻</button>
-          <button type="button" @click="doMirror('h')" :class="{ active: mirrorH }" title="水平镜像">↔</button>
-          <button type="button" @click="doMirror('v')" :class="{ active: mirrorV }" title="垂直镜像">↕</button>
-          <button type="button" @click="toggleCropMode" :class="{ active: cropMode }" title="裁剪">✂</button>
-          <button type="button" @click="doReset" title="重置">⟳</button>
-          <span style="flex:1"></span>
+          <button type="button" title="左旋90°" @click="doRotate(90)">↺</button>
+          <button type="button" title="右旋90°" @click="doRotate(-90)">↻</button>
+          <button
+            type="button"
+            :class="{ active: mirrorH }"
+            title="水平镜像"
+            @click="doMirror('h')"
+          >
+            ↔
+          </button>
+          <button
+            type="button"
+            :class="{ active: mirrorV }"
+            title="垂直镜像"
+            @click="doMirror('v')"
+          >
+            ↕
+          </button>
+          <button type="button" :class="{ active: cropMode }" title="裁剪" @click="toggleCropMode">
+            ✂
+          </button>
+          <button type="button" title="重置" @click="doReset">⟳</button>
+          <span style="flex: 1"></span>
           <button type="button" class="btn-confirm" @click="confirm">确认</button>
           <button type="button" class="btn-cancel" @click="emit('close')">取消</button>
         </div>
         <div class="editor-canvas-wrap">
-          <canvas ref="canvas" @mousedown="onMouseDown" @mousemove="onMouseMove" @mouseup="onMouseUp" @mouseleave="onMouseUp"></canvas>
+          <canvas
+            ref="canvas"
+            @mousedown="onMouseDown"
+            @mousemove="onMouseMove"
+            @mouseup="onMouseUp"
+            @mouseleave="onMouseUp"
+          ></canvas>
         </div>
       </div>
     </div>
