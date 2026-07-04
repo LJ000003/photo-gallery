@@ -1,16 +1,17 @@
-<script setup>
-import { ref, onMounted, onUnmounted, watch } from 'vue';
-import lottie from 'lottie-web';
+<script setup lang="ts">
+import { ref, onMounted, onUnmounted } from 'vue'
+import lottie, { type AnimationItem } from 'lottie-web'
 
-const props = defineProps({
-  name: { type: String, required: true },
-  size: { type: Number, default: 80 }
-});
+const props = defineProps<{
+  name: string
+  size?: number
+}>()
 
-const container = ref(null);
-let anim = null;
+const container = ref<HTMLElement | null>(null)
+let anim: AnimationItem | null = null
 
-const animations = {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const animations: Record<string, any> = {
   loading: {
     v: '5.5.2', fr: 30, ip: 0, op: 60, w: 80, h: 80, nm: 'Loading', ddd: 0, assets: [],
     layers: [{
@@ -74,10 +75,10 @@ const animations = {
       ip: 0, op: 61, st: 0
     }]
   }
-};
+}
 
 onMounted(() => {
-  if (!container.value || !animations[props.name]) return;
+  if (!container.value || !animations[props.name]) return
   try {
     anim = lottie.loadAnimation({
       container: container.value,
@@ -85,22 +86,22 @@ onMounted(() => {
       renderer: 'svg',
       loop: true,
       autoplay: true
-    });
+    })
   } catch {
     // lottie 初始化失败 — 静默降级
   }
-});
+})
 
 onUnmounted(() => {
-  if (anim) anim.destroy();
-});
+  if (anim) anim.destroy()
+})
 </script>
 
 <template>
   <div
     ref="container"
     class="lottie-container"
-    :style="{ width: size + 'px', height: size + 'px' }"
+    :style="{ width: (size || 80) + 'px', height: (size || 80) + 'px' }"
   ></div>
 </template>
 

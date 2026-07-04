@@ -1,111 +1,122 @@
-<script setup>
-import { ref, computed, watch, nextTick, onMounted, onUnmounted, defineAsyncComponent } from 'vue';
-import gsap from 'gsap';
-import PhotoCard from './PhotoCard.vue';
-import TimelineView from './TimelineView.vue';
-import MapView from './MapView.vue';
-import AlbumView from './AlbumView.vue';
-import { usePhotoStore } from '../stores/photo.js';
+<script setup lang="ts">
+import { ref, computed, watch, nextTick, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
+import gsap from 'gsap'
+import PhotoCard from './PhotoCard.vue'
+import TimelineView from './TimelineView.vue'
+import MapView from './MapView.vue'
+import AlbumView from './AlbumView.vue'
+import { usePhotoStore } from '../stores/photo'
+import type { ViewMode, SortField } from '../types/view'
 
-const LottieLoader = defineAsyncComponent(() => import('./LottieLoader.vue'));
+const LottieLoader = defineAsyncComponent(() => import('./LottieLoader.vue'))
 
-const photo = usePhotoStore();
-const emit = defineEmits(['view', 'edit', 'delete', 'loadMore', 'batch-delete', 'generate-share']);
+const photo = usePhotoStore()
+const emit = defineEmits<{
+  view: [p: object]
+  edit: [p: object]
+  delete: [id: number]
+  loadMore: []
+  batchDelete: [ids: number[]]
+  generateShare: [ids: number[]]
+}>()
 
-const selectedIds = ref(new Set());
-const timelineSortOrder = ref('desc');
+const selectedIds = ref(new Set<number>())
+const timelineSortOrder = ref('desc')
 
-const viewModes = [
+interface ViewModeOption { key: ViewMode; label: string }
+
+const viewModes: ViewModeOption[] = [
   { key: 'grid', label: '网格' },
   { key: 'album', label: '相册' },
   { key: 'timeline', label: '时间线' },
   { key: 'map', label: '地图' }
-];
+]
 
-function switchView(key) {
+function switchView(key: ViewMode): void {
   if (photo.viewMode === key) {
-    if (key === 'timeline') toggleTimelineSort();
-    return;
+    if (key === 'timeline') toggleTimelineSort()
+    return
   }
-  photo.viewMode = key;
-  photo.syncUrlState();
+  photo.viewMode = key
+  photo.syncUrlState()
 }
-function toggleTimelineSort() {
-  timelineSortOrder.value = timelineSortOrder.value === 'desc' ? 'asc' : 'desc';
+function toggleTimelineSort(): void {
+  timelineSortOrder.value = timelineSortOrder.value === 'desc' ? 'asc' : 'desc'
 }
 
-function isSelected(id) { return selectedIds.value.has(id); }
-function toggleSelect(id) {
-  const s = selectedIds.value;
-  s.has(id) ? s.delete(id) : s.add(id);
-  selectedIds.value = new Set(s);
+function isSelected(id: number): boolean { return selectedIds.value.has(id) }
+function toggleSelect(id: number): void {
+  const s = selectedIds.value
+  s.has(id) ? s.delete(id) : s.add(id)
+  selectedIds.value = new Set(s)
 }
 const allSelected = computed(() =>
   photo.totalCount > 0 && selectedIds.value.size === photo.totalCount
-);
+)
 
-async function toggleAll() {
+async function toggleAll(): Promise<void> {
   if (allSelected.value) {
-    selectedIds.value = new Set();
-    return;
+    selectedIds.value = new Set()
+    return
   }
-  // Load remaining pages
   while (photo.hasMore && !photo.loading) {
-    await photo.loadMore();
+    await photo.loadMore()
   }
-  selectedIds.value = new Set(photo.photos.map(p => p.id));
+  selectedIds.value = new Set(photo.photos.map(p => p.id))
 }
-function batchDelete() {
-  if (selectedIds.value.size === 0) return;
-  emit('batch-delete', [...selectedIds.value]);
-  selectedIds.value = new Set();
-}
-
-function generateShare() {
-  if (selectedIds.value.size === 0) return;
-  emit('generate-share', [...selectedIds.value]);
+function batchDelete(): void {
+  if (selectedIds.value.size === 0) return
+  emit('batchDelete', [...selectedIds.value])
+  selectedIds.value = new Set()
 }
 
-const sortOptions = [
+function generateShare(): void {
+  if (selectedIds.value.size === 0) return
+  emit('generateShare', [...selectedIds.value])
+}
+
+interface SortOption { key: string; label: string }
+
+const sortOptions: SortOption[] = [
   { key: 'time', label: '时间' },
   { key: 'name', label: '名称' },
   { key: 'size', label: '大小' }
-];
+]
 
 watch(() => photo.photos, () => {
-  const currentIds = new Set(photo.photos.map(p => p.id));
-  let changed = false;
+  const currentIds = new Set(photo.photos.map(p => p.id))
+  let changed = false
   for (const id of selectedIds.value) {
-    if (!currentIds.has(id)) { changed = true; break; }
+    if (!currentIds.has(id)) { changed = true; break }
   }
   if (changed) {
-    selectedIds.value = new Set([...selectedIds.value].filter(id => currentIds.has(id)));
+    selectedIds.value = new Set([...selectedIds.value].filter(id => currentIds.has(id)))
   }
-});
+})
 
-function onScroll() {
-  if (!photo.hasMore || photo.loading) return;
+function onScroll(): void {
+  if (!photo.hasMore || photo.loading) return
   if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 200) {
-    emit('loadMore');
+    emit('loadMore')
   }
 }
 
-onMounted(() => { window.addEventListener('scroll', onScroll, { passive: true }); });
-onUnmounted(() => { window.removeEventListener('scroll', onScroll); });
+onMounted(() => { window.addEventListener('scroll', onScroll, { passive: true }) })
+onUnmounted(() => { window.removeEventListener('scroll', onScroll) })
 
-let prevCount = 0;
+let prevCount = 0
 watch(() => photo.photos.length, () => {
-  if (photo.photos.length === prevCount) return;
-  const newCards = photo.photos.slice(prevCount);
-  prevCount = photo.photos.length;
+  if (photo.photos.length === prevCount) return
+  const newCards = photo.photos.slice(prevCount)
+  prevCount = photo.photos.length
   nextTick(() => {
     gsap.fromTo(
       newCards.map((_, i) => `.photo-card[data-insert="${prevCount - newCards.length + i}"]`),
       { y: 40, opacity: 0 },
       { y: 0, opacity: 1, stagger: 0.06, duration: 0.6, ease: 'expo.out' }
-    );
-  });
-});
+    )
+  })
+})
 </script>
 
 <template>
@@ -117,7 +128,7 @@ watch(() => photo.photos.length, () => {
         type="text"
         placeholder="搜索照片名称或描述..."
         :value="photo.searchQuery"
-        @input="photo.setSearch($event.target.value)"
+        @input="photo.setSearch(($event.target as HTMLInputElement).value)"
       />
       <label>
         <input type="checkbox" :checked="allSelected" @change="toggleAll" />
@@ -149,7 +160,7 @@ watch(() => photo.photos.length, () => {
           <div class="sort-slider" :style="{ transform: `translateX(${sortOptions.findIndex(o => o.key === photo.sortBy) * 100}%)` }"></div>
           <button v-for="opt in sortOptions" :key="opt.key"
             class="sort-opt" :class="{ active: photo.sortBy === opt.key }"
-            @click="photo.setSort(opt.key)">
+            @click="photo.setSort(opt.key as SortField)">
             {{ opt.label }}
             <span v-if="photo.sortBy === opt.key" class="sort-arrows">
               <i class="iconfont icon-jiantou_qiehuanxiangshang_o sort-arrow-down" :class="{ active: photo.sortOrder === 'asc' }"></i>
@@ -160,7 +171,6 @@ watch(() => photo.photos.length, () => {
       </div>
     </div>
 
-    <!-- 网格视图 -->
     <template v-if="photo.viewMode === 'grid'">
       <div class="gallery">
         <div v-if="photo.loading && photo.photos.length === 0" v-for="i in 6" :key="'s'+i" class="skeleton-card">
@@ -193,11 +203,9 @@ watch(() => photo.photos.length, () => {
       </div>
     </template>
 
-    <!-- 时间线视图 -->
     <AlbumView v-else-if="photo.viewMode === 'album'" @view="p => emit('view', p)" />
     <TimelineView v-else-if="photo.viewMode === 'timeline'" :sort-order="timelineSortOrder" @view="p => emit('view', p)" />
 
-    <!-- 地图视图 -->
     <MapView v-else-if="photo.viewMode === 'map'" @view="p => emit('view', p)" />
   </section>
 </template>

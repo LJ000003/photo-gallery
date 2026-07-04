@@ -1,97 +1,107 @@
-<script setup>
-import { ref, onMounted, computed } from 'vue';
-import gsap from 'gsap';
-import { api } from '../api.js';
-import { useStore } from '../store.js';
-import { useToastStore } from '../stores/toast.js';
+<script setup lang="ts">
+import { ref, onMounted, computed } from 'vue'
+import gsap from 'gsap'
+import { api } from '../api'
+import { useStore } from '../store'
+import { useToastStore } from '../stores/toast'
+import type { Photo } from '../types/photo'
+import type { Album } from '../types/album'
+import type { ApiResponse, PageResponse } from '../types/api'
 
-const { refreshAlbums } = useStore();
-const toast = useToastStore();
-const props = defineProps({ album: Object });
-const emit = defineEmits(['close', 'saved', 'deleted']);
+const { refreshAlbums } = useStore()
+const toast = useToastStore()
+const props = defineProps<{ album: Album | { id: null; name: string; description: string } }>()
+const emit = defineEmits<{
+  close: []
+  saved: []
+  deleted: []
+}>()
 
-const name = ref('');
-const description = ref('');
-const allPhotos = ref([]);
-const selectedPhotoIds = ref(new Set());
-const submitting = ref(false);
-const searchQuery = ref('');
+const name = ref('')
+const description = ref('')
+const allPhotos = ref<Photo[]>([])
+const selectedPhotoIds = ref(new Set<number>())
+const submitting = ref(false)
+const searchQuery = ref('')
 
 const filteredPhotos = computed(() => {
-  const q = searchQuery.value.trim().toLowerCase();
-  if (!q) return allPhotos.value;
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return allPhotos.value
   return allPhotos.value.filter(p =>
     (p.name && p.name.toLowerCase().includes(q)) ||
     (p.description && p.description.toLowerCase().includes(q))
-  );
-});
+  )
+})
 
 onMounted(async () => {
-  name.value = props.album.name || '';
-  description.value = props.album.description || '';
+  name.value = props.album.name || ''
+  description.value = props.album.description || ''
 
   try {
-    const res = await api('/api/photos?size=1000');
-    const data = await res.json();
-    allPhotos.value = data.data?.content || [];
-    selectedPhotoIds.value = new Set(
-      allPhotos.value.filter(p => p.albums && p.albums.some(a => a.id === props.album.id)).map(p => p.id)
-    );
-  } catch (e) {
-    console.error('Failed to load photos for album editor', e);
-  }
-
-  const el = document.querySelector('#albumEditModal .modal-content');
-  if (el) gsap.fromTo(el, { scale: 0.85, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.35, ease: 'expo.out' });
-});
-
-function togglePhoto(id) {
-  const s = new Set(selectedPhotoIds.value);
-  s.has(id) ? s.delete(id) : s.add(id);
-  selectedPhotoIds.value = s;
-}
-
-function onClose() {
-  emit('close');
-}
-
-async function onSubmit() {
-  if (!name.value.trim()) { toast.error('请输入相册名称'); return; }
-  submitting.value = true;
-  try {
-    const body = { name: name.value.trim(), description: description.value.trim() };
+    const res = await api('/api/photos?size=1000')
+    const data: ApiResponse<PageResponse<Photo>> = await res.json()
+    allPhotos.value = data.data?.content || []
     if (props.album.id) {
-      const res = await api(`/api/albums/${props.album.id}`, { method: 'PUT', body: JSON.stringify({ ...body, photoIds: [...selectedPhotoIds.value] }) });
-      if (!res.ok) throw new Error('保存失败');
-    } else {
-      const res = await api('/api/albums', { method: 'POST', body: JSON.stringify({ ...body, photoIds: [...selectedPhotoIds.value] }) });
-      if (!res.ok) throw new Error('创建失败');
+      selectedPhotoIds.value = new Set(
+        allPhotos.value.filter(p => p.albums && p.albums.some(a => a.id === props.album.id)).map(p => p.id)
+      )
     }
-    refreshAlbums();
-    emit('saved');
-  } catch (err) {
-    toast.error(err.message);
-  } finally {
-    submitting.value = false;
+  } catch (e) {
+    console.error('Failed to load photos for album editor', e)
   }
+
+  const el = document.querySelector('#albumEditModal .modal-content')
+  if (el) gsap.fromTo(el, { scale: 0.85, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.35, ease: 'expo.out' })
+})
+
+function togglePhoto(id: number): void {
+  const s = new Set(selectedPhotoIds.value)
+  s.has(id) ? s.delete(id) : s.add(id)
+  selectedPhotoIds.value = s
 }
 
-async function onDelete() {
-  if (!confirm('确定删除相册「' + props.album.name + '」？')) return;
+function onClose(): void {
+  emit('close')
+}
+
+async function onSubmit(): Promise<void> {
+  if (!name.value.trim()) { toast.error('请输入相册名称'); return }
+  submitting.value = true
   try {
-    const res = await api(`/api/albums/${props.album.id}`, { method: 'DELETE' });
-    if (!res.ok) throw new Error('删除失败');
-    refreshAlbums();
-    emit('deleted');
-    toast.success('已删除');
+    const body = { name: name.value.trim(), description: description.value.trim(), photoIds: [...selectedPhotoIds.value] }
+    if (props.album.id) {
+      const res = await api(`/api/albums/${props.album.id}`, { method: 'PUT', body: JSON.stringify(body) })
+      if (!res.ok) throw new Error('保存失败')
+    } else {
+      const res = await api('/api/albums', { method: 'POST', body: JSON.stringify(body) })
+      if (!res.ok) throw new Error('创建失败')
+    }
+    refreshAlbums()
+    emit('saved')
   } catch (err) {
-    toast.error(err.message);
+    toast.error(err instanceof Error ? err.message : '操作失败')
+  } finally {
+    submitting.value = false
   }
 }
 
-function tokenParam() {
-  const t = localStorage.getItem('jwt_token');
-  return t ? `?token=${t}` : '';
+async function onDelete(): Promise<void> {
+  if (!props.album.id) return
+  if (!confirm('确定删除相册「' + props.album.name + '」？')) return
+  try {
+    const res = await api(`/api/albums/${props.album.id}`, { method: 'DELETE' })
+    if (!res.ok) throw new Error('删除失败')
+    refreshAlbums()
+    emit('deleted')
+    toast.success('已删除')
+  } catch (err) {
+    toast.error(err instanceof Error ? err.message : '删除失败')
+  }
+}
+
+function tokenParam(): string {
+  const t = localStorage.getItem('jwt_token')
+  return t ? `?token=${t}` : ''
 }
 </script>
 

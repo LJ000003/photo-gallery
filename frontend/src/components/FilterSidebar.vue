@@ -1,146 +1,143 @@
-<script setup>
-import { ref, computed, onMounted, nextTick } from 'vue';
-import { useStore } from '../store.js';
-import { useConfirm } from '../useConfirm.js';
-import { api } from '../api.js';
+<script setup lang="ts">
+import { ref, computed, onMounted, nextTick } from 'vue'
+import { useStore } from '../store'
+import { useConfirm } from '../useConfirm'
+import { api } from '../api'
+import type { Tag } from '../types/tag'
+import type { Category } from '../types/category'
 
-const confirmFn = useConfirm();
-const props = defineProps({
-  selectedTagIds: Array,
-  selectedCategoryIds: Array
-});
-const emit = defineEmits(['update:selectedTagIds', 'update:selectedCategoryIds']);
+const confirmFn = useConfirm()
+const props = defineProps<{
+  selectedTagIds: number[]
+  selectedCategoryIds: number[]
+}>()
+const emit = defineEmits<{
+  'update:selectedTagIds': [ids: number[]]
+  'update:selectedCategoryIds': [ids: number[]]
+}>()
 
-const { tags, categories, loadAll, refreshTags, refreshCategories } = useStore();
-const newTagName = ref('');
-const newTagColor = ref('#00d4ff');
-const newCatName = ref('');
+const { tags, categories, loadAll, refreshTags, refreshCategories } = useStore()
+const newTagName = ref('')
+const newTagColor = ref('#00d4ff')
+const newCatName = ref('')
 
-const selCats = ref(new Set());
-const selTags = ref(new Set());
+const selCats = ref(new Set<number>())
+const selTags = ref(new Set<number>())
 
-const allCatsSel = computed(() => categories.value.length > 0 && categories.value.every(c => selCats.value.has(c.id)));
-const allTagsSel = computed(() => tags.value.length > 0 && tags.value.every(t => selTags.value.has(t.id)));
+const allCatsSel = computed(() => categories.value.length > 0 && categories.value.every(c => selCats.value.has(c.id)))
+const allTagsSel = computed(() => tags.value.length > 0 && tags.value.every(t => selTags.value.has(t.id)))
 
-// 行内编辑状态
-const editingCatId = ref(null);
-const editingTagId = ref(null);
-const editCatName = ref('');
-const editTagName = ref('');
-const editTagColor = ref('');
+const editingCatId = ref<number | null>(null)
+const editingTagId = ref<number | null>(null)
+const editCatName = ref('')
+const editTagName = ref('')
+const editTagColor = ref('')
 
-// === 选择逻辑 ===
-function toggleSelCat(id) { const s = selCats.value; s.has(id) ? s.delete(id) : s.add(id); selCats.value = new Set(s); }
-function toggleSelTag(id) { const s = selTags.value; s.has(id) ? s.delete(id) : s.add(id); selTags.value = new Set(s); }
-function toggleAllCats() { selCats.value = allCatsSel.value ? new Set() : new Set(categories.value.map(c => c.id)); }
-function toggleAllTags() { selTags.value = allTagsSel.value ? new Set() : new Set(tags.value.map(t => t.id)); }
+function toggleSelCat(id: number): void { const s = selCats.value; s.has(id) ? s.delete(id) : s.add(id); selCats.value = new Set(s) }
+function toggleSelTag(id: number): void { const s = selTags.value; s.has(id) ? s.delete(id) : s.add(id); selTags.value = new Set(s) }
+function toggleAllCats(): void { selCats.value = allCatsSel.value ? new Set() : new Set(categories.value.map(c => c.id)) }
+function toggleAllTags(): void { selTags.value = allTagsSel.value ? new Set() : new Set(tags.value.map(t => t.id)) }
 
-// === 批量删除 ===
-async function batchDeleteCats() {
-  const ids = [...selCats.value];
-  if (ids.length === 0) return;
-  if (!await confirmFn(`确定要删除选中的 ${ids.length} 个分类？所属照片的分类将被清除。`, '批量删除分类')) return;
-  for (const id of ids) await api(`/api/categories/${id}`, { method: 'DELETE' });
-  selCats.value = new Set();
-  refreshCategories();
+async function batchDeleteCats(): Promise<void> {
+  const ids = [...selCats.value]
+  if (ids.length === 0) return
+  if (!await confirmFn(`确定要删除选中的 ${ids.length} 个分类？所属照片的分类将被清除。`, '批量删除分类')) return
+  for (const id of ids) await api(`/api/categories/${id}`, { method: 'DELETE' })
+  selCats.value = new Set()
+  refreshCategories()
 }
-async function batchDeleteTags() {
-  const ids = [...selTags.value];
-  if (ids.length === 0) return;
-  if (!await confirmFn(`确定要删除选中的 ${ids.length} 个标签？`, '批量删除标签')) return;
-  for (const id of ids) await api(`/api/tags/${id}`, { method: 'DELETE' });
-  selTags.value = new Set();
-  refreshTags();
+async function batchDeleteTags(): Promise<void> {
+  const ids = [...selTags.value]
+  if (ids.length === 0) return
+  if (!await confirmFn(`确定要删除选中的 ${ids.length} 个标签？`, '批量删除标签')) return
+  for (const id of ids) await api(`/api/tags/${id}`, { method: 'DELETE' })
+  selTags.value = new Set()
+  refreshTags()
 }
 
-// === 新建 ===
-async function addTag() {
-  if (!newTagName.value.trim()) return;
+async function addTag(): Promise<void> {
+  if (!newTagName.value.trim()) return
   const res = await api('/api/tags', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: newTagName.value.trim(), color: newTagColor.value })
-  });
-  if (res.ok) { newTagName.value = ''; refreshTags(); }
+  })
+  if (res.ok) { newTagName.value = ''; refreshTags() }
 }
-async function addCat() {
-  if (!newCatName.value.trim()) return;
+async function addCat(): Promise<void> {
+  if (!newCatName.value.trim()) return
   const res = await api('/api/categories', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: newCatName.value.trim() })
-  });
-  if (res.ok) { newCatName.value = ''; refreshCategories(); }
+  })
+  if (res.ok) { newCatName.value = ''; refreshCategories() }
 }
 
-// === 删除 ===
-async function deleteTag(id, name) {
-  if (!await confirmFn(`确定删除标签「${name}」？`, '删除标签')) return;
-  await api(`/api/tags/${id}`, { method: 'DELETE' });
-  refreshTags();
+async function deleteTag(id: number, name: string): Promise<void> {
+  if (!await confirmFn(`确定删除标签「${name}」？`, '删除标签')) return
+  await api(`/api/tags/${id}`, { method: 'DELETE' })
+  refreshTags()
 }
-async function deleteCat(id, name) {
-  if (!await confirmFn(`确定删除分类「${name}」？`, '删除分类')) return;
-  await api(`/api/categories/${id}`, { method: 'DELETE' });
-  refreshCategories();
+async function deleteCat(id: number, name: string): Promise<void> {
+  if (!await confirmFn(`确定删除分类「${name}」？`, '删除分类')) return
+  await api(`/api/categories/${id}`, { method: 'DELETE' })
+  refreshCategories()
 }
 
-// === 行内编辑 ===
-function startEditCat(c) {
-  editingCatId.value = c.id;
-  editCatName.value = c.name;
-  nextTick(() => document.getElementById('cat-edit-' + c.id)?.focus());
+function startEditCat(c: Category): void {
+  editingCatId.value = c.id
+  editCatName.value = c.name
+  nextTick(() => document.getElementById('cat-edit-' + c.id)?.focus())
 }
-function startEditTag(t) {
-  editingTagId.value = t.id;
-  editTagName.value = t.name;
-  editTagColor.value = t.color || '#00d4ff';
-  nextTick(() => document.getElementById('tag-edit-' + t.id)?.focus());
+function startEditTag(t: Tag): void {
+  editingTagId.value = t.id
+  editTagName.value = t.name
+  editTagColor.value = t.color || '#00d4ff'
+  nextTick(() => document.getElementById('tag-edit-' + t.id)?.focus())
 }
-function cancelEditCat() { editingCatId.value = null; }
-function cancelEditTag() { editingTagId.value = null; }
+function cancelEditCat(): void { editingCatId.value = null }
+function cancelEditTag(): void { editingTagId.value = null }
 
-async function saveEditCat(id) {
-  const name = editCatName.value.trim();
-  if (!name) { cancelEditCat(); return; }
+async function saveEditCat(id: number): Promise<void> {
+  const name = editCatName.value.trim()
+  if (!name) { cancelEditCat(); return }
   await api(`/api/categories/${id}`, {
     method: 'PUT', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name })
-  });
-  editingCatId.value = null;
-  refreshCategories();
+  })
+  editingCatId.value = null
+  refreshCategories()
 }
-async function saveEditTag(id) {
-  const name = editTagName.value.trim();
-  if (!name) { cancelEditTag(); return; }
+async function saveEditTag(id: number): Promise<void> {
+  const name = editTagName.value.trim()
+  if (!name) { cancelEditTag(); return }
   await api(`/api/tags/${id}`, {
     method: 'PUT', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, color: editTagColor.value })
-  });
-  editingTagId.value = null;
-  refreshTags();
+  })
+  editingTagId.value = null
+  refreshTags()
 }
 
-// === 筛选 ===
-function toggleTag(id) {
-  const arr = [...props.selectedTagIds];
-  const idx = arr.indexOf(id);
-  if (idx > -1) arr.splice(idx, 1);
-  else arr.push(id);
-  emit('update:selectedTagIds', arr);
+function toggleTag(id: number): void {
+  const arr = [...props.selectedTagIds]
+  const idx = arr.indexOf(id)
+  if (idx > -1) arr.splice(idx, 1)
+  else arr.push(id)
+  emit('update:selectedTagIds', arr)
 }
-function toggleCat(id) {
-  const arr = [...props.selectedCategoryIds];
-  const idx = arr.indexOf(id);
-  if (idx > -1) arr.splice(idx, 1);
-  else arr.push(id);
-  emit('update:selectedCategoryIds', arr);
+function toggleCat(id: number): void {
+  const arr = [...props.selectedCategoryIds]
+  const idx = arr.indexOf(id)
+  if (idx > -1) arr.splice(idx, 1)
+  else arr.push(id)
+  emit('update:selectedCategoryIds', arr)
 }
 
-onMounted(() => { loadAll(); });
+onMounted(() => { loadAll() })
 </script>
 
 <template>
   <aside class="sidebar">
-    <!-- 分类 -->
     <div class="filter-group">
       <h3>分类</h3>
       <div class="sidebar-toolbar">
@@ -168,7 +165,6 @@ onMounted(() => { loadAll(); });
       </div>
     </div>
 
-    <!-- 标签 -->
     <div class="filter-group">
       <h3>标签</h3>
       <div class="sidebar-toolbar">

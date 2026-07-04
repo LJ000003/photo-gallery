@@ -1,57 +1,57 @@
-<script setup>
-import { ref, onMounted, computed, watch } from 'vue';
-import { useUiStore } from '../stores/ui.js';
+<script setup lang="ts">
+import { ref, onMounted, computed, watch } from 'vue'
+import { useUiStore } from '../stores/ui'
+import type { TimelineExifItem } from '../types/view'
 
-const props = defineProps({
-  sortOrder: { type: String, default: 'desc' }
-});
-const emit = defineEmits(['view']);
-const ui = useUiStore();
+const props = defineProps<{
+  sortOrder?: string
+}>()
+const emit = defineEmits<{ view: [p: object] }>()
+const ui = useUiStore()
 
-const items = ref([]);
-const loading = ref(true);
+const items = ref<TimelineExifItem[]>([])
+const loading = ref(true)
 
-function groupByMonth(list) {
-  const groups = new Map();
+function groupByMonth(list: TimelineExifItem[]): [string, TimelineExifItem[]][] {
+  const groups = new Map<string, TimelineExifItem[]>()
   for (const item of list) {
-    if (!item.dateTaken) continue;
-    const key = item.dateTaken.substring(0, 7); // YYYY-MM
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(item);
+    if (!item.dateTaken) continue
+    const key = item.dateTaken.substring(0, 7)
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key)!.push(item)
   }
-  // 组内也按日期排序
-  const dir = props.sortOrder === 'asc' ? 1 : -1;
+  const dir = props.sortOrder === 'asc' ? 1 : -1
   for (const photos of groups.values()) {
-    photos.sort((a, b) => dir * a.dateTaken.localeCompare(b.dateTaken));
+    photos.sort((a, b) => dir * a.dateTaken.localeCompare(b.dateTaken))
   }
-  const monthDir = props.sortOrder === 'asc' ? 1 : -1;
-  return [...groups.entries()].sort((a, b) => monthDir * a[0].localeCompare(b[0]));
+  const monthDir = props.sortOrder === 'asc' ? 1 : -1
+  return [...groups.entries()].sort((a, b) => monthDir * a[0].localeCompare(b[0]))
 }
 
-const grouped = computed(() => groupByMonth(items.value));
+const grouped = computed(() => groupByMonth(items.value))
 
-function tokenParam() {
-  const t = ui.token;
-  return t ? `?token=${t}` : '';
+function tokenParam(): string {
+  const t = ui.token
+  return t ? `?token=${t}` : ''
 }
 
-async function fetchTimeline() {
-  loading.value = true;
+async function fetchTimeline(): Promise<void> {
+  loading.value = true
   try {
-    const res = await fetch(`/api/photos/timeline?sortOrder=${props.sortOrder}`, {
+    const res = await fetch(`/api/photos/timeline?sortOrder=${props.sortOrder || 'desc'}`, {
       headers: { Authorization: `Bearer ${ui.token}` }
-    });
-    const data = await res.json();
-    if (data.code === 200) items.value = data.data || [];
+    })
+    const data = await res.json()
+    if (data.code === 200) items.value = data.data || []
   } catch (e) {
-    console.error('Failed to load timeline', e);
+    console.error('Failed to load timeline', e)
   } finally {
-    loading.value = false;
+    loading.value = false
   }
 }
 
-onMounted(fetchTimeline);
-watch(() => props.sortOrder, fetchTimeline);
+onMounted(fetchTimeline)
+watch(() => props.sortOrder, fetchTimeline)
 </script>
 
 <template>

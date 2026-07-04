@@ -1,7 +1,7 @@
-<script setup>
-import { useToastStore } from '../stores/toast.js';
+<script setup lang="ts">
+import { useToastStore } from '../stores/toast'
 
-const toastStore = useToastStore();
+const toastStore = useToastStore()
 </script>
 
 <template>

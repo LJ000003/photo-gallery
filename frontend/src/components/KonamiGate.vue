@@ -1,54 +1,53 @@
-<script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
-import gsap from 'gsap';
+<script setup lang="ts">
+import { ref, onMounted, onUnmounted } from 'vue'
+import gsap from 'gsap'
 
-const emit = defineEmits(['unlocked']);
+const emit = defineEmits<{
+  unlocked: []
+}>()
 
-const TARGET = ['up','up','down','down','left','right','left','right','B','A','B','A'];
-const pressed = ref([]);
-const activeBtn = ref(null);
-const shake = ref(false);
-const success = ref(false);
-const history = ref([]); // for visual indicators
+const TARGET: string[] = ['up','up','down','down','left','right','left','right','B','A','B','A']
+const pressed = ref<string[]>([])
+const activeBtn = ref<string | null>(null)
+const shake = ref(false)
+const success = ref(false)
+const history = ref<string[]>([])
 
-function press(dir) {
-  if (success.value) return;
-  activeBtn.value = dir;
-  setTimeout(() => { activeBtn.value = null; }, 150);
+function press(dir: string): void {
+  if (success.value) return
+  activeBtn.value = dir
+  setTimeout(() => { activeBtn.value = null }, 150)
 
-  pressed.value.push(dir);
+  pressed.value.push(dir)
 
-  // Check prefix match
-  const idx = pressed.value.length - 1;
+  const idx = pressed.value.length - 1
   if (pressed.value[idx] !== TARGET[idx]) {
-    // Wrong input
-    shake.value = true;
-    setTimeout(() => { shake.value = false; }, 500);
-    pressed.value = [];
-    history.value = [];
-    return;
+    shake.value = true
+    setTimeout(() => { shake.value = false }, 500)
+    pressed.value = []
+    history.value = []
+    return
   }
 
-  history.value = [...pressed.value];
+  history.value = [...pressed.value]
 
-  // Check if complete
   if (pressed.value.length === TARGET.length) {
-    success.value = true;
-    setTimeout(() => { emit('unlocked'); }, 1500);
+    success.value = true
+    setTimeout(() => { emit('unlocked') }, 1500)
   }
 }
 
-function handleKey(e) {
-  const map = {
+function handleKey(e: KeyboardEvent): void {
+  const map: Record<string, string> = {
     ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
     b: 'B', B: 'B', a: 'A', A: 'A'
-  };
-  const dir = map[e.key];
-  if (dir) { e.preventDefault(); press(dir); }
+  }
+  const dir = map[e.key]
+  if (dir) { e.preventDefault(); press(dir) }
 }
 
-onMounted(() => { window.addEventListener('keydown', handleKey); });
-onUnmounted(() => { window.removeEventListener('keydown', handleKey); });
+onMounted(() => { window.addEventListener('keydown', handleKey) })
+onUnmounted(() => { window.removeEventListener('keydown', handleKey) })
 </script>
 
 <template>
@@ -69,7 +68,6 @@ onUnmounted(() => { window.removeEventListener('keydown', handleKey); });
     </div>
 
     <div class="arcade-panel">
-      <!-- D-Pad -->
       <div class="dpad">
         <button class="arcade-btn dir up" :class="{ active: activeBtn === 'up' }"
           @pointerdown.prevent="press('up')">▲</button>
@@ -82,7 +80,6 @@ onUnmounted(() => { window.removeEventListener('keydown', handleKey); });
           @pointerdown.prevent="press('down')">▼</button>
       </div>
 
-      <!-- A / B -->
       <div class="ab-btns">
         <button class="arcade-btn ab b-btn" :class="{ active: activeBtn === 'B' }"
           @pointerdown.prevent="press('B')">B</button>

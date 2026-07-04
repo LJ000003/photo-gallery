@@ -1,120 +1,128 @@
-<script setup>
-import { ref, onMounted } from 'vue';
-import gsap from 'gsap';
-import { useStore } from '../store.js';
-import { useToastStore } from '../stores/toast.js';
-import { api } from '../api.js';
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
+import gsap from 'gsap'
+import { useStore } from '../store'
+import { useToastStore } from '../stores/toast'
+import { api } from '../api'
+import type { Photo } from '../types/photo'
+import type { Tag } from '../types/tag'
+import type { Category } from '../types/category'
+import type { Album } from '../types/album'
+import type { ApiResponse } from '../types/api'
 
-const toast = useToastStore();
-const props = defineProps({ photo: Object });
-const emit = defineEmits(['close', 'saved']);
+const toast = useToastStore()
+const props = defineProps<{ photo: Photo }>()
+const emit = defineEmits<{
+  close: []
+  saved: []
+}>()
 
-const { tags: allTags, categories: allCats, albums: allAlbums, loadAll, refreshTags, refreshCategories, refreshAlbums } = useStore();
-const editName = ref('');
-const editDesc = ref('');
-const selectedTagIds = ref([]);
-const selectedCatId = ref(null);
-const selectedAlbumIds = ref([]);
-const newTagName = ref('');
-const newTagColor = ref('#00d4ff');
-const newCatName = ref('');
-const newAlbumName = ref('');
+const { tags: allTags, categories: allCats, albums: allAlbums, loadAll, refreshTags, refreshCategories, refreshAlbums } = useStore()
+const editName = ref('')
+const editDesc = ref('')
+const selectedTagIds = ref<number[]>([])
+const selectedCatId = ref<number | null>(null)
+const selectedAlbumIds = ref<number[]>([])
+const newTagName = ref('')
+const newTagColor = ref('#00d4ff')
+const newCatName = ref('')
+const newAlbumName = ref('')
 
 onMounted(() => {
-  editName.value = props.photo.name;
-  editDesc.value = props.photo.description || '';
-  selectedTagIds.value = (props.photo.tags || []).map(t => t.id);
-  selectedCatId.value = props.photo.category?.id || null;
-  selectedAlbumIds.value = (props.photo.albums || []).map(a => a.id);
-  loadAll();
+  editName.value = props.photo.name
+  editDesc.value = props.photo.description || ''
+  selectedTagIds.value = (props.photo.tags || []).map((t: Tag) => t.id)
+  selectedCatId.value = props.photo.category?.id || null
+  selectedAlbumIds.value = (props.photo.albums || []).map((a: Album) => a.id)
+  loadAll()
 
-  const content = document.querySelector('#editModal .modal-content');
-  const backdrop = document.querySelector('#editModal .modal-backdrop');
+  const content = document.querySelector('#editModal .modal-content')
+  const backdrop = document.querySelector('#editModal .modal-backdrop')
   gsap.fromTo(content,
     { scale: 0.85, opacity: 0 },
     { scale: 1, opacity: 1, duration: 0.35, ease: 'expo.out' }
-  );
+  )
   gsap.fromTo(backdrop,
     { opacity: 0 },
     { opacity: 1, duration: 0.35, ease: 'none' }
-  );
-});
+  )
+})
 
-function toggleTag(id) {
-  const idx = selectedTagIds.value.indexOf(id);
-  if (idx > -1) selectedTagIds.value.splice(idx, 1);
-  else selectedTagIds.value.push(id);
+function toggleTag(id: number): void {
+  const idx = selectedTagIds.value.indexOf(id)
+  if (idx > -1) selectedTagIds.value.splice(idx, 1)
+  else selectedTagIds.value.push(id)
 }
 
-async function addTag() {
-  if (!newTagName.value.trim()) return;
+async function addTag(): Promise<void> {
+  if (!newTagName.value.trim()) return
   const res = await api('/api/tags', {
     method: 'POST',
     body: JSON.stringify({ name: newTagName.value.trim(), color: newTagColor.value })
-  });
+  })
   if (res.ok) {
-    const json = await res.json();
-    selectedTagIds.value.push(json.data.id);
-    newTagName.value = '';
-    refreshTags();
+    const json: ApiResponse<Tag> = await res.json()
+    selectedTagIds.value.push(json.data.id)
+    newTagName.value = ''
+    refreshTags()
   }
 }
 
-function toggleAlbum(id) {
-  const idx = selectedAlbumIds.value.indexOf(id);
-  if (idx > -1) selectedAlbumIds.value.splice(idx, 1);
-  else selectedAlbumIds.value.push(id);
+function toggleAlbum(id: number): void {
+  const idx = selectedAlbumIds.value.indexOf(id)
+  if (idx > -1) selectedAlbumIds.value.splice(idx, 1)
+  else selectedAlbumIds.value.push(id)
 }
 
-async function addCat() {
-  if (!newCatName.value.trim()) return;
+async function addCat(): Promise<void> {
+  if (!newCatName.value.trim()) return
   const res = await api('/api/categories', {
     method: 'POST',
     body: JSON.stringify({ name: newCatName.value.trim() })
-  });
+  })
   if (res.ok) {
-    const json = await res.json();
-    selectedCatId.value = json.data.id;
-    newCatName.value = '';
-    refreshCategories();
+    const json: ApiResponse<Category> = await res.json()
+    selectedCatId.value = json.data.id
+    newCatName.value = ''
+    refreshCategories()
   }
 }
 
-async function addAlbum() {
-  if (!newAlbumName.value.trim()) return;
+async function addAlbum(): Promise<void> {
+  if (!newAlbumName.value.trim()) return
   const res = await api('/api/albums', {
     method: 'POST',
     body: JSON.stringify({ name: newAlbumName.value.trim() })
-  });
+  })
   if (res.ok) {
-    const json = await res.json();
-    selectedAlbumIds.value.push(json.data.id);
-    newAlbumName.value = '';
-    refreshAlbums();
+    const json: ApiResponse<Album> = await res.json()
+    selectedAlbumIds.value.push(json.data.id)
+    newAlbumName.value = ''
+    refreshAlbums()
   }
 }
 
-function onClose() {
-  const content = document.querySelector('#editModal .modal-content');
-  const backdrop = document.querySelector('#editModal .modal-backdrop');
+function onClose(): void {
+  const content = document.querySelector('#editModal .modal-content')
+  const backdrop = document.querySelector('#editModal .modal-backdrop')
   gsap.to(content, {
     scale: 0.9, opacity: 0, duration: 0.2, ease: 'power1.in',
     onComplete: () => emit('close')
-  });
-  gsap.to(backdrop, { opacity: 0, duration: 0.2, ease: 'none' });
+  })
+  gsap.to(backdrop, { opacity: 0, duration: 0.2, ease: 'none' })
 }
 
-async function extractErrorMessage(res) {
+async function extractErrorMessage(res: Response): Promise<string> {
   try {
-    const data = await res.json();
-    return data.message || `请求失败（${res.status}）`;
+    const data = await res.json()
+    return data.message || `请求失败（${res.status}）`
   } catch {
-    return `服务器返回异常（${res.status}），请稍后重试`;
+    return `服务器返回异常（${res.status}），请稍后重试`
   }
 }
 
-async function onSubmit() {
-  if (!editName.value.trim()) { toast.error('请输入照片名称'); return; }
+async function onSubmit(): Promise<void> {
+  if (!editName.value.trim()) { toast.error('请输入照片名称'); return }
 
   try {
     const body = {
@@ -123,19 +131,19 @@ async function onSubmit() {
       tagIds: selectedTagIds.value,
       categoryId: selectedCatId.value,
       albumIds: selectedAlbumIds.value
-    };
+    }
 
     const res = await api(`/api/photos/${props.photo.id}`, {
       method: 'PUT',
       body: JSON.stringify(body)
-    });
+    })
     if (!res.ok) {
-      const msg = await extractErrorMessage(res);
-      throw new Error(msg);
+      const msg = await extractErrorMessage(res)
+      throw new Error(msg)
     }
-    emit('saved');
+    emit('saved')
   } catch (err) {
-    toast.error(err.message);
+    toast.error(err instanceof Error ? err.message : '保存失败')
   }
 }
 </script>

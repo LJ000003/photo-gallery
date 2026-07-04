@@ -1,49 +1,62 @@
-<script setup>
-import { ref, computed } from 'vue';
-import gsap from 'gsap';
-import { webpUrl } from '../webp.js';
-import { useToastStore } from '../stores/toast.js';
-import { usePhotoStore } from '../stores/photo.js';
-import { useConfirm } from '../useConfirm.js';
-import ImageEditor from './ImageEditor.vue';
+<script setup lang="ts">
+import { ref, computed } from 'vue'
+import gsap from 'gsap'
+import { webpUrl } from '../webp'
+import { useToastStore } from '../stores/toast'
+import { usePhotoStore } from '../stores/photo'
+import { useConfirm } from '../useConfirm'
+import ImageEditor from './ImageEditor.vue'
+import type { Photo } from '../types/photo'
+import type { TransformParams } from '../types/transform'
 
-const confirmFn = useConfirm();
-const toast = useToastStore();
-const photoStore = usePhotoStore();
-const props = defineProps({ photo: Object, selected: Boolean, searchQuery: String });
-const emit = defineEmits(['view', 'edit', 'delete', 'toggle-select']);
+const confirmFn = useConfirm()
+const toast = useToastStore()
+const photoStore = usePhotoStore()
+const props = defineProps<{
+  photo: Photo
+  selected?: boolean
+  searchQuery?: string
+}>()
+const emit = defineEmits<{
+  view: []
+  edit: []
+  delete: [id: number]
+  toggleSelect: [id: number]
+}>()
 
-function highlightSegments(text) {
-  if (!text) return [{ text: '', hl: false }];
-  const q = props.searchQuery;
-  if (!q || !q.trim()) return [{ text, hl: false }];
-  const escaped = q.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const parts = text.split(new RegExp(`(${escaped})`, 'gi'));
-  return parts.map(p => ({ text: p, hl: p.toLowerCase() === q.trim().toLowerCase() }));
+interface HighlightSegment { text: string; hl: boolean }
+
+function highlightSegments(text: string | undefined): HighlightSegment[] {
+  if (!text) return [{ text: '', hl: false }]
+  const q = props.searchQuery
+  if (!q || !q.trim()) return [{ text, hl: false }]
+  const escaped = q.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const parts = text.split(new RegExp(`(${escaped})`, 'gi'))
+  return parts.map(p => ({ text: p, hl: p.toLowerCase() === q.trim().toLowerCase() }))
 }
 
-const nameSegments = computed(() => highlightSegments(props.photo.name));
-const descSegments = computed(() => highlightSegments(props.photo.description));
+const nameSegments = computed(() => highlightSegments(props.photo.name))
+const descSegments = computed(() => highlightSegments(props.photo.description))
 
-function tokenParam() {
-  const t = localStorage.getItem('jwt_token') || localStorage.getItem('token');
-  let q = t ? `?token=${t}` : '';
-  const v = props.photo.fileSize ? `v=${props.photo.fileSize}` : '';
-  if (v) q += q ? `&${v}` : `?${v}`;
-  return q;
+function tokenParam(): string {
+  const t = localStorage.getItem('jwt_token') || localStorage.getItem('token')
+  let q = t ? `?token=${t}` : ''
+  const v = props.photo.fileSize ? `v=${props.photo.fileSize}` : ''
+  if (v) q += q ? `&${v}` : `?${v}`
+  return q
 }
 
-const cardRef = ref(null);
-const editorVisible = ref(false);
-const editorSrc = ref('');
+const cardRef = ref<HTMLElement | null>(null)
+const editorVisible = ref(false)
+const editorSrc = ref('')
 
-function openImageEditor() {
-  editorSrc.value = `${webpUrl(props.photo.id)}${tokenParam()}`;
-  editorVisible.value = true;
+function openImageEditor(): void {
+  editorSrc.value = `${webpUrl(props.photo.id)}${tokenParam()}`
+  editorVisible.value = true
 }
 
-async function onImageEditDone({ params }) {
-  editorVisible.value = false;
+async function onImageEditDone({ params }: { params: TransformParams; blob: Blob }): Promise<void> {
+  editorVisible.value = false
   try {
     const res = await fetch(`/api/photos/${props.photo.id}/transform`, {
       method: 'POST',
@@ -52,38 +65,39 @@ async function onImageEditDone({ params }) {
         Authorization: `Bearer ${localStorage.getItem('jwt_token') || localStorage.getItem('token')}`
       },
       body: JSON.stringify(params)
-    });
+    })
     if (res.ok) {
-      toast.success('图片编辑完成');
-      photoStore.resetAndReload();
+      toast.success('图片编辑完成')
+      photoStore.resetAndReload()
     } else {
-      toast.error('编辑失败');
+      toast.error('编辑失败')
     }
-  } catch (e) {
-    toast.error('编辑失败');
+  } catch {
+    toast.error('编辑失败')
   }
 }
 
-function formatSize(bytes) {
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
-  return (bytes / 1048576).toFixed(1) + ' MB';
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return bytes + ' B'
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB'
+  return (bytes / 1048576).toFixed(1) + ' MB'
 }
 
-function tiltOn(e) {
-  const card = cardRef.value;
-  const rect = card.getBoundingClientRect();
-  const x = (e.clientX - rect.left) / rect.width - 0.5;
-  const y = (e.clientY - rect.top) / rect.height - 0.5;
-  gsap.to(card, { rotateY: x * 8, rotateX: -y * 8, duration: 0.2, overwrite: 'auto', ease: 'power1.out' });
+function tiltOn(e: MouseEvent): void {
+  const card = cardRef.value
+  if (!card) return
+  const rect = card.getBoundingClientRect()
+  const x = (e.clientX - rect.left) / rect.width - 0.5
+  const y = (e.clientY - rect.top) / rect.height - 0.5
+  gsap.to(card, { rotateY: x * 8, rotateX: -y * 8, duration: 0.2, overwrite: 'auto', ease: 'power1.out' })
 }
 
-function tiltOff() {
-  gsap.to(cardRef.value, { rotateY: 0, rotateX: 0, duration: 0.4, overwrite: 'auto', ease: 'power1.out' });
+function tiltOff(): void {
+  gsap.to(cardRef.value, { rotateY: 0, rotateX: 0, duration: 0.4, overwrite: 'auto', ease: 'power1.out' })
 }
 
-async function onDelete() {
-  if (!await confirmFn('确定要删除这张照片吗？', '删除照片')) return;
+async function onDelete(): Promise<void> {
+  if (!await confirmFn('确定要删除这张照片吗？', '删除照片')) return
   await gsap.to(cardRef.value, {
     scale: 0.7,
     opacity: 0,
@@ -92,8 +106,8 @@ async function onDelete() {
     filter: 'blur(8px)',
     duration: 0.4,
     ease: 'power1.in'
-  });
-  emit('delete', props.photo.id);
+  })
+  emit('delete', props.photo.id)
 }
 </script>
 
@@ -106,7 +120,7 @@ async function onDelete() {
     @mousemove="tiltOn"
     @mouseleave="tiltOff"
   >
-    <div class="card-check" @click.stop="emit('toggle-select', photo.id)">
+    <div class="card-check" @click.stop="emit('toggleSelect', photo.id)">
       <span class="check-mark" v-if="selected">✓</span>
     </div>
     <div class="photo-thumb" @click="$emit('view')">

@@ -1,173 +1,174 @@
-<script setup>
-import { ref, onMounted, computed, nextTick, watch } from 'vue';
-import gsap from 'gsap';
-import { api } from '../api.js';
-import { useStore } from '../store.js';
-import { useToastStore } from '../stores/toast.js';
-import { useConfirm } from '../useConfirm.js';
-import AlbumEditModal from './AlbumEditModal.vue';
+<script setup lang="ts">
+import { ref, onMounted, computed, nextTick, watch } from 'vue'
+import gsap from 'gsap'
+import { api } from '../api'
+import { useStore } from '../store'
+import { useToastStore } from '../stores/toast'
+import { useConfirm } from '../useConfirm'
+import AlbumEditModal from './AlbumEditModal.vue'
+import type { Album } from '../types/album'
+import type { Photo } from '../types/photo'
+import type { ApiResponse, PageResponse } from '../types/api'
 
-const emit = defineEmits(['view']);
-const { refreshAlbums } = useStore();
-const toast = useToastStore();
-const confirmFn = useConfirm();
+const emit = defineEmits<{ view: [p: object] }>()
+const { refreshAlbums } = useStore()
+const toast = useToastStore()
+const confirmFn = useConfirm()
 
-const albums = ref([]);
-const loading = ref(true);
-const selectedAlbum = ref(null);
-const albumPhotos = ref([]);
-const photoPage = ref(0);
-const photoHasMore = ref(false);
-const photoLoading = ref(false);
-const editingAlbum = ref(null);
+const albums = ref<Album[]>([])
+const loading = ref(true)
+const selectedAlbum = ref<Album | { id: number; name: string; photoCount: number } | null>(null)
+const albumPhotos = ref<Photo[]>([])
+const photoPage = ref(0)
+const photoHasMore = ref(false)
+const photoLoading = ref(false)
+const editingAlbum = ref<Album | { id: null; name: string; description: string } | null>(null)
 
-// 排序
-const sortBy = ref('time');
-const sortOrder = ref('desc');
+const sortBy = ref('time')
+const sortOrder = ref('desc')
 
-function setSort(key) {
+function setSort(key: string): void {
   if (sortBy.value === key) {
-    sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc';
+    sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
   } else {
-    sortBy.value = key;
-    sortOrder.value = 'asc';
+    sortBy.value = key
+    sortOrder.value = 'asc'
   }
-  if (selectedAlbum.value) loadAlbumPhotos(true);
+  if (selectedAlbum.value) loadAlbumPhotos(true)
 }
 
-async function loadAlbums() {
-  loading.value = true;
+async function loadAlbums(): Promise<void> {
+  loading.value = true
   try {
-    const res = await api('/api/albums');
-    const data = await res.json();
-    albums.value = data.data || [];
-  } catch { albums.value = []; } finally { loading.value = false; }
+    const res = await api('/api/albums')
+    const data: ApiResponse<Album[]> = await res.json()
+    albums.value = data.data || []
+  } catch { albums.value = [] } finally { loading.value = false }
 }
 
 const sortedAlbums = computed(() => {
-  const list = [...albums.value];
-  const dir = sortOrder.value === 'asc' ? 1 : -1;
+  const list = [...albums.value]
+  const dir = sortOrder.value === 'asc' ? 1 : -1
   if (sortBy.value === 'name') {
-    list.sort((a, b) => dir * a.name.localeCompare(b.name));
+    list.sort((a, b) => dir * a.name.localeCompare(b.name))
   } else {
-    list.sort((a, b) => dir * new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    list.sort((a, b) => dir * (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()))
   }
-  return list;
-});
+  return list
+})
 
-function selectAlbum(album) {
+function selectAlbum(album: Album | null): void {
   if (album === null) {
-    selectedAlbum.value = { id: 0, name: '未分配', photoCount: 0 };
+    selectedAlbum.value = { id: 0, name: '未分配', photoCount: 0 }
   } else {
-    selectedAlbum.value = album;
+    selectedAlbum.value = album
   }
-  loadAlbumPhotos(true);
+  loadAlbumPhotos(true)
 }
 
-function backToList() { selectedAlbum.value = null; albumPhotos.value = []; }
+function backToList(): void { selectedAlbum.value = null; albumPhotos.value = [] }
 
-async function loadAlbumPhotos(reset) {
-  if (reset) { photoPage.value = 0; albumPhotos.value = []; photoHasMore.value = true; }
-  if (photoLoading.value || !photoHasMore.value) return;
-  photoLoading.value = true;
-  const fieldMap = { time: 'createdAt', name: 'name' };
-  const sortStr = `${fieldMap[sortBy.value]},${sortOrder.value}`;
+async function loadAlbumPhotos(reset: boolean): Promise<void> {
+  if (reset) { photoPage.value = 0; albumPhotos.value = []; photoHasMore.value = true }
+  if (photoLoading.value || !photoHasMore.value || !selectedAlbum.value) return
+  photoLoading.value = true
+  const fieldMap: Record<string, string> = { time: 'createdAt', name: 'name' }
+  const sortStr = `${fieldMap[sortBy.value]},${sortOrder.value}`
   try {
     const url = selectedAlbum.value.id === 0
       ? `/api/photos?albumId=0&page=${photoPage.value}&size=20&sort=${sortStr}`
-      : `/api/albums/${selectedAlbum.value.id}/photos?page=${photoPage.value}&size=20&sort=${sortStr}`;
-    const res = await api(url);
-    const json = await res.json();
-    const { content, last, totalElements } = json.data;
-    if (content && content.length) albumPhotos.value.push(...content);
-    photoPage.value++;
-    photoHasMore.value = !last;
+      : `/api/albums/${selectedAlbum.value.id}/photos?page=${photoPage.value}&size=20&sort=${sortStr}`
+    const res = await api(url)
+    const json: ApiResponse<PageResponse<Photo>> = await res.json()
+    const { content, last, totalElements } = json.data
+    if (content && content.length) albumPhotos.value.push(...content)
+    photoPage.value++
+    photoHasMore.value = !last
     if (!selectedAlbum.value.photoCount && totalElements !== undefined) {
-      selectedAlbum.value.photoCount = totalElements;
+      selectedAlbum.value.photoCount = totalElements
     }
-  } catch {} finally { photoLoading.value = false; }
+  } catch { /* ignore */ } finally { photoLoading.value = false }
 }
 
-function onScroll() {
-  if (!photoHasMore.value || photoLoading.value || !selectedAlbum.value) return;
+function onScroll(): void {
+  if (!photoHasMore.value || photoLoading.value || !selectedAlbum.value) return
   if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 200) {
-    loadAlbumPhotos(false);
+    loadAlbumPhotos(false)
   }
 }
 
-function formatDate(d) {
-  if (!d) return '';
-  return d.substring(0, 10);
+function formatDate(d: string | undefined): string {
+  if (!d) return ''
+  return d.substring(0, 10)
 }
 
-function openEdit(album) {
-  editingAlbum.value = album;
+function openEdit(album: Album): void {
+  editingAlbum.value = album
 }
 
-async function deleteAlbum(album) {
-  if (!await confirmFn(`确定删除相册「${album.name}」？照片不会被删除。`, '删除相册')) return;
-  albums.value = albums.value.filter(a => a.id !== album.id);
+async function deleteAlbum(album: Album): Promise<void> {
+  if (!await confirmFn(`确定删除相册「${album.name}」？照片不会被删除。`, '删除相册')) return
+  albums.value = albums.value.filter(a => a.id !== album.id)
   try {
-    const res = await api(`/api/albums/${album.id}`, { method: 'DELETE' });
-    if (!res.ok) throw new Error('删除失败');
-    refreshAlbums();
-    toast.success('已删除');
+    const res = await api(`/api/albums/${album.id}`, { method: 'DELETE' })
+    if (!res.ok) throw new Error('删除失败')
+    refreshAlbums()
+    toast.success('已删除')
   } catch (err) {
-    toast.error(err.message);
-    loadAlbums();
+    toast.error(err instanceof Error ? err.message : '删除失败')
+    loadAlbums()
   }
 }
 
-async function onCreateAlbum() {
-  editingAlbum.value = { id: null, name: '', description: '' };
+async function onCreateAlbum(): Promise<void> {
+  editingAlbum.value = { id: null, name: '', description: '' }
 }
 
-function onAlbumSaved() {
-  editingAlbum.value = null;
-  refreshAlbums();
-  loadAlbums();
+function onAlbumSaved(): void {
+  editingAlbum.value = null
+  refreshAlbums()
+  loadAlbums()
 }
 
-function onAlbumDeleted() {
-  editingAlbum.value = null;
-  refreshAlbums();
-  loadAlbums();
+function onAlbumDeleted(): void {
+  editingAlbum.value = null
+  refreshAlbums()
+  loadAlbums()
 }
 
 watch(() => selectedAlbum.value, (v) => {
   if (v) {
-    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('scroll', onScroll, { passive: true })
   } else {
-    window.removeEventListener('scroll', onScroll);
+    window.removeEventListener('scroll', onScroll)
   }
-});
+})
 
 watch(albumPhotos, () => {
   nextTick(() => {
     if (albumPhotos.value.length <= 20) {
-      gsap.fromTo('.photo-card', { y: 30, opacity: 0 }, { y: 0, opacity: 1, stagger: 0.04, duration: 0.5, ease: 'expo.out' });
+      gsap.fromTo('.photo-card', { y: 30, opacity: 0 }, { y: 0, opacity: 1, stagger: 0.04, duration: 0.5, ease: 'expo.out' })
     }
-  });
-});
+  })
+})
 
-function tokenParam() {
-  const t = localStorage.getItem('jwt_token');
-  return t ? `?token=${t}` : '';
+function tokenParam(): string {
+  const t = localStorage.getItem('jwt_token')
+  return t ? `?token=${t}` : ''
 }
 
-function formatSize(bytes) {
-  if (!bytes) return '';
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
-  return (bytes / 1048576).toFixed(1) + ' MB';
+function formatSize(bytes: number | undefined): string {
+  if (!bytes) return ''
+  if (bytes < 1024) return bytes + ' B'
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB'
+  return (bytes / 1048576).toFixed(1) + ' MB'
 }
 
-onMounted(loadAlbums);
+onMounted(loadAlbums)
 </script>
 
 <template>
   <div class="album-wrap">
-    <!-- 相册列表 -->
     <template v-if="!selectedAlbum">
       <div class="gallery-toolbar">
         <div class="sort-switch">

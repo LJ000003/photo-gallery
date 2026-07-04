@@ -1,61 +1,63 @@
-<script setup>
-import { ref, onMounted, defineAsyncComponent, nextTick } from 'vue';
-import gsap from 'gsap';
-import { webpUrl } from '../webp.js';
+<script setup lang="ts">
+import { ref, onMounted, defineAsyncComponent, nextTick } from 'vue'
+import gsap from 'gsap'
+import { webpUrl } from '../webp'
+import type { Photo } from '../types/photo'
+import type { PageResponse } from '../types/api'
 
-const LottieLoader = defineAsyncComponent(() => import('./LottieLoader.vue'));
+const LottieLoader = defineAsyncComponent(() => import('./LottieLoader.vue'))
 
-const token = window.location.pathname.replace('/share/', '');
-const photos = ref([]);
-const loading = ref(true);
-const hasMore = ref(false);
-const page = ref(0);
-const viewPhoto = ref(null);
+const token = window.location.pathname.replace('/share/', '')
+const photos = ref<Photo[]>([])
+const loading = ref(true)
+const hasMore = ref(false)
+const page = ref(0)
+const viewPhoto = ref<Photo | null>(null)
 
-async function load() {
-  loading.value = true;
+async function load(): Promise<void> {
+  loading.value = true
   try {
     const res = await fetch(`/api/share/view?page=${page.value}&size=20`, {
       headers: { Authorization: `Bearer ${token}` }
-    });
+    })
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.message || '分享链接无效或已过期');
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.message || '分享链接无效或已过期')
     }
-    const json = await res.json();
-    photos.value = [...photos.value, ...json.data.content];
-    hasMore.value = !json.data.last;
-    page.value++;
-  } catch (e) {
-    // 静默处理——页面显示空状态
-    photos.value = [];
-    hasMore.value = false;
+    const json = await res.json()
+    const data: PageResponse<Photo> = json.data
+    photos.value = [...photos.value, ...data.content]
+    hasMore.value = !data.last
+    page.value++
+  } catch {
+    photos.value = []
+    hasMore.value = false
   } finally {
-    loading.value = false;
+    loading.value = false
     nextTick(() => {
       if (photos.value.length > 0) {
-        gsap.fromTo('.photo-card', { y: 30, opacity: 0 }, { y: 0, opacity: 1, stagger: 0.05, duration: 0.5, ease: 'expo.out' });
+        gsap.fromTo('.photo-card', { y: 30, opacity: 0 }, { y: 0, opacity: 1, stagger: 0.05, duration: 0.5, ease: 'expo.out' })
       }
-    });
+    })
   }
 }
 
-function onScroll() {
-  if (!hasMore.value || loading.value) return;
-  if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 200) load();
+function onScroll(): void {
+  if (!hasMore.value || loading.value) return
+  if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 200) load()
 }
 
-function formatSize(bytes) {
-  if (!bytes) return '';
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
-  return (bytes / 1048576).toFixed(1) + ' MB';
+function formatSize(bytes: number | undefined): string {
+  if (!bytes) return ''
+  if (bytes < 1024) return bytes + ' B'
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB'
+  return (bytes / 1048576).toFixed(1) + ' MB'
 }
 
 onMounted(() => {
-  window.addEventListener('scroll', onScroll, { passive: true });
-  load();
-});
+  window.addEventListener('scroll', onScroll, { passive: true })
+  load()
+})
 </script>
 
 <template>
@@ -93,7 +95,6 @@ onMounted(() => {
       <p class="empty-hint">链接无效或已过期</p>
     </div>
 
-    <!-- 查看大图 -->
     <div v-if="viewPhoto" class="modal" @click.self="viewPhoto = null">
       <div class="modal-content">
         <img :src="`${webpUrl(viewPhoto.id)}?token=${token}`" :alt="viewPhoto.name"

@@ -1,12 +1,12 @@
-<script setup>
-import { ref } from 'vue';
+<script setup lang="ts">
+import { ref } from 'vue'
 
-const clicks = ref(0);
-const easterEgg = ref(false);
+const clicks = ref(0)
+const easterEgg = ref(false)
 
-function onClick() {
-  clicks.value++;
-  if (clicks.value >= 30) easterEgg.value = true;
+function onClick(): void {
+  clicks.value++
+  if (clicks.value >= 30) easterEgg.value = true
 }
 </script>
 
