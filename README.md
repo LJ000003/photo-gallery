@@ -173,6 +173,7 @@ $env:DB_PASSWORD="你的数据库密码"
 $env:JWT_SECRET="$(openssl rand -base64 32)"   # 或手动指定一段随机字符串
 $env:ADMIN_PASSWORD="你们朋友间的共享密码"
 ```
+>注意前端发送的是VITE_ADMIN_PASSWORD，此项应在frontend文件夹中建立.env文件配置
 
 **Linux / macOS:**
 ```bash
