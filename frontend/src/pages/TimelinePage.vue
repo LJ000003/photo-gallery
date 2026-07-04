@@ -1,14 +1,19 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useRoute } from 'vue-router'
 import TimelineView from '../components/TimelineView.vue'
 import { useUiStore } from '../stores/ui'
 import type { Photo } from '../types/photo'
 
+const route = useRoute()
 const ui = useUiStore()
 const timelineSortOrder = ref('desc')
 
-function toggleTimelineSort(): void {
-  timelineSortOrder.value = timelineSortOrder.value === 'desc' ? 'asc' : 'desc'
+function onTimelineClick(e: MouseEvent): void {
+  if (route.path === '/timeline') {
+    e.preventDefault()
+    timelineSortOrder.value = timelineSortOrder.value === 'desc' ? 'asc' : 'desc'
+  }
 }
 </script>
 
@@ -21,7 +26,7 @@ function toggleTimelineSort(): void {
         <div class="view-track">
           <router-link to="/" class="view-opt">网格</router-link>
           <router-link to="/albums" class="view-opt">相册</router-link>
-          <router-link to="/timeline" class="view-opt" :class="{ active: true }">
+          <router-link to="/timeline" class="view-opt" :class="{ active: true }" @click="onTimelineClick">
             时间线
             <span class="sort-arrows">
               <i
