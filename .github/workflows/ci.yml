@@ -52,6 +52,22 @@ jobs:
           distribution: temurin
           cache: maven
 
+      - name: Configure Maven mirrors
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml << 'XML'
+          <settings>
+            <mirrors>
+              <mirror>
+                <id>google-maven-central</id>
+                <name>Google Maven Central</name>
+                <url>https://maven-central.storage-download.googleapis.com/maven2</url>
+                <mirrorOf>central</mirrorOf>
+              </mirror>
+            </mirrors>
+          </settings>
+          XML
+
       - name: Run JUnit tests
         run: mvn test -B
         working-directory: ./backend
@@ -72,6 +88,22 @@ jobs:
           java-version: 17
           distribution: temurin
           cache: maven
+
+      - name: Configure Maven mirrors
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml << 'XML'
+          <settings>
+            <mirrors>
+              <mirror>
+                <id>google-maven-central</id>
+                <name>Google Maven Central</name>
+                <url>https://maven-central.storage-download.googleapis.com/maven2</url>
+                <mirrorOf>central</mirrorOf>
+              </mirror>
+            </mirrors>
+          </settings>
+          XML
 
       - uses: actions/setup-node@v4
         with:
