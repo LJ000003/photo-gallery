@@ -19,9 +19,16 @@
     "preview": "vite preview"
   },
   "lint-staged": {
-    "*.{ts,vue}": ["prettier --write", "eslint --fix"],
-    "*.css": ["prettier --write"],
-    "*.{json,md}": ["prettier --write"]
+    "*.{ts,vue}": [
+      "prettier --write",
+      "eslint --fix"
+    ],
+    "*.css": [
+      "prettier --write"
+    ],
+    "*.{json,md}": [
+      "prettier --write"
+    ]
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.0",
@@ -47,13 +54,12 @@
     "vue-tsc": "^3.3.6"
   },
   "dependencies": {
-    "@tresjs/core": "^5.8.1",
+    "@tanstack/vue-virtual": "^3.13.31",
     "gsap": "^3.15.0",
     "leaflet": "^1.9.4",
     "leaflet.markercluster": "^1.5.3",
     "lottie-web": "^5.13.0",
     "pinia": "^3.0.4",
-    "three": "^0.184.0",
     "vue": "^3.5.38",
     "vue-router": "^4.6.4"
   }

@@ -16,16 +16,16 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import jakarta.validation.Valid;
-
 @RestController
 @RequestMapping("/api")
 public class PhotoController {
 
     private final PhotoService service;
+    private final AlbumService albumService;
 
-    public PhotoController(PhotoService service) {
+    public PhotoController(PhotoService service, AlbumService albumService) {
         this.service = service;
+        this.albumService = albumService;
     }
 
     // === 照片 ===
@@ -42,9 +42,9 @@ public class PhotoController {
         }
         if (albumId != null) {
             if (albumId == 0) {
-                return ApiResponse.success(service.listUnassigned(pageable));
+                return ApiResponse.success(albumService.listUnassigned(pageable));
             }
-            return ApiResponse.success(service.listByAlbum(albumId, pageable));
+            return ApiResponse.success(albumService.listPhotos(albumId, pageable));
         }
         return ApiResponse.success(service.listAll(tagIds, categoryIds, pageable));
     }
@@ -179,107 +179,5 @@ public class PhotoController {
         Double ch = body.get("ch") != null ? ((Number) body.get("ch")).doubleValue() : null;
         service.transformPhoto(id, rotate, mirror, cx, cy, cw, ch);
         return ApiResponse.success("ok");
-    }
-
-    // === 相册 ===
-
-    @GetMapping("/albums")
-    public ApiResponse<List<Album>> listAlbums() {
-        return ApiResponse.success(service.listAlbums());
-    }
-
-    @PostMapping("/albums")
-    public ApiResponse<Album> createAlbum(@RequestBody Map<String, Object> body) {
-        String name = (String) body.get("name");
-        String description = (String) body.get("description");
-        @SuppressWarnings("unchecked")
-        List<Long> photoIds = body.get("photoIds") != null
-                ? ((List<Integer>) body.get("photoIds")).stream().map(Integer::longValue).toList()
-                : null;
-        return ApiResponse.success(service.createAlbum(name, description, photoIds));
-    }
-
-    @PutMapping("/albums/{id}")
-    public ApiResponse<Album> updateAlbum(@PathVariable Long id, @RequestBody Map<String, Object> body) {
-        String name = (String) body.get("name");
-        String description = (String) body.get("description");
-        @SuppressWarnings("unchecked")
-        List<Long> photoIds = body.get("photoIds") != null
-                ? ((List<Integer>) body.get("photoIds")).stream().map(Integer::longValue).toList()
-                : null;
-        return ApiResponse.success(service.updateAlbum(id, name, description, photoIds));
-    }
-
-    @DeleteMapping("/albums/{id}")
-    public ApiResponse<String> deleteAlbum(@PathVariable Long id) {
-        service.deleteAlbum(id);
-        return ApiResponse.success("删除成功");
-    }
-
-    @GetMapping("/albums/{id}/photos")
-    public ApiResponse<Page<Photo>> listAlbumPhotos(
-            @PathVariable Long id,
-            @PageableDefault(size = 20) Pageable pageable) {
-        return ApiResponse.success(service.listByAlbum(id, pageable));
-    }
-
-    @PostMapping("/albums/{id}/photos")
-    public ApiResponse<String> addPhotosToAlbum(@PathVariable Long id, @RequestBody List<Long> photoIds) {
-        service.addPhotosToAlbum(id, photoIds);
-        return ApiResponse.success("ok");
-    }
-
-    @DeleteMapping("/albums/{id}/photos")
-    public ApiResponse<String> removePhotosFromAlbum(@PathVariable Long id, @RequestBody List<Long> photoIds) {
-        service.removePhotosFromAlbum(id, photoIds);
-        return ApiResponse.success("ok");
-    }
-
-    // === 标签 ===
-
-    @GetMapping("/tags")
-    public ApiResponse<List<Tag>> listTags() {
-        return ApiResponse.success(service.listTags());
-    }
-
-    @PostMapping("/tags")
-    public ApiResponse<Tag> createTag(@RequestBody Map<String, String> body) {
-        Tag tag = service.createTag(body.get("name"), body.get("color"));
-        return ApiResponse.success(tag);
-    }
-
-    @DeleteMapping("/tags/{id}")
-    public ApiResponse<String> deleteTag(@PathVariable Long id) {
-        service.deleteTag(id);
-        return ApiResponse.success("删除成功");
-    }
-
-    @PutMapping("/tags/{id}")
-    public ApiResponse<Tag> updateTag(@PathVariable Long id, @RequestBody Map<String, String> body) {
-        return ApiResponse.success(service.updateTag(id, body.get("name"), body.get("color")));
-    }
-
-    // === 分类 ===
-
-    @GetMapping("/categories")
-    public ApiResponse<List<Category>> listCategories() {
-        return ApiResponse.success(service.listCategories());
-    }
-
-    @PostMapping("/categories")
-    public ApiResponse<Category> createCategory(@RequestBody Map<String, String> body) {
-        Category cat = service.createCategory(body.get("name"));
-        return ApiResponse.success(cat);
-    }
-
-    @DeleteMapping("/categories/{id}")
-    public ApiResponse<String> deleteCategory(@PathVariable Long id) {
-        service.deleteCategory(id);
-        return ApiResponse.success("删除成功");
-    }
-
-    @PutMapping("/categories/{id}")
-    public ApiResponse<Category> updateCategory(@PathVariable Long id, @RequestBody Map<String, String> body) {
-        return ApiResponse.success(service.updateCategory(id, body.get("name")));
     }
 }

@@ -2,6 +2,7 @@
 import { ref, onMounted, defineAsyncComponent, nextTick } from 'vue'
 import gsap from 'gsap'
 import { webpUrl } from '../webp'
+import { api } from '../api'
 import type { Photo } from '../types/photo'
 import type { PageResponse } from '../types/api'
 
@@ -17,8 +18,9 @@ const viewPhoto = ref<Photo | null>(null)
 async function load(): Promise<void> {
   loading.value = true
   try {
-    const res = await fetch(`/api/share/view?page=${page.value}&size=20`, {
-      headers: { Authorization: `Bearer ${token}` },
+    const res = await api(`/api/share/view?page=${page.value}&size=20`, {
+      token,
+      skipAuth: true,
     })
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
