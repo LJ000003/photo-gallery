@@ -1,4 +1,3 @@
-export type ViewMode = 'grid' | 'album' | 'timeline' | 'map'
 export type SortField = 'time' | 'name' | 'size'
 export type SortOrder = 'asc' | 'desc'
 
@@ -17,13 +16,4 @@ export interface MapExifItem {
   photoThumbnail: string
   latitude: number
   longitude: number
-}
-
-export interface UrlParams {
-  view: ViewMode
-  q: string
-  sortBy: SortField
-  sortOrder: SortOrder
-  tags: number[]
-  cats: number[]
 }

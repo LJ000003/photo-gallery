@@ -1,61 +1,42 @@
 import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { api } from '../api'
 import type { Photo } from '../types/photo'
 import type { ApiResponse, PageResponse } from '../types/api'
-import type { ViewMode, SortField, SortOrder, UrlParams } from '../types/view'
-
-function readUrlParams(): UrlParams {
-  const p = new URLSearchParams(window.location.search)
-  return {
-    view: (p.get('view') || 'grid') as ViewMode,
-    q: p.get('q') || '',
-    sortBy: (p.get('sortBy') || 'time') as SortField,
-    sortOrder: (p.get('sortOrder') || 'asc') as SortOrder,
-    tags: (p.get('tags') ?? '').split(',').filter(Boolean).map(Number),
-    cats: (p.get('cats') ?? '').split(',').filter(Boolean).map(Number)
-  }
-}
-
-interface SyncState {
-  view: string
-  q: string
-  sortBy: string
-  sortOrder: string
-  tags: number[]
-  cats: number[]
-}
-
-function syncUrl(state: SyncState): void {
-  const p = new URLSearchParams()
-  if (state.view) p.set('view', state.view)
-  if (state.q) p.set('q', state.q)
-  if (state.sortBy && state.sortBy !== 'time') p.set('sortBy', state.sortBy)
-  if (state.sortOrder && state.sortOrder !== 'asc') p.set('sortOrder', state.sortOrder)
-  if (state.tags && state.tags.length) p.set('tags', state.tags.join(','))
-  if (state.cats && state.cats.length) p.set('cats', state.cats.join(','))
-  const qs = p.toString()
-  const url = window.location.pathname + (qs ? '?' + qs : '')
-  history.replaceState(null, '', url)
-}
-
-const init = readUrlParams()
+import type { SortField, SortOrder } from '../types/view'
 
 export const usePhotoStore = defineStore('photo', () => {
+  const router = useRouter()
+  const route = useRoute()
+
   const photos: Ref<Photo[]> = ref([])
   const page = ref(0)
   const hasMore = ref(true)
   const loading = ref(false)
   const totalCount = ref(0)
-  const sortBy: Ref<SortField> = ref(init.sortBy)
-  const sortOrder: Ref<SortOrder> = ref(init.sortOrder)
-  const selectedTagIds: Ref<number[]> = ref(init.tags)
-  const selectedCategoryIds: Ref<number[]> = ref(init.cats)
+  const sortBy: Ref<SortField> = ref((route.query.sortBy as SortField) || 'time')
+  const sortOrder: Ref<SortOrder> = ref((route.query.sortOrder as SortOrder) || 'asc')
+  const selectedTagIds: Ref<number[]> = ref(
+    route.query.tags ? String(route.query.tags).split(',').filter(Boolean).map(Number) : []
+  )
+  const selectedCategoryIds: Ref<number[]> = ref(
+    route.query.cats ? String(route.query.cats).split(',').filter(Boolean).map(Number) : []
+  )
   const selectedPhotoIds: Ref<Set<number>> = ref(new Set())
-  const searchQuery = ref(init.q)
-  const viewMode: Ref<ViewMode> = ref(init.view)
+  const searchQuery = ref((route.query.q as string) || '')
 
   let requestId = 0
+
+  function syncUrlState(): void {
+    const query: Record<string, string> = {}
+    if (searchQuery.value) query.q = searchQuery.value
+    if (sortBy.value !== 'time') query.sortBy = sortBy.value
+    if (sortOrder.value !== 'asc') query.sortOrder = sortOrder.value
+    if (selectedTagIds.value.length) query.tags = selectedTagIds.value.join(',')
+    if (selectedCategoryIds.value.length) query.cats = selectedCategoryIds.value.join(',')
+    router.replace({ query })
+  }
 
   async function loadMore(): Promise<void> {
     if (loading.value || !hasMore.value) return
@@ -86,17 +67,6 @@ export const usePhotoStore = defineStore('photo', () => {
     } finally {
       if (myId === requestId) loading.value = false
     }
-  }
-
-  function syncUrlState(): void {
-    syncUrl({
-      view: viewMode.value,
-      q: searchQuery.value,
-      sortBy: sortBy.value,
-      sortOrder: sortOrder.value,
-      tags: selectedTagIds.value,
-      cats: selectedCategoryIds.value
-    })
   }
 
   function resetAndReload(): void {
@@ -140,7 +110,7 @@ export const usePhotoStore = defineStore('photo', () => {
   return {
     photos, page, hasMore, loading, totalCount, sortBy, sortOrder,
     selectedTagIds, selectedCategoryIds, selectedPhotoIds,
-    searchQuery, viewMode, loadMore, resetAndReload, setSort, setSearch,
+    searchQuery, loadMore, resetAndReload, setSort, setSearch,
     removePhoto, removePhotos, syncUrlState
   }
 })
