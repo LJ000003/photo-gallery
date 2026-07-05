@@ -1,9 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
-import { setActivePinia, createPinia } from 'pinia'
 import { createTestingPinia } from '@pinia/testing'
 import GalleryPage from '../GalleryPage.vue'
-import { nextTick } from 'vue'
+import i18n from '../../i18n'
 
 const mockReplace = vi.fn()
 const mockPush = vi.fn()
@@ -32,36 +31,42 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
+function basePlugins(photoState: Record<string, unknown> = {}) {
+  return [
+    createTestingPinia({
+      createSpy: vi.fn,
+      initialState: {
+        photo: {
+          photos: [],
+          page: 0,
+          hasMore: false,
+          loading: false,
+          totalCount: 0,
+          sortBy: 'time',
+          sortOrder: 'asc',
+          selectedTagIds: [],
+          selectedCategoryIds: [],
+          selectedPhotoIds: new Set(),
+          searchQuery: '',
+          ...photoState,
+        },
+      },
+    }),
+    i18n,
+  ]
+}
+
 describe('GalleryPage', () => {
-  function createWrapper() {
+  function createWrapper(photoState?: Record<string, unknown>) {
     return mount(GalleryPage, {
       global: {
-        plugins: [
-          createTestingPinia({
-            createSpy: vi.fn,
-            initialState: {
-              photo: {
-                photos: [],
-                page: 0,
-                hasMore: false,
-                loading: false,
-                totalCount: 0,
-                sortBy: 'time',
-                sortOrder: 'asc',
-                selectedTagIds: [],
-                selectedCategoryIds: [],
-                selectedPhotoIds: new Set(),
-                searchQuery: '',
-              },
-            },
-          }),
-        ],
+        plugins: basePlugins(photoState),
         stubs: {
           PhotoCard: {
             template: '<div class="photo-card-stub">{{ photo?.name }}</div>',
             props: ['photo', 'selected', 'searchQuery', 'dataInsert'],
           },
-          UploadCard: { template: '<div class="upload-card-stub"><h2>上传照片</h2></div>' },
+          UploadCard: { template: '<div class="upload-card-stub"></div>' },
           LottieLoader: { template: '<div class="lottie-stub"></div>' },
         },
       },
@@ -71,14 +76,14 @@ describe('GalleryPage', () => {
   it('renders gallery section header', () => {
     const wrapper = createWrapper()
     expect(wrapper.find('.gallery-section').exists()).toBe(true)
-    expect(wrapper.find('h2').text()).toContain('我的照片')
+    expect(wrapper.find('h2').text()).toContain('My Photos')
   })
 
   it('renders search input', () => {
     const wrapper = createWrapper()
     const searchInput = wrapper.find('.search-input')
     expect(searchInput.exists()).toBe(true)
-    expect(searchInput.attributes('placeholder')).toContain('搜索')
+    expect(searchInput.attributes('placeholder')).toContain('Search')
   })
 
   it('renders empty state when no photos', () => {
@@ -94,46 +99,16 @@ describe('GalleryPage', () => {
   it('renders sort buttons', () => {
     const wrapper = createWrapper()
     const sortOpts = wrapper.findAll('.sort-opt')
-    expect(sortOpts.length).toBe(3) // time, name, size
+    expect(sortOpts.length).toBe(3)
   })
 
   it('renders UploadCard component', () => {
     const wrapper = createWrapper()
-    const uc = wrapper.find('.upload-card-stub')
-    expect(uc.exists()).toBe(true)
+    expect(wrapper.find('.upload-card-stub').exists()).toBe(true)
   })
 
   it('shows skeleton cards when loading with no photos', () => {
-    const wrapper = mount(GalleryPage, {
-      global: {
-        plugins: [
-          createTestingPinia({
-            createSpy: vi.fn,
-            initialState: {
-              photo: {
-                photos: [],
-                page: 0,
-                hasMore: true,
-                loading: true,
-                totalCount: 0,
-                sortBy: 'time',
-                sortOrder: 'asc',
-                selectedTagIds: [],
-                selectedCategoryIds: [],
-                selectedPhotoIds: new Set(),
-                searchQuery: '',
-              },
-            },
-          }),
-        ],
-        stubs: {
-          PhotoCard: true,
-          UploadCard: true,
-          LottieLoader: true,
-        },
-      },
-    })
-
+    const wrapper = createWrapper({ loading: true, hasMore: true })
     expect(wrapper.findAll('.skeleton-card').length).toBe(6)
   })
 
@@ -145,26 +120,7 @@ describe('GalleryPage', () => {
 
     const wrapper = mount(GalleryPage, {
       global: {
-        plugins: [
-          createTestingPinia({
-            createSpy: vi.fn,
-            initialState: {
-              photo: {
-                photos: testPhotos,
-                page: 1,
-                hasMore: false,
-                loading: false,
-                totalCount: 2,
-                sortBy: 'time',
-                sortOrder: 'asc',
-                selectedTagIds: [],
-                selectedCategoryIds: [],
-                selectedPhotoIds: new Set(),
-                searchQuery: '',
-              },
-            },
-          }),
-        ],
+        plugins: basePlugins({ photos: testPhotos, totalCount: 2, hasMore: false, loading: false }),
         stubs: {
           PhotoCard: {
             template: '<div class="photo-card-stub">{{ photo.name }}</div>',

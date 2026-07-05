@@ -25,6 +25,8 @@ const photo = usePhotoStore()
 const ui = useUiStore()
 const toast = useToastStore()
 
+const isSharePath = window.location.pathname.startsWith('/share/')
+
 function scrollToTop(): void {
   if ('ontouchstart' in window) {
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -193,37 +195,41 @@ onMounted(() => {
 </script>
 
 <template>
-  <KonamiGate v-if="!ui.unlocked" @unlocked="onUnlock" />
-  <template v-else>
-    <span class="relock-wrap">
-      <button class="relock-btn" @click="ui.reLock">🔒</button>
-      <span class="relock-hint">{{ $t('auth.relock') }}</span>
-    </span>
-    <AppHeader />
-    <main class="page">
-      <button class="sidebar-toggle" @click="ui.sidebarOpen = !ui.sidebarOpen">
-        {{ ui.sidebarOpen ? '✕' : '☰' }}
-      </button>
-      <div v-if="ui.sidebarOpen" class="sidebar-backdrop" @click="ui.sidebarOpen = false"></div>
-      <FilterSidebar
-        :class="{ open: ui.sidebarOpen }"
-        :selected-tag-ids="photo.selectedTagIds"
-        :selected-category-ids="photo.selectedCategoryIds"
-        @update:selected-tag-ids="onTagFilterChange($event as number[])"
-        @update:selected-category-ids="onCatFilterChange($event as number[])"
+  <!-- 分享页独立渲染，不走主布局 -->
+  <RouterView v-if="isSharePath" />
+  <template v-if="!isSharePath">
+    <KonamiGate v-if="!ui.unlocked" @unlocked="onUnlock" />
+    <template v-if="ui.unlocked">
+      <span class="relock-wrap">
+        <button class="relock-btn" @click="ui.reLock">🔒</button>
+        <span class="relock-hint">{{ $t('auth.relock') }}</span>
+      </span>
+      <AppHeader />
+      <main class="page">
+        <button class="sidebar-toggle" @click="ui.sidebarOpen = !ui.sidebarOpen">
+          {{ ui.sidebarOpen ? '✕' : '☰' }}
+        </button>
+        <div v-if="ui.sidebarOpen" class="sidebar-backdrop" @click="ui.sidebarOpen = false"></div>
+        <FilterSidebar
+          :class="{ open: ui.sidebarOpen }"
+          :selected-tag-ids="photo.selectedTagIds"
+          :selected-category-ids="photo.selectedCategoryIds"
+          @update:selected-tag-ids="onTagFilterChange($event as number[])"
+          @update:selected-category-ids="onCatFilterChange($event as number[])"
+        />
+        <div class="main-content">
+          <RouterView v-if="!isSharePath" />
+        </div>
+      </main>
+      <button v-show="ui.showBackTop" class="back-top" @click="scrollToTop">↑</button>
+      <ViewModal v-if="ui.viewPhoto" :photo="ui.viewPhoto" @close="ui.viewPhoto = null" />
+      <EditModal
+        v-if="ui.editPhoto"
+        :photo="ui.editPhoto"
+        @close="ui.editPhoto = null"
+        @saved="onSaved"
       />
-      <div class="main-content">
-        <RouterView />
-      </div>
-    </main>
-    <button v-show="ui.showBackTop" class="back-top" @click="scrollToTop">↑</button>
-    <ViewModal v-if="ui.viewPhoto" :photo="ui.viewPhoto" @close="ui.viewPhoto = null" />
-    <EditModal
-      v-if="ui.editPhoto"
-      :photo="ui.editPhoto"
-      @close="ui.editPhoto = null"
-      @saved="onSaved"
-    />
-    <ToastProvider />
+      <ToastProvider />
+    </template>
   </template>
 </template>
