@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, nextTick, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import gsap from 'gsap'
 import { useStore } from '../store'
 import { useToastStore } from '../stores/toast'
@@ -7,6 +8,7 @@ import { compressImages, uploadWithProgress } from '../upload'
 import ImageEditor from './ImageEditor.vue'
 import type { ImageEditResult } from '../types/transform'
 
+const { t } = useI18n()
 const toast = useToastStore()
 
 const emit = defineEmits<{ uploaded: [] }>()
@@ -179,7 +181,7 @@ function buildFile(i: number, original: File): File {
 async function onSubmit(): Promise<void> {
   const files = fileInput.value?.files
   if (!files || files.length === 0) {
-    toast.error('请选择照片')
+    toast.error(t('upload.failed'))
     return
   }
 
@@ -228,7 +230,7 @@ async function onSubmit(): Promise<void> {
     })
     emit('uploaded')
   } catch (err) {
-    toast.error('上传失败: ' + (err instanceof Error ? err.message : '未知错误'))
+    toast.error(t('upload.failed') + ': ' + (err instanceof Error ? err.message : t('general.unknownError')))
     clearSelection()
   } finally {
     submitting.value = false
@@ -239,7 +241,7 @@ async function onSubmit(): Promise<void> {
 
 <template>
   <section class="upload-card">
-    <h2>上传照片</h2>
+    <h2>{{ $t('upload.title') }}</h2>
     <form @submit.prevent="onSubmit">
       <div class="file-area">
         <input
@@ -261,10 +263,10 @@ async function onSubmit(): Promise<void> {
           <span class="file-icon">+</span>
           <span>{{
             compressing
-              ? '压缩中...'
+              ? $t('upload.compressing')
               : selectedCount > 0
-                ? `已选 ${selectedCount} 张`
-                : '点击选择 / 拖拽 / 粘贴 (Ctrl+V)'
+                ? $t('upload.selected', { count: selectedCount })
+                : $t('upload.selectHint')
           }}</span>
         </label>
         <div v-if="showPreview" class="single-preview-wrap">
@@ -285,7 +287,7 @@ async function onSubmit(): Promise<void> {
       </div>
       <div class="meta-row">
         <select v-model="selectedCatId" class="mini-select">
-          <option :value="null">无分类</option>
+          <option :value="null">{{ $t('upload.noCategory') }}</option>
           <option v-for="c in allCats" :key="c.id" :value="c.id">{{ c.name }}</option>
         </select>
         <div class="tag-chips">
@@ -305,14 +307,14 @@ async function onSubmit(): Promise<void> {
         </div>
       </div>
       <div class="form-row">
-        <input v-model="uploadName" type="text" placeholder="照片名称（可选）" />
-        <input v-model="uploadDesc" type="text" maxlength="500" placeholder="照片描述（可选）" />
-        <input v-model="watermark" type="text" maxlength="30" placeholder="水印文字（可选）" />
+        <input v-model="uploadName" type="text" :placeholder="$t('upload.namePlaceholder')" />
+        <input v-model="uploadDesc" type="text" maxlength="500" :placeholder="$t('upload.descPlaceholder')" />
+        <input v-model="watermark" type="text" maxlength="30" :placeholder="$t('upload.watermarkPlaceholder')" />
         <button type="submit" :disabled="submitting">
-          {{ selectedCount > 1 ? `上传 (${selectedCount})` : '上传' }}
+          {{ selectedCount > 1 ? $t('upload.uploadCount', { count: selectedCount }) : $t('upload.upload') }}
         </button>
         <button v-if="selectedCount > 0" type="button" class="btn-clear" @click="clearSelection">
-          取消选择
+          {{ $t('upload.cancelSelect') }}
         </button>
       </div>
       <div v-if="uploadProgress >= 0" class="upload-progress">

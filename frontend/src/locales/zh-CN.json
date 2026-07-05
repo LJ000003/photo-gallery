@@ -1,0 +1,147 @@
+{
+  "app": {
+    "title": "照片管理器",
+    "locked": "已锁定"
+  },
+  "auth": {
+    "title": "照片管理器解锁",
+    "enterPassword": "输入管理密码",
+    "unlock": "解锁",
+    "success": "认证成功",
+    "failed": "认证失败，请重试",
+    "expired": "登录已过期，请重新解锁",
+    "relock": "再来一次！"
+  },
+  "nav": {
+    "view": "视图",
+    "grid": "网格",
+    "albums": "相册",
+    "timeline": "时间线",
+    "map": "地图"
+  },
+  "gallery": {
+    "myPhotos": "我的照片",
+    "searchPlaceholder": "搜索照片名称或描述...",
+    "selectAll": "全选",
+    "generateShare": "生成分享链接",
+    "batchDelete": "批量删除",
+    "sortBy": "排序方式",
+    "sortTime": "时间",
+    "sortName": "名称",
+    "sortSize": "大小",
+    "noMore": "没有更多了",
+    "empty": "还没有照片，上传第一张吧",
+    "loading": "加载中..."
+  },
+  "upload": {
+    "title": "上传照片",
+    "selectHint": "点击选择 / 拖拽 / 粘贴 (Ctrl+V)",
+    "selected": "已选 {count} 张",
+    "compressing": "压缩中...",
+    "noCategory": "无分类",
+    "namePlaceholder": "照片名称（可选）",
+    "descPlaceholder": "照片描述（可选）",
+    "watermarkPlaceholder": "水印文字（可选）",
+    "upload": "上传",
+    "uploadCount": "上传 ({count})",
+    "cancelSelect": "取消选择",
+    "editImage": "编辑图片",
+    "success": "上传成功",
+    "failed": "上传失败",
+    "networkError": "网络错误",
+    "timeout": "上传超时"
+  },
+  "album": {
+    "newAlbum": "+ 新建相册",
+    "unassigned": "未分配",
+    "unassignedDesc": "未归属任何相册的照片",
+    "noAlbums": "暂无相册，在编辑照片时可以将其分配到此处的相册",
+    "editAlbum": "编辑相册",
+    "name": "名称",
+    "description": "描述",
+    "selectedPhotos": "已选照片",
+    "searchPhotoPlaceholder": "搜索照片名称或描述...",
+    "noPhotosYet": "还没有照片",
+    "save": "保存",
+    "delete": "删除",
+    "albumPhotos": "张",
+    "deleteConfirm": "确定删除相册「{name}」？",
+    "deleteSuccess": "已删除",
+    "deleteFailed": "删除失败",
+    "createFailed": "创建失败",
+    "saveFailed": "保存失败",
+    "nameRequired": "请输入相册名称",
+    "albumEmpty": "此相册还没有照片",
+    "back": "← 返回",
+    "view": "查看",
+    "loading": "加载中..."
+  },
+  "photo": {
+    "view": "查看",
+    "edit": "编辑",
+    "delete": "删除",
+    "deleteConfirm": "确定删除这张照片？",
+    "editInfo": "编辑照片信息",
+    "editSuccess": "保存成功",
+    "editFailed": "编辑失败",
+    "name": "名称",
+    "description": "描述",
+    "category": "分类",
+    "tags": "标签",
+    "albums": "相册",
+    "createdAt": "拍摄时间",
+    "fileSize": "文件大小",
+    "noCategory": "无分类",
+    "save": "保存"
+  },
+  "share": {
+    "title": "分享 {count} 张照片",
+    "hint": "链接 7 天内有效，拿到链接的人可直接查看",
+    "generating": "生成中...",
+    "copyLink": "复制链接",
+    "invalid": "分享链接无效或已过期"
+  },
+  "editor": {
+    "rotate": "旋转",
+    "mirror": "镜像",
+    "crop": "裁剪",
+    "reset": "重置",
+    "apply": "应用",
+    "cancel": "取消",
+    "done": "编辑完成",
+    "failed": "编辑失败"
+  },
+  "timeline": {
+    "sortNewest": "最新在前",
+    "sortOldest": "最早在前",
+    "sortLabel": "时间排序",
+    "loading": "加载中...",
+    "empty": "没有包含拍摄日期的照片"
+  },
+  "map": {
+    "loading": "加载中...",
+    "empty": "没有包含 GPS 位置信息的照片，请上传带有 EXIF GPS 数据的 JPEG/WebP 图片"
+  },
+  "filter": {
+    "categories": "分类",
+    "tags": "标签",
+    "newCategory": "+ 新建分类",
+    "newTag": "+ 新建标签",
+    "editName": "输入新名称"
+  },
+  "rateLimit": {
+    "tooMany": "请求过于频繁，请稍后再试"
+  },
+  "general": {
+    "confirm": "确定",
+    "cancel": "取消",
+    "close": "✕",
+    "lightMode": "切换明亮模式",
+    "darkMode": "切换暗黑模式",
+    "backTop": "↑",
+    "operationFailed": "操作失败",
+    "serverError": "服务器内部错误",
+    "requestFailed": "请求失败",
+    "unknownError": "未知错误"
+  }
+}

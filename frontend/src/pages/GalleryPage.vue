@@ -156,63 +156,63 @@ function onUploaded(): void {
   photo.resetAndReload()
 }
 
-const sortOptions: { key: SortField; label: string }[] = [
-  { key: 'time', label: '时间' },
-  { key: 'name', label: '名称' },
-  { key: 'size', label: '大小' },
+const sortOptions: { key: SortField; i18n: string }[] = [
+  { key: 'time', i18n: 'gallery.sortTime' },
+  { key: 'name', i18n: 'gallery.sortName' },
+  { key: 'size', i18n: 'gallery.sortSize' },
 ]
 </script>
 
 <template>
   <section class="gallery-section">
     <h2>
-      我的照片 <span v-if="photo.totalCount">({{ photo.totalCount }})</span>
+      {{ $t('gallery.myPhotos') }} <span v-if="photo.totalCount">({{ photo.totalCount }})</span>
     </h2>
     <div class="gallery-toolbar">
       <label>
         <input type="checkbox" :checked="allSelected" @change="toggleAll" />
-        全选
+        {{ $t('gallery.selectAll') }}
       </label>
       <button v-if="selectedIds.size > 0" class="btn-share" @click="onGenerateShare">
-        生成分享链接
+        {{ $t('gallery.generateShare') }}
       </button>
       <button v-if="selectedIds.size > 0" class="btn-del" @click="batchDelete">
-        批量删除 ({{ selectedIds.size }})
+        {{ $t('gallery.batchDelete') }} ({{ selectedIds.size }})
       </button>
       <div class="toolbar-center">
         <input
           class="search-input"
           type="text"
-          placeholder="搜索照片名称或描述..."
+          :placeholder="$t('gallery.searchPlaceholder')"
           :value="photo.searchQuery"
           @input="photo.setSearch(($event.target as HTMLInputElement).value)"
         />
         <div class="view-switch">
-          <span class="sort-label">视图：</span>
+          <span class="sort-label">{{ $t('nav.view') }}：</span>
           <div class="view-track">
             <router-link
               to="/"
               class="view-opt"
               :class="{ active: route.path === '/' }"
               @click.prevent="switchView('/')"
-              >网格</router-link
+              >{{ $t('nav.grid') }}</router-link
             >
             <router-link to="/albums" class="view-opt" :class="{ active: route.path === '/albums' }"
-              >相册</router-link
+              >{{ $t('nav.albums') }}</router-link
             >
             <router-link
               to="/timeline"
               class="view-opt"
               :class="{ active: route.path === '/timeline' }"
-              >时间线</router-link
+              >{{ $t('nav.timeline') }}</router-link
             >
             <router-link to="/map" class="view-opt" :class="{ active: route.path === '/map' }"
-              >地图</router-link
+              >{{ $t('nav.map') }}</router-link
             >
           </div>
         </div>
         <div class="sort-switch">
-          <span class="sort-label">排序方式：</span>
+          <span class="sort-label">{{ $t('gallery.sortBy') }}：</span>
           <div class="sort-track">
             <div
               class="sort-slider"
@@ -227,7 +227,7 @@ const sortOptions: { key: SortField; label: string }[] = [
               :class="{ active: photo.sortBy === opt.key }"
               @click="photo.setSort(opt.key)"
             >
-              {{ opt.label }}
+              {{ $t(opt.i18n) }}
               <span v-if="photo.sortBy === opt.key" class="sort-arrows">
                 <i
                   class="iconfont icon-jiantou_qiehuanxiangshang_o sort-arrow-down"
@@ -263,7 +263,7 @@ const sortOptions: { key: SortField; label: string }[] = [
       class="empty-state"
     >
       <LottieLoader name="empty" :size="160" />
-      <p class="empty-hint">还没有照片，上传第一张吧</p>
+      <p class="empty-hint">{{ $t('gallery.empty') }}</p>
     </div>
 
     <!-- 虚拟滚动网格 -->
@@ -312,7 +312,7 @@ const sortOptions: { key: SortField; label: string }[] = [
         </div>
 
         <!-- 到底了 -->
-        <div v-else class="end-hint">没有更多了</div>
+        <div v-else class="end-hint">{{ $t('gallery.noMore') }}</div>
       </div>
     </div>
 

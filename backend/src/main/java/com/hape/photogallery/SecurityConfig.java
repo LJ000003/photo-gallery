@@ -47,6 +47,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/**").hasAnyAuthority("ROLE_admin", "ROLE_viewer")
                 // Actuator 健康检查公开
                 .requestMatchers("/actuator/health").permitAll()
+                // Actuator 健康检查公开
+                .requestMatchers("/actuator/health").permitAll()
                 // Swagger / SpringDoc 公开
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                 // 静态资源公开

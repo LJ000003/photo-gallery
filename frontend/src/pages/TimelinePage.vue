@@ -19,16 +19,16 @@ function onTimelineClick(e: MouseEvent): void {
 
 <template>
   <section class="gallery-section">
-    <h2>我的照片</h2>
+    <h2>{{ $t('gallery.myPhotos') }}</h2>
     <div class="gallery-toolbar">
       <div class="toolbar-center">
         <div class="view-switch">
-          <span class="sort-label">视图：</span>
+          <span class="sort-label">{{ $t('nav.view') }}：</span>
           <div class="view-track">
-            <router-link to="/" class="view-opt">网格</router-link>
-            <router-link to="/albums" class="view-opt">相册</router-link>
+            <router-link to="/" class="view-opt">{{ $t('nav.grid') }}</router-link>
+            <router-link to="/albums" class="view-opt">{{ $t('nav.albums') }}</router-link>
             <router-link to="/timeline" class="view-opt" :class="{ active: true }" @click="onTimelineClick">
-              时间线
+              {{ $t('nav.timeline') }}
               <span class="sort-arrows">
                 <i
                   class="iconfont icon-jiantou_qiehuanxiangshang_o sort-arrow-down"
