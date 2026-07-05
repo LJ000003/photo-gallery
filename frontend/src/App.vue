@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { RouterView } from 'vue-router'
+import { RouterView, useRouter } from 'vue-router'
 import gsap from 'gsap'
 import { ScrollToPlugin } from 'gsap/ScrollToPlugin'
 gsap.registerPlugin(ScrollToPlugin)
@@ -18,6 +18,7 @@ import { useToastStore } from './stores/toast'
 import { requestToken } from './api'
 import type { Photo } from './types/photo'
 
+const router = useRouter()
 const photo = usePhotoStore()
 const ui = useUiStore()
 const toast = useToastStore()
@@ -53,6 +54,7 @@ async function onUnlock(): Promise<void> {
     const token = await requestToken()
     ui.setToken(token)
     ui.unlock()
+    router.replace(window.location.pathname + window.location.search)
     photo.loadMore()
     toast.success('认证成功')
   } catch {

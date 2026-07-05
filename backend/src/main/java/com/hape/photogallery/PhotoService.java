@@ -108,6 +108,7 @@ public class PhotoService {
         }
 
         imageService.generateThumbnail(target, dateDir, baseName);
+        imageService.generateThumbnail(target, dateDir, baseName, 200);
         imageService.generateWebp(target, dateDir, baseName);
 
         Photo photo = new Photo();
@@ -160,13 +161,28 @@ public class PhotoService {
     }
 
     public Path getThumbnailPath(Long id) {
+        return getThumbnailPath(id, 400);
+    }
+
+    public Path getThumbnailPath(Long id, int width) {
         Photo photo = getById(id);
         String fn = photo.getFileName();
         int lastSlash = fn.lastIndexOf('/');
         String dateDir = fn.substring(0, lastSlash);
         String baseName = fn.substring(lastSlash + 1);
-        Path thumb = uploadDir.resolve(dateDir).resolve("thumbnails").resolve(baseName);
+
+        Path thumbDir = width == 400
+                ? uploadDir.resolve(dateDir).resolve("thumbnails")
+                : uploadDir.resolve(dateDir).resolve("thumbnails").resolve(String.valueOf(width));
+        Path thumb = thumbDir.resolve(baseName);
         if (Files.exists(thumb)) return thumb;
+
+        // 小尺寸不存在时，回退到 400px 档
+        if (width != 400) {
+            Path fallback = uploadDir.resolve(dateDir).resolve("thumbnails").resolve(baseName);
+            if (Files.exists(fallback)) return fallback;
+        }
+
         return uploadDir.resolve(fn);
     }
 
@@ -213,6 +229,7 @@ public class PhotoService {
             String dateDir = fn.substring(0, lastSlash);
             String baseName = fn.substring(lastSlash + 1);
             Files.deleteIfExists(uploadDir.resolve(dateDir).resolve("thumbnails").resolve(baseName));
+            Files.deleteIfExists(uploadDir.resolve(dateDir).resolve("thumbnails").resolve("200").resolve(baseName));
             Files.deleteIfExists(uploadDir.resolve(dateDir).resolve("webp").resolve(baseName + ".webp"));
         } catch (IOException ignored) {}
     }
@@ -345,6 +362,7 @@ public class PhotoService {
         String dateDir = fn.substring(0, lastSlash);
         String baseName = fn.substring(lastSlash + 1);
         imageService.generateThumbnail(filePath, dateDir, baseName);
+        imageService.generateThumbnail(filePath, dateDir, baseName, 200);
         imageService.generateWebp(filePath, dateDir, baseName);
         repo.save(photo);
 

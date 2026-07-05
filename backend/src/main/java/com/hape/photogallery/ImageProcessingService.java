@@ -90,17 +90,23 @@ public class ImageProcessingService {
     }
 
     public void generateThumbnail(Path original, String dateDir, String baseName) throws IOException {
+        generateThumbnail(original, dateDir, baseName, THUMBNAIL_WIDTH);
+    }
+
+    public void generateThumbnail(Path original, String dateDir, String baseName, int width) throws IOException {
         BufferedImage image = ImageIO.read(original.toFile());
         if (image == null) return;
 
-        int h = (int) ((double) image.getHeight() / image.getWidth() * THUMBNAIL_WIDTH);
-        BufferedImage thumb = new BufferedImage(THUMBNAIL_WIDTH, h, BufferedImage.TYPE_INT_RGB);
+        int h = (int) ((double) image.getHeight() / image.getWidth() * width);
+        BufferedImage thumb = new BufferedImage(width, h, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = thumb.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        g.drawImage(image, 0, 0, THUMBNAIL_WIDTH, h, null);
+        g.drawImage(image, 0, 0, width, h, null);
         g.dispose();
 
-        Path thumbDir = uploadDir.resolve(dateDir).resolve("thumbnails");
+        Path thumbDir = width == THUMBNAIL_WIDTH
+                ? uploadDir.resolve(dateDir).resolve("thumbnails")
+                : uploadDir.resolve(dateDir).resolve("thumbnails").resolve(String.valueOf(width));
         Files.createDirectories(thumbDir);
         Path thumbPath = thumbDir.resolve(baseName);
 
