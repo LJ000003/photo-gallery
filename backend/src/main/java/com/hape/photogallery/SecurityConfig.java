@@ -12,11 +12,10 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-
-import jakarta.servlet.Filter;
 
 @Configuration
 @EnableWebSecurity
@@ -39,21 +38,25 @@ public class SecurityConfig {
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(rateLimitFilter, JwtAuthFilter.class)
             .authorizeHttpRequests(auth -> auth
-                // 认证端点公开
-                .requestMatchers(HttpMethod.POST, "/api/auth/unlock").permitAll()
-                // 分享落地面公开（转发到 SPA）
-                .requestMatchers(HttpMethod.GET, "/share/**").permitAll()
-                // 读操作需 viewer 以上角色（管理员 + 分享链接用户）
-                .requestMatchers(HttpMethod.GET, "/api/**").hasAnyAuthority("ROLE_admin", "ROLE_viewer")
-                // Actuator 健康检查公开
-                .requestMatchers("/actuator/health").permitAll()
-                // Actuator 健康检查公开
-                .requestMatchers("/actuator/health").permitAll()
-                // Swagger / SpringDoc 公开
-                .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
-                // 静态资源公开
-                .requestMatchers("/", "/index.html", "/assets/**", "/*.js", "/*.css", "/*.ico").permitAll()
-                // 写操作需 admin
+                .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.POST, "/api/auth/unlock")).permitAll()
+                .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/share/**")).permitAll()
+                .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/api/**"))
+                    .hasAnyAuthority("ROLE_admin", "ROLE_viewer")
+                .requestMatchers(AntPathRequestMatcher.antMatcher("/actuator/health")).permitAll()
+                .requestMatchers(AntPathRequestMatcher.antMatcher("/swagger-ui/**")).permitAll()
+                .requestMatchers(AntPathRequestMatcher.antMatcher("/v3/api-docs/**")).permitAll()
+                .requestMatchers(
+                    AntPathRequestMatcher.antMatcher("/"),
+                    AntPathRequestMatcher.antMatcher("/index.html"),
+                    AntPathRequestMatcher.antMatcher("/assets/**"),
+                    AntPathRequestMatcher.antMatcher("/manifest.webmanifest"),
+                    AntPathRequestMatcher.antMatcher("/pwa-icon.svg"),
+                    AntPathRequestMatcher.antMatcher("/favicon.ico"),
+                    AntPathRequestMatcher.antMatcher("/*.js"),
+                    AntPathRequestMatcher.antMatcher("/*.css"),
+                    AntPathRequestMatcher.antMatcher("/*.svg"),
+                    AntPathRequestMatcher.antMatcher("/*.webmanifest")
+                ).permitAll()
                 .anyRequest().hasAuthority("ROLE_admin")
             )
             .formLogin(fl -> fl.disable())
@@ -69,7 +72,7 @@ public class SecurityConfig {
 
     private CorsConfigurationSource corsSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("http://localhost:5173"));
+        config.setAllowedOrigins(List.of("http://localhost:5173", "https://hape233.online"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);

@@ -9,7 +9,7 @@ const ui = useUiStore()
 <template>
   <section class="gallery-section">
     <h2>我的照片</h2>
-    <div class="gallery-toolbar">
+    <div class="gallery-toolbar centered">
       <div class="toolbar-center">
         <div class="view-switch">
           <span class="sort-label">视图：</span>

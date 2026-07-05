@@ -22,7 +22,7 @@ function setAlbumSort(key: string): void {
 <template>
   <section class="gallery-section">
     <h2>{{ $t('gallery.myPhotos') }}</h2>
-    <div class="gallery-toolbar">
+    <div class="gallery-toolbar centered">
       <div class="toolbar-center">
         <div class="view-switch">
           <span class="sort-label">{{ $t('nav.view') }}：</span>

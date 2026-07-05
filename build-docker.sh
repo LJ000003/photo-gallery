@@ -1,4 +1,6 @@
 #!/bin/bash
+# Build script: Docker Compose deployment
+# Output: Docker image + running containers
 set -e
 
 echo "=== 1/4 构建前端 ==="

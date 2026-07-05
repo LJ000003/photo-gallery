@@ -1,4 +1,6 @@
 #!/bin/bash
+# Build script: traditional deployment (Nginx + JAR)
+# Output: backend/target/photo-gallery-*.jar (with frontend embedded)
 set -e
 
 echo "=== 1/3 构建前端 ==="
