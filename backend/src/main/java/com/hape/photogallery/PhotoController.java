@@ -125,9 +125,10 @@ public class PhotoController {
     }
 
     @GetMapping("/photos/{id}/thumbnail")
-    public ResponseEntity<Resource> getThumbnail(@PathVariable Long id) {
+    public ResponseEntity<Resource> getThumbnail(@PathVariable Long id,
+                                                 @RequestParam(defaultValue = "400") int w) {
         Photo photo = service.getById(id);
-        Resource resource = new FileSystemResource(service.getThumbnailPath(id));
+        Resource resource = new FileSystemResource(service.getThumbnailPath(id, w));
         return ResponseEntity.ok()
                 .contentType(MediaType.IMAGE_JPEG)
                 .cacheControl(CacheControl.maxAge(7, TimeUnit.DAYS))

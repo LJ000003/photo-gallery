@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import gsap from 'gsap'
-import { webpUrl } from '../webp'
+import { webpUrl, thumbUrl, thumbSrcset } from '../webp'
 import { api } from '../api'
 import { useToastStore } from '../stores/toast'
 import { usePhotoStore } from '../stores/photo'
@@ -48,6 +48,11 @@ function tokenParam(): string {
   const v = props.photo.fileSize ? `v=${props.photo.fileSize}` : ''
   if (v) q += q ? `&${v}` : `?${v}`
   return q
+}
+
+function tokenQS(): string {
+  const p = tokenParam()
+  return p ? '&' + p.slice(1) : ''
 }
 
 const cardRef = ref<HTMLElement | null>(null)
@@ -137,7 +142,12 @@ async function onDelete(): Promise<void> {
     </div>
     <div class="photo-thumb" @click="$emit('view')">
       <img
-        :src="`/api/photos/${photo.id}/thumbnail${tokenParam()}`"
+        :src="thumbUrl(photo.id, 400) + tokenQS()"
+        :srcset="thumbSrcset(photo.id)
+          .split(', ')
+          .map((s) => s + tokenQS())
+          .join(', ')"
+        sizes="(max-width: 768px) calc((100vw - 24px) / 2), (max-width: 1400px) calc((100vw - 280px) / 4), 280px"
         :alt="photo.name"
         loading="lazy"
       />
