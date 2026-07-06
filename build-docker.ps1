@@ -1,29 +1,37 @@
 # Build script: Docker Compose deployment
 # Output: Docker image + running containers
 
-chcp 65001 > $null
+$ErrorActionPreference = "Stop"
+$ROOT = $PSScriptRoot
+$FRONTEND = Join-Path $ROOT "frontend"
+$BACKEND = Join-Path $ROOT "backend"
 
 Write-Host "===[1/4] Building frontend ===" -ForegroundColor Cyan
-Set-Location "$PSScriptRoot\frontend"
-if ($env:ADMIN_PASSWORD) { $env:VITE_ADMIN_PASSWORD = $env:ADMIN_PASSWORD }
+Set-Location $FRONTEND
+if (-not (Test-Path "node_modules")) {
+  Write-Host "  → Installing dependencies..." -ForegroundColor Yellow
+  npm ci
+  if ($LASTEXITCODE -ne 0) { throw "npm ci failed" }
+}
+$env:VITE_ADMIN_PASSWORD = if ($env:ADMIN_PASSWORD) { $env:ADMIN_PASSWORD } else { "photoadmin" }
 npm run build
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+if ($LASTEXITCODE -ne 0) { throw "Frontend build failed" }
 
 Write-Host ""
 Write-Host "===[2/4] Copying frontend to backend static ===" -ForegroundColor Cyan
-Set-Location "$PSScriptRoot"
-Remove-Item -Recurse -Force "backend\src\main\resources\static\*" -ErrorAction SilentlyContinue
-Copy-Item -Recurse -Force "frontend\dist\*" "backend\src\main\resources\static\"
+Set-Location $ROOT
+Remove-Item -Recurse -Force "$BACKEND\src\main\resources\static\*" -ErrorAction SilentlyContinue
+Copy-Item -Recurse -Force "$FRONTEND\dist\*" "$BACKEND\src\main\resources\static\"
 
 Write-Host ""
 Write-Host "===[3/4] Building backend JAR ===" -ForegroundColor Cyan
-Set-Location "$PSScriptRoot\backend"
+Set-Location $BACKEND
 mvn clean package -DskipTests
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+if ($LASTEXITCODE -ne 0) { throw "Backend build failed" }
 
 Write-Host ""
 Write-Host "===[4/4] Docker Compose build + start ===" -ForegroundColor Cyan
-Set-Location "$PSScriptRoot"
+Set-Location $ROOT
 docker compose up -d --build
 
 Write-Host ""
