@@ -1,5 +1,8 @@
 package com.hape.photogallery;
 
+import com.hape.photogallery.dto.PhotoResponse;
+import com.hape.photogallery.dto.PhotoUpdateRequest;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -99,7 +102,11 @@ class PhotoServiceTest {
         when(photoRepo.findById(1L)).thenReturn(Optional.of(p));
         when(photoRepo.save(any())).thenReturn(p);
 
-        Photo result = service.update(1L, "newName", "newDesc", null, null, null);
+        PhotoUpdateRequest req = new PhotoUpdateRequest();
+        req.setName("newName");
+        req.setDescription("newDesc");
+
+        PhotoResponse result = service.update(1L, req);
 
         assertThat(result.getName()).isEqualTo("newName");
         assertThat(result.getDescription()).isEqualTo("newDesc");

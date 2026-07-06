@@ -1,5 +1,7 @@
 package com.hape.photogallery;
 
+import com.hape.photogallery.dto.PhotoResponse;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
@@ -54,6 +56,7 @@ class PhotoControllerTest {
     void getById_shouldReturnPhoto() throws Exception {
         Photo p = new Photo(); p.setId(1L); p.setName("测试照片");
         when(service.getById(1L)).thenReturn(p);
+        when(service.toResponse(p)).thenReturn(PhotoResponse.from(p));
 
         mockMvc.perform(get("/api/photos/1"))
                 .andExpect(status().isOk())
