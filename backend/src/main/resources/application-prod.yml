@@ -12,3 +12,6 @@ photo:
 
 admin:
   password: ${ADMIN_PASSWORD:photoadmin}
+
+cors:
+  allowed-origins: http://localhost:*,https://hape233.online
