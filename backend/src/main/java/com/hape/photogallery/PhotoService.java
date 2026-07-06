@@ -81,7 +81,7 @@ public class PhotoService {
 
     public Photo getById(Long id) {
         return repo.findById(id)
-                .orElseThrow(() -> new RuntimeException("该照片已被删除或不存在"));
+                .orElseThrow(() -> new BusinessException(404, "该照片已被删除或不存在"));
     }
 
     public Page<Photo> findByIds(List<Long> ids, Pageable pageable) {

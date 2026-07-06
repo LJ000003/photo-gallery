@@ -51,7 +51,7 @@ public class AuthController {
     public ApiResponse<Map<String, String>> generateShare(@RequestBody Map<String, Object> body) {
         Object raw = body.get("photoIds");
         if (!(raw instanceof List<?> list) || list.isEmpty()) {
-            throw new RuntimeException("请选择至少一张照片");
+            throw new BusinessException(400, "请选择至少一张照片");
         }
         List<Long> photoIds = list.stream()
                 .map(o -> ((Number) o).longValue())

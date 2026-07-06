@@ -36,7 +36,7 @@ public class ShareController {
         @SuppressWarnings("unchecked")
         List<Long> photoIds = (List<Long>) request.getAttribute("sharePhotoIds");
         if (photoIds == null || photoIds.isEmpty()) {
-            throw new RuntimeException("分享链接无效或已过期");
+            throw new BusinessException(404, "分享链接无效或已过期");
         }
 
         Page<PhotoResponse> result = photoService.findByIds(photoIds, PageRequest.of(page, size))
