@@ -47,7 +47,7 @@ public class AlbumService {
     @CacheEvict(value = "photos", allEntries = true)
     @Transactional
     public Album update(Long id, String name, String description, List<Long> photoIds) {
-        Album a = albumRepo.findById(id).orElseThrow(() -> new RuntimeException("相册不存在"));
+        Album a = albumRepo.findById(id).orElseThrow(() -> new BusinessException(404, "相册不存在"));
         if (name != null) a.setName(name);
         if (description != null) a.setDescription(description);
         if (photoIds != null) {
@@ -74,7 +74,7 @@ public class AlbumService {
     @Transactional
     @CacheEvict(value = "photos", allEntries = true)
     public void delete(Long id) {
-        Album a = albumRepo.findById(id).orElseThrow(() -> new RuntimeException("相册不存在"));
+        Album a = albumRepo.findById(id).orElseThrow(() -> new BusinessException(404, "相册不存在"));
         for (Photo p : new HashSet<>(a.getPhotos())) {
             p.getAlbums().remove(a);
             photoRepo.save(p);
@@ -94,7 +94,7 @@ public class AlbumService {
     @Transactional
     @CacheEvict(value = "photos", allEntries = true)
     public void addPhotos(Long albumId, List<Long> photoIds) {
-        Album a = albumRepo.findById(albumId).orElseThrow(() -> new RuntimeException("相册不存在"));
+        Album a = albumRepo.findById(albumId).orElseThrow(() -> new BusinessException(404, "相册不存在"));
         for (Long pid : photoIds) {
             Photo p = photoRepo.findById(pid).orElse(null);
             if (p != null) {
@@ -112,7 +112,7 @@ public class AlbumService {
     @Transactional
     @CacheEvict(value = "photos", allEntries = true)
     public void removePhotos(Long albumId, List<Long> photoIds) {
-        Album a = albumRepo.findById(albumId).orElseThrow(() -> new RuntimeException("相册不存在"));
+        Album a = albumRepo.findById(albumId).orElseThrow(() -> new BusinessException(404, "相册不存在"));
         for (Long pid : photoIds) {
             Photo p = photoRepo.findById(pid).orElse(null);
             if (p != null) {
@@ -121,7 +121,7 @@ public class AlbumService {
                 photoRepo.save(p);
             }
         }
-        if (photoIds.contains(a.getCoverPhotoId())) {
+        if (a.getCoverPhotoId() != null && photoIds.contains(a.getCoverPhotoId())) {
             a.setCoverPhotoId(a.getPhotos().isEmpty() ? null : a.getPhotos().iterator().next().getId());
         }
         albumRepo.save(a);

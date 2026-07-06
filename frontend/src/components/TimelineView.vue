@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue'
 import { useUiStore } from '../stores/ui'
+import { tokenParam } from '../utils/token'
 import { api } from '../api'
 import type { TimelineExifItem } from '../types/view'
 
@@ -30,11 +31,6 @@ function groupByMonth(list: TimelineExifItem[]): [string, TimelineExifItem[]][] 
 }
 
 const grouped = computed(() => groupByMonth(items.value))
-
-function tokenParam(): string {
-  const t = ui.token
-  return t ? `?token=${t}` : ''
-}
 
 async function fetchTimeline(): Promise<void> {
   loading.value = true

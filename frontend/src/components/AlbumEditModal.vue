@@ -6,6 +6,7 @@ import { useStore } from '../store'
 import { useToastStore } from '../stores/toast'
 import type { Photo } from '../types/photo'
 import type { Album } from '../types/album'
+import { tokenParam } from '../utils/token'
 import type { ApiResponse, PageResponse } from '../types/api'
 
 const { refreshAlbums } = useStore()
@@ -117,10 +118,6 @@ async function onDelete(): Promise<void> {
   }
 }
 
-function tokenParam(): string {
-  const t = localStorage.getItem('jwt_token')
-  return t ? `?token=${t}` : ''
-}
 </script>
 
 <template>

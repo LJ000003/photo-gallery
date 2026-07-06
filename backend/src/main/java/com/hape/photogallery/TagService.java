@@ -30,7 +30,7 @@ public class TagService {
 
     @CacheEvict(value = "photos", allEntries = true)
     public Tag update(Long id, String name, String color) {
-        Tag tag = tagRepo.findById(id).orElseThrow(() -> new RuntimeException("标签不存在"));
+        Tag tag = tagRepo.findById(id).orElseThrow(() -> new BusinessException(404, "标签不存在"));
         if (name != null) tag.setName(name);
         if (color != null) tag.setColor(color);
         return tagRepo.save(tag);

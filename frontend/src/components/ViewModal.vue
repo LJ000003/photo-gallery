@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import gsap from 'gsap'
 import { webpUrl } from '../webp'
+import { tokenParam } from '../utils/token'
 import type { Photo } from '../types/photo'
 
 const props = defineProps<{ photo: Photo }>()
@@ -9,14 +10,6 @@ const emit = defineEmits<{ close: [] }>()
 
 const isMobile = 'ontouchstart' in window
 const fullLoaded = ref(false)
-
-function tokenParam(): string {
-  const t = localStorage.getItem('jwt_token') || localStorage.getItem('token')
-  let q = t ? `?token=${t}` : ''
-  const v = props.photo.fileSize ? `v=${props.photo.fileSize}` : ''
-  if (v) q += q ? `&${v}` : `?${v}`
-  return q
-}
 
 onMounted(() => {
   const content = document.querySelector('#viewModal .modal-content')
@@ -52,7 +45,7 @@ function onClose(): void {
       <button class="modal-close" @click="onClose">&times;</button>
       <div class="img-wrap">
         <img
-          :src="`/api/photos/${photo.id}/thumbnail${tokenParam()}`"
+          :src="`/api/photos/${photo.id}/thumbnail${tokenParam(photo.fileSize)}`"
           :alt="photo.name"
           decoding="async"
           loading="lazy"
@@ -60,7 +53,7 @@ function onClose(): void {
         <img
           class="img-full"
           :class="{ show: fullLoaded }"
-          :src="`${webpUrl(photo.id)}${tokenParam()}`"
+          :src="`${webpUrl(photo.id)}${tokenParam(photo.fileSize)}`"
           :alt="photo.name"
           decoding="async"
           loading="lazy"

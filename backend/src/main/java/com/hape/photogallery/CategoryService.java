@@ -30,7 +30,7 @@ public class CategoryService {
 
     @CacheEvict(value = "photos", allEntries = true)
     public Category update(Long id, String name) {
-        Category cat = catRepo.findById(id).orElseThrow(() -> new RuntimeException("分类不存在"));
+        Category cat = catRepo.findById(id).orElseThrow(() -> new BusinessException(404, "分类不存在"));
         if (name != null) cat.setName(name);
         return catRepo.save(cat);
     }

@@ -1,15 +1,25 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useRoute } from 'vue-router'
 import AlbumView from '../components/AlbumView.vue'
+import ViewSwitcher from '../components/ViewSwitcher.vue'
+import SortSwitch from '../components/SortSwitch.vue'
+import type { SortOption } from '../components/SortSwitch.vue'
 import { useUiStore } from '../stores/ui'
 import type { Photo } from '../types/photo'
 
+const route = useRoute()
 const ui = useUiStore()
 
 const albumSortBy = ref('time')
 const albumSortOrder = ref('desc')
 
-function setAlbumSort(key: string): void {
+const sortOptions: SortOption[] = [
+  { key: 'time', label: '时间' },
+  { key: 'name', label: '名称' },
+]
+
+function onSortToggle(key: string): void {
   if (albumSortBy.value === key) {
     albumSortOrder.value = albumSortOrder.value === 'asc' ? 'desc' : 'asc'
   } else {
@@ -24,66 +34,21 @@ function setAlbumSort(key: string): void {
     <h2>{{ $t('gallery.myPhotos') }}</h2>
     <div class="gallery-toolbar centered">
       <div class="toolbar-center">
-        <div class="view-switch">
-          <span class="sort-label">{{ $t('nav.view') }}：</span>
-          <div class="view-track">
-            <router-link to="/" class="view-opt">{{ $t('nav.grid') }}</router-link>
-            <router-link to="/albums" class="view-opt" :class="{ active: true }">{{ $t('nav.albums') }}</router-link>
-            <router-link to="/timeline" class="view-opt">{{ $t('nav.timeline') }}</router-link>
-            <router-link to="/map" class="view-opt">{{ $t('nav.map') }}</router-link>
-          </div>
-        </div>
-        <div class="sort-switch">
-          <span class="sort-label">{{ $t('gallery.sortBy') }}：</span>
-          <div class="sort-track sort-2cols">
-            <div
-              class="sort-slider"
-              :style="{ transform: `translateX(${albumSortBy === 'time' ? 0 : 100}%)` }"
-            ></div>
-            <button
-              class="sort-opt"
-              :class="{ active: albumSortBy === 'time' }"
-              @click="setAlbumSort('time')"
-            >
-              时间
-              <span v-if="albumSortBy === 'time'" class="sort-arrows">
-                <i
-                  class="iconfont icon-jiantou_qiehuanxiangshang_o sort-arrow-down"
-                  :class="{ active: albumSortOrder === 'asc' }"
-                ></i>
-                <i
-                  class="iconfont icon-jiantou_qiehuanxiangshang_o"
-                  :class="{ active: albumSortOrder === 'desc' }"
-                ></i>
-              </span>
-            </button>
-            <button
-              class="sort-opt"
-              :class="{ active: albumSortBy === 'name' }"
-              @click="setAlbumSort('name')"
-            >
-              名称
-              <span v-if="albumSortBy === 'name'" class="sort-arrows">
-                <i
-                  class="iconfont icon-jiantou_qiehuanxiangshang_o sort-arrow-down"
-                  :class="{ active: albumSortOrder === 'asc' }"
-                ></i>
-                <i
-                  class="iconfont icon-jiantou_qiehuanxiangshang_o"
-                  :class="{ active: albumSortOrder === 'desc' }"
-                ></i>
-              </span>
-            </button>
-          </div>
-        </div>
+        <ViewSwitcher :current-path="route.path" />
+        <SortSwitch
+          :options="sortOptions"
+          :model-value="albumSortBy"
+          :order="albumSortOrder"
+          @toggle="onSortToggle"
+        />
       </div>
     </div>
     <AlbumView
       :sort-by="albumSortBy"
       :sort-order="albumSortOrder"
-      @update:sort-by="setAlbumSort"
-      @update:sort-order="(o) => (albumSortOrder = o)"
-      @view="(p) => (ui.viewPhoto = p as Photo)"
+      @update:sort-by="(k: string) => (albumSortBy = k)"
+      @update:sort-order="(o: string) => (albumSortOrder = o)"
+      @view="(p: object) => (ui.viewPhoto = p as Photo)"
     />
   </section>
 </template>

@@ -4,6 +4,10 @@ import { useRouter, useRoute } from 'vue-router'
 import { useWindowVirtualizer } from '@tanstack/vue-virtual'
 import PhotoCard from '../components/PhotoCard.vue'
 import UploadCard from '../components/UploadCard.vue'
+import ViewSwitcher from '../components/ViewSwitcher.vue'
+import SortSwitch from '../components/SortSwitch.vue'
+import type { SortOption } from '../components/SortSwitch.vue'
+import ShareModal from '../components/ShareModal.vue'
 import { usePhotoStore } from '../stores/photo'
 import { useUiStore } from '../stores/ui'
 import { usePhotoActions } from '../composables/usePhotoActions'
@@ -156,10 +160,10 @@ function onUploaded(): void {
   photo.resetAndReload()
 }
 
-const sortOptions: { key: SortField; i18n: string }[] = [
-  { key: 'time', i18n: 'gallery.sortTime' },
-  { key: 'name', i18n: 'gallery.sortName' },
-  { key: 'size', i18n: 'gallery.sortSize' },
+const sortOptions: SortOption[] = [
+  { key: 'time', label: 'gallery.sortTime' },
+  { key: 'name', label: 'gallery.sortName' },
+  { key: 'size', label: 'gallery.sortSize' },
 ]
 </script>
 
@@ -187,60 +191,13 @@ const sortOptions: { key: SortField; i18n: string }[] = [
           :value="photo.searchQuery"
           @input="photo.setSearch(($event.target as HTMLInputElement).value)"
         />
-        <div class="view-switch">
-          <span class="sort-label">{{ $t('nav.view') }}：</span>
-          <div class="view-track">
-            <router-link
-              to="/"
-              class="view-opt"
-              :class="{ active: route.path === '/' }"
-              @click.prevent="switchView('/')"
-              >{{ $t('nav.grid') }}</router-link
-            >
-            <router-link to="/albums" class="view-opt" :class="{ active: route.path === '/albums' }"
-              >{{ $t('nav.albums') }}</router-link
-            >
-            <router-link
-              to="/timeline"
-              class="view-opt"
-              :class="{ active: route.path === '/timeline' }"
-              >{{ $t('nav.timeline') }}</router-link
-            >
-            <router-link to="/map" class="view-opt" :class="{ active: route.path === '/map' }"
-              >{{ $t('nav.map') }}</router-link
-            >
-          </div>
-        </div>
-        <div class="sort-switch">
-          <span class="sort-label">{{ $t('gallery.sortBy') }}：</span>
-          <div class="sort-track">
-            <div
-              class="sort-slider"
-              :style="{
-                transform: `translateX(${sortOptions.findIndex((o) => o.key === photo.sortBy) * 100}%)`,
-              }"
-            ></div>
-            <button
-              v-for="opt in sortOptions"
-              :key="opt.key"
-              class="sort-opt"
-              :class="{ active: photo.sortBy === opt.key }"
-              @click="photo.setSort(opt.key)"
-            >
-              {{ $t(opt.i18n) }}
-              <span v-if="photo.sortBy === opt.key" class="sort-arrows">
-                <i
-                  class="iconfont icon-jiantou_qiehuanxiangshang_o sort-arrow-down"
-                  :class="{ active: photo.sortOrder === 'asc' }"
-                ></i>
-                <i
-                  class="iconfont icon-jiantou_qiehuanxiangshang_o"
-                  :class="{ active: photo.sortOrder === 'desc' }"
-                ></i>
-              </span>
-            </button>
-          </div>
-        </div>
+        <ViewSwitcher :current-path="route.path" />
+        <SortSwitch
+          :options="sortOptions"
+          :model-value="photo.sortBy"
+          :order="photo.sortOrder"
+          @toggle="photo.setSort($event as SortField)"
+        />
       </div>
     </div>
 
@@ -316,23 +273,13 @@ const sortOptions: { key: SortField; i18n: string }[] = [
       </div>
     </div>
 
-    <!-- 分享弹窗 -->
-    <div v-if="shareModal" class="modal" @click.self="shareModal = null">
-      <div class="modal-content modal-small">
-        <h3>分享 {{ shareModal.photoIds.length }} 张照片</h3>
-        <p class="share-hint">链接 7 天内有效，拿到链接的人可直接查看</p>
-        <div v-if="shareLoading" class="share-loading">生成中...</div>
-        <div v-else-if="shareUrl" class="share-row">
-          <input
-            :value="shareUrl"
-            readonly
-            class="share-input"
-            @focus="($event.target as HTMLInputElement).select()"
-          />
-          <button class="btn-primary" @click="copyShareLink">复制链接</button>
-        </div>
-        <button class="modal-close" @click="shareModal = null">✕</button>
-      </div>
-    </div>
+    <ShareModal
+      v-if="shareModal"
+      :photo-count="shareModal.photoIds.length"
+      :loading="shareLoading"
+      :url="shareUrl"
+      @close="shareModal = null"
+      @copy="copyShareLink"
+    />
   </section>
 </template>

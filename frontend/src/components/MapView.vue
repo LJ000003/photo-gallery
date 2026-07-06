@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useUiStore } from '../stores/ui'
+import { tokenParam } from '../utils/token'
 import { api } from '../api'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -26,11 +27,6 @@ const mapContainer = ref<HTMLElement | null>(null)
 let map: L.Map | null = null
 let mapResizeObs: ResizeObserver | null = null
 let fixSize: (() => void) | null = null
-
-function tokenParam(): string {
-  const t = ui.token
-  return t ? `?token=${t}` : ''
-}
 
 onMounted(async () => {
   try {

@@ -1,5 +1,7 @@
 package com.hape.photogallery;
 
+import com.hape.photogallery.dto.PhotoResponse;
+
 import java.util.List;
 
 import org.springframework.data.domain.Page;
@@ -26,7 +28,7 @@ public class ShareController {
 
     /** 分享页 API — 返回 JWT claims 中指定的照片 */
     @GetMapping("/api/share/view")
-    public ApiResponse<Page<Photo>> view(
+    public ApiResponse<Page<PhotoResponse>> view(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             HttpServletRequest request) {
@@ -34,10 +36,11 @@ public class ShareController {
         @SuppressWarnings("unchecked")
         List<Long> photoIds = (List<Long>) request.getAttribute("sharePhotoIds");
         if (photoIds == null || photoIds.isEmpty()) {
-            throw new RuntimeException("分享链接无效或已过期");
+            throw new BusinessException(404, "分享链接无效或已过期");
         }
 
-        Page<Photo> result = photoService.findByIds(photoIds, PageRequest.of(page, size));
+        Page<PhotoResponse> result = photoService.findByIds(photoIds, PageRequest.of(page, size))
+                .map(photoService::toResponse);
         return ApiResponse.success(result);
     }
 }

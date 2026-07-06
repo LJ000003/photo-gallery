@@ -1,5 +1,12 @@
 package com.hape.photogallery;
 
+import com.hape.photogallery.dto.MapItem;
+import com.hape.photogallery.dto.PhotoResponse;
+import com.hape.photogallery.dto.PhotoUpdateRequest;
+import com.hape.photogallery.dto.TimelineItem;
+
+import jakarta.validation.Valid;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -31,42 +38,42 @@ public class PhotoController {
     // === 照片 ===
 
     @GetMapping("/photos")
-    public ApiResponse<Page<Photo>> list(
+    public ApiResponse<Page<PhotoResponse>> list(
             @RequestParam(required = false) List<Long> tagIds,
             @RequestParam(required = false) List<Long> categoryIds,
             @RequestParam(required = false) String q,
             @RequestParam(required = false) Long albumId,
             @PageableDefault(size = 20) Pageable pageable) {
         if (q != null && !q.isBlank()) {
-            return ApiResponse.success(service.search(q, pageable));
+            return ApiResponse.success(service.search(q, pageable).map(service::toResponse));
         }
         if (albumId != null) {
-            if (albumId == 0) {
-                return ApiResponse.success(albumService.listUnassigned(pageable));
-            }
-            return ApiResponse.success(albumService.listPhotos(albumId, pageable));
+            Page<Photo> page = albumId == 0
+                    ? albumService.listUnassigned(pageable)
+                    : albumService.listPhotos(albumId, pageable);
+            return ApiResponse.success(page.map(service::toResponse));
         }
-        return ApiResponse.success(service.listAll(tagIds, categoryIds, pageable));
+        return ApiResponse.success(service.listAll(tagIds, categoryIds, pageable).map(service::toResponse));
     }
 
     @GetMapping("/photos/{id}")
-    public Photo get(@PathVariable Long id) {
-        return service.getById(id);
+    public PhotoResponse get(@PathVariable Long id) {
+        return service.toResponse(service.getById(id));
     }
 
     @PostMapping("/photos")
-    public Photo upload(@RequestParam("file") MultipartFile file,
+    public PhotoResponse upload(@RequestParam("file") MultipartFile file,
                         @RequestParam(value = "name", required = false) String name,
                         @RequestParam(value = "description", required = false) String description,
                         @RequestParam(value = "tagIds", required = false) List<Long> tagIds,
                         @RequestParam(value = "categoryId", required = false) Long categoryId,
                         @RequestParam(value = "watermark", required = false) String watermark)
             throws IOException {
-        return service.upload(file, name, description, tagIds, categoryId, watermark);
+        return service.toResponse(service.upload(file, name, description, tagIds, categoryId, watermark));
     }
 
     @PostMapping("/photos/batch")
-    public ApiResponse<List<Photo>> batchUpload(
+    public ApiResponse<List<PhotoResponse>> batchUpload(
             @RequestParam("files") List<MultipartFile> files,
             @RequestParam(value = "name", required = false) String name,
             @RequestParam(value = "description", required = false) String description,
@@ -74,25 +81,15 @@ public class PhotoController {
             @RequestParam(value = "categoryId", required = false) Long categoryId,
             @RequestParam(value = "watermark", required = false) String watermark)
             throws IOException {
-        return ApiResponse.success(service.batchUpload(files, name, description, tagIds, categoryId, watermark));
+        List<PhotoResponse> result = service.batchUpload(files, name, description, tagIds, categoryId, watermark)
+                .stream().map(service::toResponse).toList();
+        return ApiResponse.success(result);
     }
 
     @PutMapping("/photos/{id}")
-    public Photo update(@PathVariable Long id, @RequestBody Map<String, Object> body) {
-        String name = (String) body.get("name");
-        String description = (String) body.get("description");
-        @SuppressWarnings("unchecked")
-        List<Long> tagIds = body.get("tagIds") != null
-                ? ((List<Integer>) body.get("tagIds")).stream().map(Integer::longValue).toList()
-                : null;
-        Long categoryId = body.get("categoryId") != null
-                ? ((Number) body.get("categoryId")).longValue()
-                : null;
-        @SuppressWarnings("unchecked")
-        List<Long> albumIds = body.get("albumIds") != null
-                ? ((List<Integer>) body.get("albumIds")).stream().map(Integer::longValue).toList()
-                : null;
-        return service.update(id, name, description, tagIds, categoryId, albumIds);
+    public PhotoResponse update(@PathVariable Long id,
+                                 @Valid @RequestBody PhotoUpdateRequest body) {
+        return service.update(id, body);
     }
 
     @DeleteMapping("/photos/{id}")
@@ -148,13 +145,13 @@ public class PhotoController {
     }
 
     @GetMapping("/photos/timeline")
-    public ApiResponse<List<ExifData>> timeline(
+    public ApiResponse<List<TimelineItem>> timeline(
             @RequestParam(defaultValue = "desc") String sortOrder) {
         return ApiResponse.success(service.getTimeline(sortOrder));
     }
 
     @GetMapping("/photos/map")
-    public ApiResponse<List<ExifData>> mapPhotos() {
+    public ApiResponse<List<MapItem>> mapPhotos() {
         return ApiResponse.success(service.getMapPhotos());
     }
 

@@ -1,5 +1,10 @@
 package com.hape.photogallery;
 
+import com.hape.photogallery.dto.MapItem;
+import com.hape.photogallery.dto.PhotoResponse;
+import com.hape.photogallery.dto.PhotoUpdateRequest;
+import com.hape.photogallery.dto.TimelineItem;
+
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -76,7 +81,7 @@ public class PhotoService {
 
     public Photo getById(Long id) {
         return repo.findById(id)
-                .orElseThrow(() -> new RuntimeException("该照片已被删除或不存在"));
+                .orElseThrow(() -> new BusinessException(404, "该照片已被删除或不存在"));
     }
 
     public Page<Photo> findByIds(List<Long> ids, Pageable pageable) {
@@ -142,17 +147,19 @@ public class PhotoService {
 
     @CacheEvict(value = "photos", allEntries = true)
     @Transactional
-    public Photo update(Long id, String name, String description,
-                        List<Long> tagIds, Long categoryId, List<Long> albumIds) {
+    public PhotoResponse update(Long id, PhotoUpdateRequest req) {
         Photo photo = getById(id);
-        if (name != null && !name.isBlank()) photo.setName(name);
-        if (description != null) photo.setDescription(description);
-        if (tagIds != null) photo.setTags(new HashSet<>(tagRepo.findAllById(tagIds)));
-        photo.setCategory(categoryId != null ? catRepo.findById(categoryId).orElse(null) : null);
-        if (albumIds != null) {
-            albumService.syncPhotoAlbums(photo, albumIds);
+        photo.setName(req.getName());
+        photo.setDescription(req.getDescription());
+        if (req.getTagIds() != null) {
+            photo.setTags(new HashSet<>(tagRepo.findAllById(req.getTagIds())));
         }
-        return repo.save(photo);
+        photo.setCategory(req.getCategoryId() != null
+                ? catRepo.findById(req.getCategoryId()).orElse(null) : null);
+        if (req.getAlbumIds() != null) {
+            albumService.syncPhotoAlbums(photo, req.getAlbumIds());
+        }
+        return toResponse(repo.save(photo));
     }
 
     // === 文件路径 ===
@@ -291,21 +298,21 @@ public class PhotoService {
 
     // === EXIF ===
 
-    public List<ExifData> getTimeline(String sortOrder) {
-        if ("asc".equalsIgnoreCase(sortOrder)) {
-            return exifRepo.findWithDateTakenAndPhotoAsc();
-        }
-        return exifRepo.findWithDateTakenAndPhotoDesc();
+    public List<TimelineItem> getTimeline(String sortOrder) {
+        List<ExifData> list = "asc".equalsIgnoreCase(sortOrder)
+                ? exifRepo.findWithDateTakenAndPhotoAsc()
+                : exifRepo.findWithDateTakenAndPhotoDesc();
+        return list.stream().map(this::toTimelineItem).toList();
     }
 
-    public List<ExifData> getMapPhotos() {
+    public List<MapItem> getMapPhotos() {
         List<ExifData> list = exifRepo.findWithGpsAndPhoto();
         for (ExifData e : list) {
             double[] gcj = CoordUtil.wgs84ToGcj02(e.getLongitude(), e.getLatitude());
             e.setLongitude(gcj[0]);
             e.setLatitude(gcj[1]);
         }
-        return list;
+        return list.stream().map(this::toMapItem).toList();
     }
 
     public int extractExifForExisting() {
@@ -371,5 +378,19 @@ public class PhotoService {
         try {
             exifService.extractAndSave(photo, filePath);
         } catch (Exception ignored) {}
+    }
+
+    // === DTO 转换 ===
+
+    public PhotoResponse toResponse(Photo photo) {
+        return PhotoResponse.from(photo);
+    }
+
+    public TimelineItem toTimelineItem(ExifData exif) {
+        return TimelineItem.from(exif);
+    }
+
+    public MapItem toMapItem(ExifData exif) {
+        return MapItem.from(exif);
     }
 }
