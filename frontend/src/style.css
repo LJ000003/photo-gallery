@@ -1188,6 +1188,11 @@ button[type='submit']:hover,
   width: 100% !important;
 }
 
+/* 卫星图 + 道路标注叠加：multiply 混合模式让道路层的白色背景透明 */
+.gaode-road-overlay {
+  mix-blend-mode: multiply;
+}
+
 /* === 画廊区域 === */
 .gallery-section {
   position: relative;
