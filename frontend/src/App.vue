@@ -88,7 +88,7 @@ onMounted(() => {
 <template>
   <!-- 分享页独立渲染，不走主布局 -->
   <RouterView v-if="isSharePath" />
-  <template v-if="!isSharePath">
+  <template v-else>
     <KonamiGate v-if="!ui.unlocked" @unlocked="onUnlock" />
     <template v-if="ui.unlocked">
       <span class="relock-wrap">
