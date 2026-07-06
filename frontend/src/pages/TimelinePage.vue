@@ -10,9 +10,8 @@ const route = useRoute()
 const ui = useUiStore()
 const timelineSortOrder = ref('desc')
 
-function onTimelineClick(e: MouseEvent): void {
-  if (route.path === '/timeline') {
-    e.preventDefault()
+function onViewClickActive(path: string): void {
+  if (path === '/timeline') {
     timelineSortOrder.value = timelineSortOrder.value === 'desc' ? 'asc' : 'desc'
   }
 }
@@ -23,7 +22,7 @@ function onTimelineClick(e: MouseEvent): void {
     <h2>{{ $t('gallery.myPhotos') }}</h2>
     <div class="gallery-toolbar centered">
       <div class="toolbar-center">
-        <ViewSwitcher :current-path="route.path">
+        <ViewSwitcher :current-path="route.path" @click-active="onViewClickActive">
           <template #suffix-timeline>
             <span class="sort-arrows">
               <i
