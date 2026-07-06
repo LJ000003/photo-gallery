@@ -121,7 +121,7 @@ public class AlbumService {
                 photoRepo.save(p);
             }
         }
-        if (photoIds.contains(a.getCoverPhotoId())) {
+        if (a.getCoverPhotoId() != null && photoIds.contains(a.getCoverPhotoId())) {
             a.setCoverPhotoId(a.getPhotos().isEmpty() ? null : a.getPhotos().iterator().next().getId());
         }
         albumRepo.save(a);
