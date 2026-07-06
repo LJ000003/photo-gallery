@@ -3,7 +3,9 @@ const JPEG_QUALITY = 0.85
 const COMPRESS_SIZE_THRESHOLD = 1024 * 1024 // 1MB
 
 export function compressImage(file: File): Promise<File> {
+  // 非图片、GIF、JPEG 不做客户端压缩，保留原始数据（尤其 JPEG 的 EXIF）
   if (!file.type.startsWith('image/')) return Promise.resolve(file)
+  if (file.type === 'image/jpeg' || file.type === 'image/gif') return Promise.resolve(file)
 
   return new Promise((resolve) => {
     const img = new Image()

@@ -21,20 +21,20 @@ function setAlbumSort(key: string): void {
 
 <template>
   <section class="gallery-section">
-    <h2>我的照片</h2>
-    <div class="gallery-toolbar">
+    <h2>{{ $t('gallery.myPhotos') }}</h2>
+    <div class="gallery-toolbar centered">
       <div class="toolbar-center">
         <div class="view-switch">
-          <span class="sort-label">视图：</span>
+          <span class="sort-label">{{ $t('nav.view') }}：</span>
           <div class="view-track">
-            <router-link to="/" class="view-opt">网格</router-link>
-            <router-link to="/albums" class="view-opt" :class="{ active: true }">相册</router-link>
-            <router-link to="/timeline" class="view-opt">时间线</router-link>
-            <router-link to="/map" class="view-opt">地图</router-link>
+            <router-link to="/" class="view-opt">{{ $t('nav.grid') }}</router-link>
+            <router-link to="/albums" class="view-opt" :class="{ active: true }">{{ $t('nav.albums') }}</router-link>
+            <router-link to="/timeline" class="view-opt">{{ $t('nav.timeline') }}</router-link>
+            <router-link to="/map" class="view-opt">{{ $t('nav.map') }}</router-link>
           </div>
         </div>
         <div class="sort-switch">
-          <span class="sort-label">排序方式：</span>
+          <span class="sort-label">{{ $t('gallery.sortBy') }}：</span>
           <div class="sort-track sort-2cols">
             <div
               class="sort-slider"

@@ -1,0 +1,147 @@
+{
+  "app": {
+    "title": "Photo Gallery",
+    "locked": "Locked"
+  },
+  "auth": {
+    "title": "Unlock Photo Gallery",
+    "enterPassword": "Enter admin password",
+    "unlock": "Unlock",
+    "success": "Authenticated",
+    "failed": "Authentication failed, please retry",
+    "expired": "Session expired, please unlock again",
+    "relock": "Try again!"
+  },
+  "nav": {
+    "view": "View",
+    "grid": "Grid",
+    "albums": "Albums",
+    "timeline": "Timeline",
+    "map": "Map"
+  },
+  "gallery": {
+    "myPhotos": "My Photos",
+    "searchPlaceholder": "Search photos...",
+    "selectAll": "Select All",
+    "generateShare": "Generate Share Link",
+    "batchDelete": "Batch Delete",
+    "sortBy": "Sort by",
+    "sortTime": "Time",
+    "sortName": "Name",
+    "sortSize": "Size",
+    "noMore": "No more photos",
+    "empty": "No photos yet. Upload your first one!",
+    "loading": "Loading..."
+  },
+  "upload": {
+    "title": "Upload Photos",
+    "selectHint": "Click / Drag / Paste (Ctrl+V)",
+    "selected": "{count} selected",
+    "compressing": "Compressing...",
+    "noCategory": "No Category",
+    "namePlaceholder": "Photo name (optional)",
+    "descPlaceholder": "Photo description (optional)",
+    "watermarkPlaceholder": "Watermark text (optional)",
+    "upload": "Upload",
+    "uploadCount": "Upload ({count})",
+    "cancelSelect": "Cancel",
+    "editImage": "Edit",
+    "success": "Upload succeeded",
+    "failed": "Upload failed",
+    "networkError": "Network error",
+    "timeout": "Upload timeout"
+  },
+  "album": {
+    "newAlbum": "+ New Album",
+    "unassigned": "Unassigned",
+    "unassignedDesc": "Photos not in any album",
+    "noAlbums": "No albums yet. Assign photos to albums when editing.",
+    "editAlbum": "Edit Album",
+    "name": "Name",
+    "description": "Description",
+    "selectedPhotos": "Selected Photos",
+    "searchPhotoPlaceholder": "Search photos...",
+    "noPhotosYet": "No photos yet",
+    "save": "Save",
+    "delete": "Delete",
+    "albumPhotos": " photos",
+    "deleteConfirm": "Delete album \"{name}\"?",
+    "deleteSuccess": "Deleted",
+    "deleteFailed": "Delete failed",
+    "createFailed": "Create failed",
+    "saveFailed": "Save failed",
+    "nameRequired": "Album name is required",
+    "albumEmpty": "This album has no photos",
+    "back": "← Back",
+    "view": "View",
+    "loading": "Loading..."
+  },
+  "photo": {
+    "view": "View",
+    "edit": "Edit",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this photo?",
+    "editInfo": "Edit Photo Info",
+    "editSuccess": "Saved",
+    "editFailed": "Edit failed",
+    "name": "Name",
+    "description": "Description",
+    "category": "Category",
+    "tags": "Tags",
+    "albums": "Albums",
+    "createdAt": "Date Taken",
+    "fileSize": "File Size",
+    "noCategory": "No Category",
+    "save": "Save"
+  },
+  "share": {
+    "title": "Share {count} photo(s)",
+    "hint": "Link valid for 7 days. Anyone with the link can view.",
+    "generating": "Generating...",
+    "copyLink": "Copy Link",
+    "invalid": "Share link is invalid or expired"
+  },
+  "editor": {
+    "rotate": "Rotate",
+    "mirror": "Mirror",
+    "crop": "Crop",
+    "reset": "Reset",
+    "apply": "Apply",
+    "cancel": "Cancel",
+    "done": "Edit complete",
+    "failed": "Edit failed"
+  },
+  "timeline": {
+    "sortNewest": "Newest First",
+    "sortOldest": "Oldest First",
+    "sortLabel": "Time Order",
+    "loading": "Loading...",
+    "empty": "No photos with date information"
+  },
+  "map": {
+    "loading": "Loading...",
+    "empty": "No photos with GPS location data. Please upload JPEG/WebP images with EXIF GPS data."
+  },
+  "filter": {
+    "categories": "Categories",
+    "tags": "Tags",
+    "newCategory": "+ New Category",
+    "newTag": "+ New Tag",
+    "editName": "Enter new name"
+  },
+  "rateLimit": {
+    "tooMany": "Too many requests, please try again later"
+  },
+  "general": {
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "close": "✕",
+    "lightMode": "Switch to light mode",
+    "darkMode": "Switch to dark mode",
+    "backTop": "↑",
+    "operationFailed": "Operation failed",
+    "serverError": "Internal server error",
+    "requestFailed": "Request failed",
+    "unknownError": "Unknown error"
+  }
+}

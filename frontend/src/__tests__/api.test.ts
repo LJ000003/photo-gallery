@@ -60,7 +60,7 @@ describe('api', () => {
     const reloadMock = vi.fn()
     vi.stubGlobal('location', { reload: reloadMock })
 
-    await expect(api('/api/photos')).rejects.toThrow('登录已过期，请重新解锁')
+    await expect(api('/api/photos')).rejects.toThrow('Session expired')
     expect(localStorage.getItem('jwt_token')).toBeNull()
     expect(localStorage.getItem('konami_unlocked')).toBeNull()
   })
@@ -73,7 +73,7 @@ describe('api', () => {
     const reloadMock = vi.fn()
     vi.stubGlobal('location', { reload: reloadMock })
 
-    await expect(api('/api/photos')).rejects.toThrow('登录已过期，请重新解锁')
+    await expect(api('/api/photos')).rejects.toThrow('Session expired')
     expect(localStorage.getItem('jwt_token')).toBeNull()
   })
 })
@@ -100,6 +100,6 @@ describe('requestToken', () => {
     const mockFetch = vi.fn().mockResolvedValue({ ok: false })
     vi.stubGlobal('fetch', mockFetch)
 
-    await expect(requestToken()).rejects.toThrow('认证失败')
+    await expect(requestToken()).rejects.toThrow('Authentication failed')
   })
 })

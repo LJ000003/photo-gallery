@@ -22,7 +22,8 @@ services:
     container_name: photo-manager
     restart: always
     ports:
-      - "80:8080"
+      # 仅绑定 localhost，cloudflared 通过 localhost 连接
+      - "127.0.0.1:8080:8080"
     environment:
       SPRING_PROFILES_ACTIVE: prod
       DB_HOST: ${DB_HOST:-mysql}

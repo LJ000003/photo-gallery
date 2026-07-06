@@ -101,16 +101,7 @@ public class PhotoService {
         Path target = uploadDir.resolve(storedName);
         Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
 
-        imageService.autoRotateIfNeeded(target);
-
-        if (watermark != null && !watermark.isBlank()) {
-            imageService.applyWatermark(target, watermark);
-        }
-
-        imageService.generateThumbnail(target, dateDir, baseName);
-        imageService.generateThumbnail(target, dateDir, baseName, 200);
-        imageService.generateWebp(target, dateDir, baseName);
-
+        // 先存 Photo 拿到 ID，然后在图片处理之前提取 EXIF（否则重编码会丢失 EXIF）
         Photo photo = new Photo();
         photo.setName(name != null && !name.isBlank() ? name : file.getOriginalFilename());
         photo.setDescription(description);
@@ -129,11 +120,22 @@ public class PhotoService {
 
         Photo saved = repo.save(photo);
 
+        // 图片处理之前提取 EXIF，保留原始元数据
         try {
             exifService.extractAndSave(saved, target);
         } catch (Exception e) {
             // EXIF extraction failure should not block upload
         }
+
+        imageService.autoRotateIfNeeded(target);
+
+        if (watermark != null && !watermark.isBlank()) {
+            imageService.applyWatermark(target, watermark);
+        }
+
+        imageService.generateThumbnail(target, dateDir, baseName);
+        imageService.generateThumbnail(target, dateDir, baseName, 200);
+        imageService.generateWebp(target, dateDir, baseName);
 
         return saved;
     }

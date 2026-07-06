@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import UploadCard from '../UploadCard.vue'
+import i18n from '../../i18n'
 
 // Mock vue-router (needed by the page components)
 vi.mock('vue-router', () => ({
@@ -48,65 +49,48 @@ beforeEach(() => {
 })
 
 describe('UploadCard', () => {
+  const stubOpts = {
+    global: {
+      plugins: [i18n],
+      stubs: { ImageEditor: true, LottieLoader: true },
+    },
+  }
+
   it('renders the upload form', () => {
-    const wrapper = mount(UploadCard, {
-      global: {
-        stubs: {
-          ImageEditor: true,
-          LottieLoader: true,
-        },
-      },
-    })
+    const wrapper = mount(UploadCard, stubOpts)
 
     expect(wrapper.find('.upload-card').exists()).toBe(true)
-    expect(wrapper.find('h2').text()).toBe('上传照片')
+    expect(wrapper.find('h2').text()).toContain('Upload')
     expect(wrapper.find('input[type="file"]').exists()).toBe(true)
     expect(wrapper.find('button[type="submit"]').exists()).toBe(true)
   })
 
   it('shows file label with drag-and-drop hint', () => {
-    const wrapper = mount(UploadCard, {
-      global: {
-        stubs: { ImageEditor: true, LottieLoader: true },
-      },
-    })
+    const wrapper = mount(UploadCard, stubOpts)
 
     const label = wrapper.find('label[for="fileInput"]')
-    expect(label.text()).toContain('点击选择')
-    expect(label.text()).toContain('拖拽')
+    expect(label.text()).toContain('Click')
   })
 
   it('renders category select and tag chips', () => {
-    const wrapper = mount(UploadCard, {
-      global: {
-        stubs: { ImageEditor: true, LottieLoader: true },
-      },
-    })
+    const wrapper = mount(UploadCard, stubOpts)
 
     expect(wrapper.find('select.mini-select').exists()).toBe(true)
     const chips = wrapper.findAll('.tag-chip')
-    expect(chips.length).toBeGreaterThanOrEqual(0) // at least none or more
+    expect(chips.length).toBeGreaterThanOrEqual(0)
   })
 
   it('submit button is initially enabled', () => {
-    const wrapper = mount(UploadCard, {
-      global: {
-        stubs: { ImageEditor: true, LottieLoader: true },
-      },
-    })
+    const wrapper = mount(UploadCard, stubOpts)
 
     const btn = wrapper.find('button[type="submit"]')
     expect(btn.attributes('disabled')).toBeUndefined()
   })
 
   it('renders form input fields', () => {
-    const wrapper = mount(UploadCard, {
-      global: {
-        stubs: { ImageEditor: true, LottieLoader: true },
-      },
-    })
+    const wrapper = mount(UploadCard, stubOpts)
 
     const inputs = wrapper.findAll('input[type="text"]')
-    expect(inputs.length).toBeGreaterThanOrEqual(2) // name + desc + watermark
+    expect(inputs.length).toBeGreaterThanOrEqual(2)
   })
 })

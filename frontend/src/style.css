@@ -942,6 +942,11 @@ button[type='submit']:hover,
   margin: 0 auto;
 }
 
+/* 纯居中工具栏（无左侧按钮的页面） */
+.gallery-toolbar.centered {
+  justify-content: center;
+}
+
 /* === 排序开关 === */
 .sort-switch {
   display: flex;
@@ -1163,6 +1168,7 @@ button[type='submit']:hover,
 .map-wrap {
   margin-top: 24px;
   min-height: 400px;
+  width: 100%;
 }
 .map-loading,
 .map-empty {
@@ -1177,6 +1183,9 @@ button[type='submit']:hover,
   border-radius: 12px;
   overflow: hidden;
   border: 1px solid var(--border);
+}
+.map-container :deep(.leaflet-container) {
+  width: 100% !important;
 }
 
 /* === 画廊区域 === */
@@ -2060,6 +2069,10 @@ button[type='submit']:hover,
     flex-direction: column;
     padding: 16px 12px 48px;
     gap: 16px;
+    align-items: stretch;
+  }
+  .main-content {
+    width: 100%;
   }
 
   /* 侧边栏 — 固定覆盖层 */
@@ -2226,7 +2239,6 @@ button[type='submit']:hover,
     justify-content: center;
     flex-wrap: wrap;
     gap: 8px;
-    margin: 0;
   }
   .toolbar-center .search-input {
     flex: 1 1 100%;
@@ -2263,12 +2275,31 @@ button[type='submit']:hover,
     height: calc(100vh - 260px);
     min-height: 300px;
     width: 100% !important;
-    margin: 0 auto;
+    margin: 0;
     border-radius: 8px;
+    overflow: hidden;
+  }
+  .map-container .leaflet-container {
+    background: var(--bg-card);
+    width: 100% !important;
   }
   .leaflet-control-zoom {
     display: none;
   }
+      /* 相册 */
+      .album-wrap > .gallery-toolbar {
+        justify-content: center;
+      }
+      .btn-create-album {
+        margin-left: 0;
+      }
+      .album-detail-header {
+        justify-content: center;
+        text-align: center;
+      }
+      .album-grid {
+        justify-content: center;
+      }
 }
 
 /* 桌面端汉堡按钮隐藏 */
@@ -2391,6 +2422,9 @@ button[type='submit']:hover,
 .album-wrap {
   margin-top: 4px;
 }
+.album-wrap > .gallery-toolbar {
+  justify-content: center;
+}
 
 /* 相册卡片网格 */
 .album-grid {
@@ -2470,7 +2504,6 @@ button[type='submit']:hover,
   font-size: 13px;
   padding: 8px 18px;
   border-radius: 8px;
-  margin-left: auto;
   white-space: nowrap;
 }
 .btn-create-album:hover {

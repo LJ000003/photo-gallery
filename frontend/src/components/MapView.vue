@@ -25,6 +25,7 @@ const loading = ref(true)
 const mapContainer = ref<HTMLElement | null>(null)
 let map: L.Map | null = null
 let mapResizeObs: ResizeObserver | null = null
+let fixSize: (() => void) | null = null
 
 function tokenParam(): string {
   const t = ui.token
@@ -47,7 +48,12 @@ onMounted(async () => {
 
 function initMap(): void {
   if (!mapContainer.value) return
-  map = L.map(mapContainer.value, {
+
+  // 强制容器占满宽度后再初始化
+  const container = mapContainer.value as HTMLElement
+  container.style.width = '100%'
+
+  map = L.map(container, {
     center: [35, 105],
     zoom: 4,
     worldCopyJump: false,
@@ -100,19 +106,38 @@ function initMap(): void {
   }
 
   if (mapContainer.value) {
+    // 监听容器自身尺寸变化
     mapResizeObs = new ResizeObserver(() => {
-      map?.invalidateSize()
+      map?.invalidateSize({ animate: false })
     })
     mapResizeObs.observe(mapContainer.value)
+    // 同时监听父级 .main-content 尺寸变化（移动端侧边栏切换等场景）
+    const mainContent = mapContainer.value.closest('.main-content')
+    if (mainContent) mapResizeObs.observe(mainContent)
   }
 
-  requestAnimationFrame(() => {
-    map?.invalidateSize()
-  })
+  // 多次触发确保稳定
+  fixSize = () => {
+    if (mapContainer.value) {
+      mapContainer.value.style.width = '100%'
+    }
+    map?.invalidateSize({ animate: false })
+  }
+  requestAnimationFrame(() => requestAnimationFrame(fixSize!))
+  setTimeout(fixSize, 100)
+  setTimeout(fixSize, 300)
+  setTimeout(fixSize, 600)
+
+  // 窗口 resize 兜底
+  window.addEventListener('resize', fixSize)
 }
 
 onUnmounted(() => {
   mapResizeObs?.disconnect()
+  if (fixSize) {
+    window.removeEventListener('resize', fixSize)
+    fixSize = null
+  }
   map?.remove()
   map = null
 })

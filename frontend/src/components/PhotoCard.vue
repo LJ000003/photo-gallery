@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import gsap from 'gsap'
 import { webpUrl, thumbUrl, thumbSrcset } from '../webp'
 import { api } from '../api'
@@ -10,6 +11,7 @@ import ImageEditor from './ImageEditor.vue'
 import type { Photo } from '../types/photo'
 import type { TransformParams } from '../types/transform'
 
+const { t } = useI18n()
 const confirmFn = useConfirm()
 const toast = useToastStore()
 const photoStore = usePhotoStore()
@@ -72,13 +74,13 @@ async function onImageEditDone({ params }: { params: TransformParams; blob: Blob
       body: JSON.stringify(params),
     })
     if (res.ok) {
-      toast.success('图片编辑完成')
+      toast.success(t('editor.done'))
       photoStore.resetAndReload()
     } else {
-      toast.error('编辑失败')
+      toast.error(t('editor.failed'))
     }
   } catch {
-    toast.error('编辑失败')
+    toast.error(t('editor.failed'))
   }
 }
 
@@ -114,7 +116,7 @@ function tiltOff(): void {
 }
 
 async function onDelete(): Promise<void> {
-  if (!(await confirmFn('确定要删除这张照片吗？', '删除照片'))) return
+  if (!(await confirmFn(t('photo.deleteConfirm'), t('photo.delete')))) return
   await gsap.to(cardRef.value, {
     scale: 0.7,
     opacity: 0,
@@ -152,7 +154,7 @@ async function onDelete(): Promise<void> {
         loading="lazy"
       />
       <div class="photo-overlay">
-        <button class="btn-view" @click.stop="$emit('view')">查看</button>
+        <button class="btn-view" @click.stop="$emit('view')">{{ $t('photo.view') }}</button>
       </div>
     </div>
     <div class="photo-body">
@@ -180,9 +182,9 @@ async function onDelete(): Promise<void> {
         >
       </div>
       <div class="photo-actions">
-        <button class="btn-edit" @click="$emit('edit')">编辑</button>
-        <button class="btn-img-edit" title="编辑图片" @click="openImageEditor">✂</button>
-        <button class="btn-del" @click="onDelete">删除</button>
+        <button class="btn-edit" @click="$emit('edit')">{{ $t('photo.edit') }}</button>
+        <button class="btn-img-edit" :title="$t('upload.editImage')" @click="openImageEditor">✂</button>
+        <button class="btn-del" @click="onDelete">{{ $t('photo.delete') }}</button>
       </div>
     </div>
   </div>
