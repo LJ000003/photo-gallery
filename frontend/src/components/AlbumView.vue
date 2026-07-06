@@ -5,6 +5,8 @@ import { api } from '../api'
 import { useStore } from '../store'
 import { useToastStore } from '../stores/toast'
 import { useConfirm } from '../useConfirm'
+import { tokenParam } from '../utils/token'
+import { formatSize } from '../utils/format'
 import AlbumEditModal from './AlbumEditModal.vue'
 import type { Album } from '../types/album'
 import type { Photo } from '../types/photo'
@@ -173,6 +175,8 @@ watch([() => props.sortBy, () => props.sortOrder], () => {
   if (selectedAlbum.value) loadAlbumPhotos(true)
 })
 
+onMounted(loadAlbums)
+
 watch(albumPhotos, () => {
   nextTick(() => {
     if (albumPhotos.value.length <= 20) {
@@ -185,19 +189,6 @@ watch(albumPhotos, () => {
   })
 })
 
-function tokenParam(): string {
-  const t = localStorage.getItem('jwt_token')
-  return t ? `?token=${t}` : ''
-}
-
-function formatSize(bytes: number | undefined): string {
-  if (!bytes) return ''
-  if (bytes < 1024) return bytes + ' B'
-  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB'
-  return (bytes / 1048576).toFixed(1) + ' MB'
-}
-
-onMounted(loadAlbums)
 </script>
 
 <template>

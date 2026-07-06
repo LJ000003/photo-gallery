@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useRoute } from 'vue-router'
 import TimelineView from '../components/TimelineView.vue'
+import ViewSwitcher from '../components/ViewSwitcher.vue'
 import { useUiStore } from '../stores/ui'
 import type { Photo } from '../types/photo'
 
@@ -22,27 +23,20 @@ function onTimelineClick(e: MouseEvent): void {
     <h2>{{ $t('gallery.myPhotos') }}</h2>
     <div class="gallery-toolbar centered">
       <div class="toolbar-center">
-        <div class="view-switch">
-          <span class="sort-label">{{ $t('nav.view') }}：</span>
-          <div class="view-track">
-            <router-link to="/" class="view-opt">{{ $t('nav.grid') }}</router-link>
-            <router-link to="/albums" class="view-opt">{{ $t('nav.albums') }}</router-link>
-            <router-link to="/timeline" class="view-opt" :class="{ active: true }" @click="onTimelineClick">
-              {{ $t('nav.timeline') }}
-              <span class="sort-arrows">
-                <i
-                  class="iconfont icon-jiantou_qiehuanxiangshang_o sort-arrow-down"
-                  :class="{ active: timelineSortOrder === 'asc' }"
-                ></i>
-                <i
-                  class="iconfont icon-jiantou_qiehuanxiangshang_o"
-                  :class="{ active: timelineSortOrder === 'desc' }"
-                ></i>
-              </span>
-            </router-link>
-            <router-link to="/map" class="view-opt">地图</router-link>
-          </div>
-        </div>
+        <ViewSwitcher :current-path="route.path">
+          <template #suffix-timeline>
+            <span class="sort-arrows">
+              <i
+                class="iconfont icon-jiantou_qiehuanxiangshang_o sort-arrow-down"
+                :class="{ active: timelineSortOrder === 'asc' }"
+              ></i>
+              <i
+                class="iconfont icon-jiantou_qiehuanxiangshang_o"
+                :class="{ active: timelineSortOrder === 'desc' }"
+              ></i>
+            </span>
+          </template>
+        </ViewSwitcher>
       </div>
     </div>
     <TimelineView :sort-order="timelineSortOrder" @view="(p) => (ui.viewPhoto = p as Photo)" />

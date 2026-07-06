@@ -3,6 +3,8 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import gsap from 'gsap'
 import { webpUrl, thumbUrl, thumbSrcset } from '../webp'
+import { tokenParam, tokenQS } from '../utils/token'
+import { formatSize } from '../utils/format'
 import { api } from '../api'
 import { useToastStore } from '../stores/toast'
 import { usePhotoStore } from '../stores/photo'
@@ -44,25 +46,12 @@ function highlightSegments(text: string | undefined): HighlightSegment[] {
 const nameSegments = computed(() => highlightSegments(props.photo.name))
 const descSegments = computed(() => highlightSegments(props.photo.description))
 
-function tokenParam(): string {
-  const t = localStorage.getItem('jwt_token') || localStorage.getItem('token')
-  let q = t ? `?token=${t}` : ''
-  const v = props.photo.fileSize ? `v=${props.photo.fileSize}` : ''
-  if (v) q += q ? `&${v}` : `?${v}`
-  return q
-}
-
-function tokenQS(): string {
-  const p = tokenParam()
-  return p ? '&' + p.slice(1) : ''
-}
-
 const cardRef = ref<HTMLElement | null>(null)
 const editorVisible = ref(false)
 const editorSrc = ref('')
 
 function openImageEditor(): void {
-  editorSrc.value = `${webpUrl(props.photo.id)}${tokenParam()}`
+  editorSrc.value = `${webpUrl(props.photo.id)}${tokenParam(props.photo.fileSize)}`
   editorVisible.value = true
 }
 
@@ -82,12 +71,6 @@ async function onImageEditDone({ params }: { params: TransformParams; blob: Blob
   } catch {
     toast.error(t('editor.failed'))
   }
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return bytes + ' B'
-  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB'
-  return (bytes / 1048576).toFixed(1) + ' MB'
 }
 
 function tiltOn(e: MouseEvent): void {
@@ -144,10 +127,10 @@ async function onDelete(): Promise<void> {
     </div>
     <div class="photo-thumb" @click="$emit('view')">
       <img
-        :src="thumbUrl(photo.id, 400) + tokenQS()"
+        :src="thumbUrl(photo.id, 400) + tokenQS(photo.fileSize)"
         :srcset="thumbSrcset(photo.id)
           .split(', ')
-          .map((s) => s + tokenQS())
+          .map((s) => s + tokenQS(photo.fileSize))
           .join(', ')"
         sizes="(max-width: 768px) calc((100vw - 24px) / 2), (max-width: 1400px) calc((100vw - 280px) / 4), 280px"
         :alt="photo.name"

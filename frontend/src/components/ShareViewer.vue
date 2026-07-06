@@ -2,6 +2,7 @@
 import { ref, onMounted, defineAsyncComponent, nextTick } from 'vue'
 import gsap from 'gsap'
 import { webpUrl } from '../webp'
+import { formatSize } from '../utils/format'
 import { api } from '../api'
 import type { Photo } from '../types/photo'
 import type { PageResponse } from '../types/api'
@@ -51,13 +52,6 @@ async function load(): Promise<void> {
 function onScroll(): void {
   if (!hasMore.value || loading.value) return
   if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 200) load()
-}
-
-function formatSize(bytes: number | undefined): string {
-  if (!bytes) return ''
-  if (bytes < 1024) return bytes + ' B'
-  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB'
-  return (bytes / 1048576).toFixed(1) + ' MB'
 }
 
 onMounted(() => {
