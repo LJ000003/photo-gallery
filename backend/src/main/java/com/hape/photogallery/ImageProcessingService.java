@@ -98,8 +98,15 @@ public class ImageProcessingService {
         if (image == null) return;
 
         int h = (int) ((double) image.getHeight() / image.getWidth() * width);
-        BufferedImage thumb = new BufferedImage(width, h, BufferedImage.TYPE_INT_RGB);
+        boolean hasAlpha = image.getColorModel().hasAlpha();
+        int type = hasAlpha ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB;
+        BufferedImage thumb = new BufferedImage(width, h, type);
         Graphics2D g = thumb.createGraphics();
+        if (hasAlpha) {
+            g.setComposite(java.awt.AlphaComposite.Clear);
+            g.fillRect(0, 0, width, h);
+            g.setComposite(java.awt.AlphaComposite.SrcOver);
+        }
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
         g.drawImage(image, 0, 0, width, h, null);
         g.dispose();
