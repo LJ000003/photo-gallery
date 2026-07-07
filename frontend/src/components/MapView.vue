@@ -21,31 +21,69 @@ L.Icon.Default.mergeOptions({
 const emit = defineEmits<{ view: [p: object] }>()
 const ui = useUiStore()
 
-const items = ref<MapExifItem[]>([])
 const loading = ref(true)
 const mapContainer = ref<HTMLElement | null>(null)
 let map: L.Map | null = null
 let mapResizeObs: ResizeObserver | null = null
 let fixSize: (() => void) | null = null
+let clusterGroup: L.MarkerClusterGroup | null = null
+let fetchId = 0
 
-onMounted(async () => {
+function boundsToParams(): string {
+  if (!map) return ''
+  const b = map.getBounds()
+  return `swLat=${b.getSouthWest().lat.toFixed(6)}&swLng=${b.getSouthWest().lng.toFixed(6)}&neLat=${b.getNorthEast().lat.toFixed(6)}&neLng=${b.getNorthEast().lng.toFixed(6)}`
+}
+
+async function fetchMarkers(): Promise<void> {
+  if (!map || !clusterGroup) return
+  const myId = ++fetchId
   try {
-    const res = await api('/api/photos/map')
-    const data = await res.json()
-    if (data.code === 200) items.value = data.data || []
+    const res = await api(`/api/photos/map?${boundsToParams()}`)
+    const json = await res.json()
+    if (json.code !== 200 || myId !== fetchId) return
+    const data: MapExifItem[] = json.data || []
+
+    clusterGroup.clearLayers()
+    const markers: L.LatLngTuple[] = []
+    for (const exif of data) {
+      if (exif.latitude == null || exif.longitude == null) continue
+      const latlng: L.LatLngTuple = [exif.latitude, exif.longitude]
+      markers.push(latlng)
+      const marker = L.marker(latlng)
+      marker.bindPopup(`
+        <div style="text-align:center;max-width:200px;">
+          <img src="${exif.photoThumbnail}${tokenParam()}" alt="${exif.photoName}"
+            style="width:100%;max-width:160px;height:auto;aspect-ratio:3/2;object-fit:cover;border-radius:6px;margin-bottom:4px;" />
+          <p style="margin:0;font-size:13px;word-break:break-all;">${exif.photoName}</p>
+        </div>
+      `)
+      marker.on('click', () => {
+        emit('view', { id: exif.photoId, name: exif.photoName })
+      })
+      clusterGroup!.addLayer(marker)
+    }
   } catch (e) {
     console.error('Failed to load map data', e)
   } finally {
-    loading.value = false
-    await nextTick()
-    if (items.value.length > 0) initMap()
+    if (myId === fetchId) loading.value = false
   }
+}
+
+let moveTimer: ReturnType<typeof setTimeout> | null = null
+function onMoveEnd(): void {
+  if (moveTimer) clearTimeout(moveTimer)
+  moveTimer = setTimeout(() => fetchMarkers(), 300)
+}
+
+onMounted(async () => {
+  await nextTick()
+  initMap()
 })
 
 function initMap(): void {
   if (!mapContainer.value) return
 
-  // 强制容器占满宽度后再初始化
   const container = mapContainer.value as HTMLElement
   container.style.width = '100%'
 
@@ -60,6 +98,7 @@ function initMap(): void {
     maxBoundsViscosity: 1.0,
     minZoom: 2,
   })
+
   L.tileLayer(
     'https://webst0{s}.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}',
     {
@@ -78,50 +117,25 @@ function initMap(): void {
     },
   ).addTo(map)
 
-  const clusterGroup = L.markerClusterGroup({
+  clusterGroup = L.markerClusterGroup({
     maxClusterRadius: 60,
     spiderfyOnMaxZoom: true,
     showCoverageOnHover: false,
     zoomToBoundsOnClick: true,
   })
 
-  const markers: L.LatLngTuple[] = []
-  for (const exif of items.value) {
-    if (exif.latitude == null || exif.longitude == null) continue
-    const latlng: L.LatLngTuple = [exif.latitude, exif.longitude]
-    markers.push(latlng)
-    const marker = L.marker(latlng)
-    marker.bindPopup(`
-      <div style="text-align:center;max-width:200px;">
-        <img src="${exif.photoThumbnail}${tokenParam()}" alt="${exif.photoName}"
-          style="width:100%;max-width:160px;height:auto;aspect-ratio:3/2;object-fit:cover;border-radius:6px;margin-bottom:4px;" />
-        <p style="margin:0;font-size:13px;word-break:break-all;">${exif.photoName}</p>
-      </div>
-    `)
-    marker.on('click', () => {
-      emit('view', { id: exif.photoId, name: exif.photoName })
-    })
-    clusterGroup.addLayer(marker)
-  }
-
   map.addLayer(clusterGroup)
-
-  if (markers.length > 0) {
-    map.fitBounds(markers, { padding: [40, 40] })
-  }
+  map.on('moveend', onMoveEnd)
 
   if (mapContainer.value) {
-    // 监听容器自身尺寸变化
     mapResizeObs = new ResizeObserver(() => {
       map?.invalidateSize({ animate: false })
     })
     mapResizeObs.observe(mapContainer.value)
-    // 同时监听父级 .main-content 尺寸变化（移动端侧边栏切换等场景）
     const mainContent = mapContainer.value.closest('.main-content')
     if (mainContent) mapResizeObs.observe(mainContent)
   }
 
-  // 多次触发确保稳定
   fixSize = () => {
     if (mapContainer.value) {
       mapContainer.value.style.width = '100%'
@@ -133,8 +147,10 @@ function initMap(): void {
   setTimeout(fixSize, 300)
   setTimeout(fixSize, 600)
 
-  // 窗口 resize 兜底
   window.addEventListener('resize', fixSize)
+
+  // 地图就绪后首次加载
+  fetchMarkers()
 }
 
 onUnmounted(() => {
@@ -143,6 +159,7 @@ onUnmounted(() => {
     window.removeEventListener('resize', fixSize)
     fixSize = null
   }
+  if (moveTimer) clearTimeout(moveTimer)
   map?.remove()
   map = null
 })
@@ -151,9 +168,6 @@ onUnmounted(() => {
 <template>
   <div class="map-wrap">
     <div v-if="loading" class="map-loading">加载中...</div>
-    <div v-else-if="items.length === 0" class="map-empty">
-      没有包含 GPS 位置信息的照片，请上传带有 EXIF GPS 数据的 JPEG/WebP 图片
-    </div>
     <div ref="mapContainer" class="map-container"></div>
   </div>
 </template>
