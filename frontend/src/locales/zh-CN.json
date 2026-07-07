@@ -37,6 +37,7 @@
     "selectHint": "点击选择 / 拖拽 / 粘贴 (Ctrl+V)",
     "selected": "已选 {count} 张",
     "compressing": "压缩中...",
+    "maxBatch": "单次最多上传 {max} 张图片",
     "noCategory": "无分类",
     "namePlaceholder": "照片名称（可选）",
     "descPlaceholder": "照片描述（可选）",

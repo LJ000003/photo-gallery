@@ -309,9 +309,11 @@ class PhotoServiceTest {
         e.setPhoto(p);
         e.setDateTaken(LocalDateTime.of(2026, 1, 15, 10, 0));
         e.setCameraModel("Canon");
-        when(exifRepo.findWithDateTakenAndPhotoDesc()).thenReturn(List.of(e));
+        PageRequest pr = PageRequest.of(0, 50);
+        when(exifRepo.findWithDateTakenAndPhotoDesc(pr)).thenReturn(new PageImpl<>(List.of(e)));
 
-        List<TimelineItem> items = service.getTimeline("desc");
+        Page<TimelineItem> page = service.getTimeline("desc", pr);
+        List<TimelineItem> items = page.getContent();
         assertThat(items).hasSize(1);
         assertThat(items.get(0).getPhotoId()).isEqualTo(10L);
         assertThat(items.get(0).getCameraModel()).isEqualTo("Canon");
@@ -319,9 +321,10 @@ class PhotoServiceTest {
 
     @Test
     void getTimeline_asc_shouldCallAsc() {
-        when(exifRepo.findWithDateTakenAndPhotoAsc()).thenReturn(List.of());
-        service.getTimeline("asc");
-        verify(exifRepo).findWithDateTakenAndPhotoAsc();
+        PageRequest pr = PageRequest.of(0, 50);
+        when(exifRepo.findWithDateTakenAndPhotoAsc(pr)).thenReturn(new PageImpl<>(List.of()));
+        service.getTimeline("asc", pr);
+        verify(exifRepo).findWithDateTakenAndPhotoAsc(pr);
     }
 
     // ==================== getMapPhotos ====================
@@ -332,9 +335,11 @@ class PhotoServiceTest {
         e.setLatitude(39.9); e.setLongitude(116.4);
         Photo p = new Photo(); p.setId(10L); p.setName("map1");
         e.setPhoto(p);
-        when(exifRepo.findWithGpsAndPhoto()).thenReturn(List.of(e));
+        PageRequest pr = PageRequest.of(0, 500);
+        when(exifRepo.findWithGpsInBounds(eq(30.0), eq(100.0), eq(50.0), eq(130.0), eq(pr)))
+                .thenReturn(List.of(e));
 
-        List<MapItem> items = service.getMapPhotos();
+        List<MapItem> items = service.getMapPhotos(30.0, 100.0, 50.0, 130.0);
         assertThat(items).hasSize(1);
         assertThat(items.get(0).getPhotoId()).isEqualTo(10L);
         // coordinates should have been transformed from WGS84 to GCJ02
@@ -346,7 +351,7 @@ class PhotoServiceTest {
 
     @Test
     void extractExifForExisting_shouldProcessAllPhotos() {
-        when(photoRepo.findAll()).thenReturn(List.of());
+        when(photoRepo.findAll(any(PageRequest.class))).thenReturn(Page.empty());
         int count = service.extractExifForExisting();
         assertThat(count).isEqualTo(0);
     }

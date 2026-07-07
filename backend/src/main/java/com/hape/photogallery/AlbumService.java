@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Set;
 
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -21,11 +22,12 @@ public class AlbumService {
         this.photoRepo = photoRepo;
     }
 
+    @Cacheable("albums")
     public List<Album> listAll() {
         return albumRepo.findAll();
     }
 
-    @CacheEvict(value = "photos", allEntries = true)
+    @CacheEvict(value = {"albums", "photos"}, allEntries = true)
     @Transactional
     public Album create(String name, String description, List<Long> photoIds) {
         Album a = new Album(name);
@@ -44,7 +46,7 @@ public class AlbumService {
         return a;
     }
 
-    @CacheEvict(value = "photos", allEntries = true)
+    @CacheEvict(value = {"albums", "photos"}, allEntries = true)
     @Transactional
     public Album update(Long id, String name, String description, List<Long> photoIds) {
         Album a = albumRepo.findById(id).orElseThrow(() -> new BusinessException(404, "相册不存在"));
@@ -72,7 +74,7 @@ public class AlbumService {
     }
 
     @Transactional
-    @CacheEvict(value = "photos", allEntries = true)
+    @CacheEvict(value = {"albums", "photos"}, allEntries = true)
     public void delete(Long id) {
         Album a = albumRepo.findById(id).orElseThrow(() -> new BusinessException(404, "相册不存在"));
         for (Photo p : new HashSet<>(a.getPhotos())) {

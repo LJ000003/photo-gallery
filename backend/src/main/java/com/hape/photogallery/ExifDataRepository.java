@@ -1,5 +1,7 @@
 package com.hape.photogallery;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -13,18 +15,25 @@ public interface ExifDataRepository extends JpaRepository<ExifData, Long> {
 
     void deleteByPhoto_IdIn(List<Long> photoIds);
 
-    @Query("SELECT e FROM ExifData e WHERE e.dateTaken IS NOT NULL ORDER BY e.dateTaken DESC")
-    List<ExifData> findWithDateTaken();
+    // === 时间线（分页） ===
 
-    @Query("SELECT e FROM ExifData e WHERE e.latitude IS NOT NULL AND e.longitude IS NOT NULL AND NOT (e.latitude = 0 AND e.longitude = 0)")
-    List<ExifData> findWithGps();
+    @Query(value = "SELECT e FROM ExifData e JOIN FETCH e.photo p WHERE e.dateTaken IS NOT NULL",
+           countQuery = "SELECT COUNT(e) FROM ExifData e WHERE e.dateTaken IS NOT NULL")
+    Page<ExifData> findWithDateTakenAndPhotoDesc(Pageable pageable);
 
-    @Query("SELECT e FROM ExifData e JOIN FETCH e.photo p WHERE e.dateTaken IS NOT NULL ORDER BY e.dateTaken DESC")
-    List<ExifData> findWithDateTakenAndPhotoDesc();
+    @Query(value = "SELECT e FROM ExifData e JOIN FETCH e.photo p WHERE e.dateTaken IS NOT NULL",
+           countQuery = "SELECT COUNT(e) FROM ExifData e WHERE e.dateTaken IS NOT NULL")
+    Page<ExifData> findWithDateTakenAndPhotoAsc(Pageable pageable);
 
-    @Query("SELECT e FROM ExifData e JOIN FETCH e.photo p WHERE e.dateTaken IS NOT NULL ORDER BY e.dateTaken ASC")
-    List<ExifData> findWithDateTakenAndPhotoAsc();
+    // === 地图（边界框 + 数量限制） ===
 
-    @Query("SELECT e FROM ExifData e JOIN FETCH e.photo p WHERE e.latitude IS NOT NULL AND e.longitude IS NOT NULL AND NOT (e.latitude = 0 AND e.longitude = 0)")
-    List<ExifData> findWithGpsAndPhoto();
+    @Query("SELECT e FROM ExifData e JOIN FETCH e.photo p " +
+           "WHERE e.latitude BETWEEN :swLat AND :neLat " +
+           "AND e.longitude BETWEEN :swLng AND :neLng " +
+           "AND NOT (e.latitude = 0 AND e.longitude = 0)")
+    List<ExifData> findWithGpsInBounds(@Param("swLat") double swLat,
+                                       @Param("swLng") double swLng,
+                                       @Param("neLat") double neLat,
+                                       @Param("neLng") double neLng,
+                                       Pageable pageable);
 }

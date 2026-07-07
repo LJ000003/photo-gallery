@@ -11,6 +11,8 @@ import type { ImageEditResult } from '../types/transform'
 const { t } = useI18n()
 const toast = useToastStore()
 
+const MAX_BATCH = 50
+
 const emit = defineEmits<{ uploaded: [] }>()
 
 const { tags: allTags, categories: allCats, loadAll } = useStore()
@@ -42,6 +44,11 @@ const uploadProgress = ref(-1)
 function onFileChange(e: Event): void {
   const files = (e.target as HTMLInputElement).files
   if (!files) return
+  if (files.length > MAX_BATCH) {
+    toast.error(t('upload.maxBatch', { max: MAX_BATCH }))
+    if (fileInput.value) fileInput.value.value = ''
+    return
+  }
   revokePreviews()
   editedBlobs.value = {}
   if (previewEditedSrc.value) {

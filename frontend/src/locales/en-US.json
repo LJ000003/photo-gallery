@@ -37,6 +37,7 @@
     "selectHint": "Click / Drag / Paste (Ctrl+V)",
     "selected": "{count} selected",
     "compressing": "Compressing...",
+    "maxBatch": "Maximum {max} photos per batch",
     "noCategory": "No Category",
     "namePlaceholder": "Photo name (optional)",
     "descPlaceholder": "Photo description (optional)",

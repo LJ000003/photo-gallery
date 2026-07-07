@@ -20,6 +20,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -89,7 +90,7 @@ public class PhotoService {
     }
 
     @Transactional
-    @CacheEvict(value = "photos", allEntries = true)
+    @CacheEvict(value = {"photos", "timeline", "map"}, allEntries = true)
     public Photo upload(MultipartFile file, String name, String description,
                         List<Long> tagIds, Long categoryId, String watermark) throws IOException {
         if (file.getSize() > MAX_FILE_SIZE) {
@@ -146,7 +147,7 @@ public class PhotoService {
         return saved;
     }
 
-    @CacheEvict(value = "photos", allEntries = true)
+    @CacheEvict(value = {"photos", "timeline", "map"}, allEntries = true)
     @Transactional
     public PhotoResponse update(Long id, PhotoUpdateRequest req) {
         Photo photo = getById(id);
@@ -219,7 +220,7 @@ public class PhotoService {
     // === 删除 ===
 
     @Transactional
-    @CacheEvict(value = "photos", allEntries = true)
+    @CacheEvict(value = {"photos", "timeline", "map"}, allEntries = true)
     public void delete(Long id) {
         Photo photo = getById(id);
         exifRepo.findByPhoto_Id(id).ifPresent(exifRepo::delete);
@@ -228,7 +229,7 @@ public class PhotoService {
     }
 
     @Transactional
-    @CacheEvict(value = "photos", allEntries = true)
+    @CacheEvict(value = {"photos", "timeline", "map"}, allEntries = true)
     public int batchDelete(List<Long> ids) {
         List<Photo> photos = repo.findAllById(ids);
         if (photos.isEmpty()) return 0;
@@ -256,7 +257,7 @@ public class PhotoService {
 
     // === 批量上传 ===
 
-    @CacheEvict(value = "photos", allEntries = true)
+    @CacheEvict(value = {"photos", "timeline", "map"}, allEntries = true)
     public List<Photo> batchUpload(List<MultipartFile> files, String name, String description,
                                     List<Long> tagIds, Long categoryId, String watermark) throws IOException {
         List<Photo> results = new ArrayList<>();
@@ -269,55 +270,70 @@ public class PhotoService {
 
     // === 迁移 ===
 
+    private static final int BATCH_SIZE = 100;
+
     public int migrateThumbnails() {
-        List<Photo> all = repo.findAll();
         int count = 0;
-        for (Photo p : all) {
-            String fn = p.getFileName();
-            int lastSlash = fn.lastIndexOf('/');
-            String dateDir = fn.substring(0, lastSlash);
-            String baseName = fn.substring(lastSlash + 1);
-            Path thumb = uploadDir.resolve(dateDir).resolve("thumbnails").resolve(baseName);
-            if (Files.exists(thumb)) continue;
-            Path original = uploadDir.resolve(fn);
-            if (!Files.exists(original)) continue;
-            try {
-                imageService.generateThumbnail(original, dateDir, baseName);
-                if (Files.exists(thumb)) count++;
-            } catch (IOException ignored) {}
-        }
+        var pageable = PageRequest.of(0, BATCH_SIZE);
+        Page<Photo> page;
+        do {
+            page = repo.findAll(pageable);
+            for (Photo p : page.getContent()) {
+                String fn = p.getFileName();
+                int lastSlash = fn.lastIndexOf('/');
+                String dateDir = fn.substring(0, lastSlash);
+                String baseName = fn.substring(lastSlash + 1);
+                Path thumb = uploadDir.resolve(dateDir).resolve("thumbnails").resolve(baseName);
+                if (Files.exists(thumb)) continue;
+                Path original = uploadDir.resolve(fn);
+                if (!Files.exists(original)) continue;
+                try {
+                    imageService.generateThumbnail(original, dateDir, baseName);
+                    if (Files.exists(thumb)) count++;
+                } catch (IOException ignored) {}
+            }
+            pageable = pageable.next();
+        } while (page.hasNext());
         return count;
     }
 
     public int migrateWebp() {
-        List<Photo> all = repo.findAll();
         int count = 0;
-        for (Photo p : all) {
-            String fn = p.getFileName();
-            int lastSlash = fn.lastIndexOf('/');
-            String dateDir = fn.substring(0, lastSlash);
-            String baseName = fn.substring(lastSlash + 1);
-            Path webp = uploadDir.resolve(dateDir).resolve("webp").resolve(baseName + ".webp");
-            if (Files.exists(webp)) continue;
-            Path original = uploadDir.resolve(fn);
-            if (!Files.exists(original)) continue;
-            imageService.generateWebp(original, dateDir, baseName);
-            if (Files.exists(webp)) count++;
-        }
+        var pageable = PageRequest.of(0, BATCH_SIZE);
+        Page<Photo> page;
+        do {
+            page = repo.findAll(pageable);
+            for (Photo p : page.getContent()) {
+                String fn = p.getFileName();
+                int lastSlash = fn.lastIndexOf('/');
+                String dateDir = fn.substring(0, lastSlash);
+                String baseName = fn.substring(lastSlash + 1);
+                Path webp = uploadDir.resolve(dateDir).resolve("webp").resolve(baseName + ".webp");
+                if (Files.exists(webp)) continue;
+                Path original = uploadDir.resolve(fn);
+                if (!Files.exists(original)) continue;
+                imageService.generateWebp(original, dateDir, baseName);
+                if (Files.exists(webp)) count++;
+            }
+            pageable = pageable.next();
+        } while (page.hasNext());
         return count;
     }
 
     // === EXIF ===
 
-    public List<TimelineItem> getTimeline(String sortOrder) {
-        List<ExifData> list = "asc".equalsIgnoreCase(sortOrder)
-                ? exifRepo.findWithDateTakenAndPhotoAsc()
-                : exifRepo.findWithDateTakenAndPhotoDesc();
-        return list.stream().map(this::toTimelineItem).toList();
+    @Cacheable(value = "timeline", key = "{#sortOrder, #pageable}")
+    public Page<TimelineItem> getTimeline(String sortOrder, Pageable pageable) {
+        Page<ExifData> page = "asc".equalsIgnoreCase(sortOrder)
+                ? exifRepo.findWithDateTakenAndPhotoAsc(pageable)
+                : exifRepo.findWithDateTakenAndPhotoDesc(pageable);
+        return page.map(this::toTimelineItem);
     }
 
-    public List<MapItem> getMapPhotos() {
-        List<ExifData> list = exifRepo.findWithGpsAndPhoto();
+    @Cacheable(value = "map", key = "{#swLat, #swLng, #neLat, #neLng}")
+    public List<MapItem> getMapPhotos(double swLat, double swLng, double neLat, double neLng) {
+        List<ExifData> list = exifRepo.findWithGpsInBounds(swLat, swLng, neLat, neLng,
+                PageRequest.of(0, 500));
         for (ExifData e : list) {
             double[] gcj = CoordUtil.wgs84ToGcj02(e.getLongitude(), e.getLatitude());
             e.setLongitude(gcj[0]);
@@ -327,8 +343,15 @@ public class PhotoService {
     }
 
     public int extractExifForExisting() {
-        var photos = repo.findAll();
-        return exifService.extractForExisting(photos, uploadDir);
+        int count = 0;
+        var pageable = PageRequest.of(0, BATCH_SIZE);
+        Page<Photo> page;
+        do {
+            page = repo.findAll(pageable);
+            count += exifService.extractForExisting(page.getContent(), uploadDir);
+            pageable = pageable.next();
+        } while (page.hasNext());
+        return count;
     }
 
     public ExifData extractExifForPhoto(Long id) {
@@ -341,7 +364,7 @@ public class PhotoService {
     // === 变换 ===
 
     @Transactional
-    @CacheEvict(value = "photos", allEntries = true)
+    @CacheEvict(value = {"photos", "timeline", "map"}, allEntries = true)
     public void transformPhoto(Long id, int rotate, String mirror, Double cx, Double cy, Double cw, Double ch) throws IOException {
         Photo photo = getById(id);
         Path filePath = uploadDir.resolve(photo.getFileName());

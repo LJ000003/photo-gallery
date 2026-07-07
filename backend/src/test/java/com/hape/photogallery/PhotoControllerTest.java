@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
@@ -19,6 +20,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -145,8 +147,8 @@ class PhotoControllerTest {
 
     @Test
     void timeline_shouldReturnList() throws Exception {
-        TimelineItem item = new TimelineItem();
-        when(service.getTimeline(eq("desc"))).thenReturn(List.of(item));
+        when(service.getTimeline(eq("desc"), any(PageRequest.class)))
+                .thenReturn(Page.empty());
 
         mockMvc.perform(get("/api/photos/timeline"))
                 .andExpect(status().isOk())
@@ -156,9 +158,10 @@ class PhotoControllerTest {
     @Test
     void mapPhotos_shouldReturnList() throws Exception {
         MapItem item = new MapItem();
-        when(service.getMapPhotos()).thenReturn(List.of(item));
+        when(service.getMapPhotos(anyDouble(), anyDouble(), anyDouble(), anyDouble()))
+                .thenReturn(List.of(item));
 
-        mockMvc.perform(get("/api/photos/map"))
+        mockMvc.perform(get("/api/photos/map?swLat=30&swLng=100&neLat=50&neLng=130"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
     }

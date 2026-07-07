@@ -72,6 +72,8 @@ public class PhotoController {
         return service.toResponse(service.upload(file, name, description, tagIds, categoryId, watermark));
     }
 
+    private static final int MAX_BATCH_SIZE = 50;
+
     @PostMapping("/photos/batch")
     public ApiResponse<List<PhotoResponse>> batchUpload(
             @RequestParam("files") List<MultipartFile> files,
@@ -81,6 +83,9 @@ public class PhotoController {
             @RequestParam(value = "categoryId", required = false) Long categoryId,
             @RequestParam(value = "watermark", required = false) String watermark)
             throws IOException {
+        if (files.size() > MAX_BATCH_SIZE) {
+            throw new BusinessException(400, "单次最多上传 " + MAX_BATCH_SIZE + " 张图片");
+        }
         List<PhotoResponse> result = service.batchUpload(files, name, description, tagIds, categoryId, watermark)
                 .stream().map(service::toResponse).toList();
         return ApiResponse.success(result);
@@ -145,14 +150,19 @@ public class PhotoController {
     }
 
     @GetMapping("/photos/timeline")
-    public ApiResponse<List<TimelineItem>> timeline(
-            @RequestParam(defaultValue = "desc") String sortOrder) {
-        return ApiResponse.success(service.getTimeline(sortOrder));
+    public ApiResponse<Page<TimelineItem>> timeline(
+            @RequestParam(defaultValue = "desc") String sortOrder,
+            @PageableDefault(size = 50) Pageable pageable) {
+        return ApiResponse.success(service.getTimeline(sortOrder, pageable));
     }
 
     @GetMapping("/photos/map")
-    public ApiResponse<List<MapItem>> mapPhotos() {
-        return ApiResponse.success(service.getMapPhotos());
+    public ApiResponse<List<MapItem>> mapPhotos(
+            @RequestParam double swLat,
+            @RequestParam double swLng,
+            @RequestParam double neLat,
+            @RequestParam double neLng) {
+        return ApiResponse.success(service.getMapPhotos(swLat, swLng, neLat, neLng));
     }
 
     @PostMapping("/photos/extract-exif")
