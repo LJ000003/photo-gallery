@@ -57,13 +57,13 @@
 ### EXIF 与浏览
 - **EXIF 提取** — 拍摄时间、相机型号、焦距、光圈、快门、ISO、GPS
 - **时间线** — 按年月分组，正序/倒序
-- **地图** — Leaflet 聚合标注，WGS-84 → GCJ-02 坐标转换，高德卫星底图，移动端自适应高度 + ResizeObserver
+- **地图** — Leaflet 聚合标注，WGS-84 → GCJ-02 坐标转换，高德卫星底图 + 道路标注叠加，移动端自适应高度 + ResizeObserver
 
 ### 安全
 - **Konami 门禁** — 密码序列解锁（↑↑↓↓←→←→ B A B A），键盘 + 触摸双模式
 - **JWT 双角色** — admin（管理）/ viewer（分享查看）
 - **限时分享链接** — 选中照片生成 7 天链接，朋友无需密码即可查看
-- **IP 令牌桶限流** — `/api/auth/unlock` 每 IP 每秒最多 10 次（Caffeine 实现）
+- **IP 限流** — `/api/auth/unlock` 每 IP 每秒最多 10 次（Caffeine 固定窗口计数）
 - **BCrypt 密码哈希** — 管理密码加密存储
 - **缓存一致性** — 所有写操作（照片/相册/标签/分类）自动驱逐列表缓存
 
@@ -96,7 +96,7 @@ photo-gallery/
 │   │   ├── SecurityConfig.java                 # SecurityFilterChain + CORS + BCrypt
 │   │   ├── JwtUtil.java                        # HS256 JWT 签发与验签
 │   │   ├── JwtAuthFilter.java                  # OncePerRequestFilter
-│   │   ├── RateLimitFilter.java                # IP 令牌桶限流（Caffeine）
+│   │   ├── RateLimitFilter.java                # IP 限流（固定窗口计数 + Caffeine）
 │   │   ├── AuthController.java                 # POST /api/auth/unlock + 分享生成
 │   │   ├── ShareController.java                # 分享链接 + 落地面
 │   │   ├── Photo.java / Tag.java / Category.java / Album.java
@@ -136,7 +136,7 @@ photo-gallery/
 │   │   └── pwa-icon.svg                        # PWA 图标
 │   └── src/
 │       ├── main.ts                             # 入口（Pinia + Router + i18n + SW 注册）
-│       ├── App.vue                             # 根组件（布局/事件/动画/鉴权）
+│       ├── App.vue                             # 根组件（RouterView 入口）
 │       ├── api.ts                              # fetch 封装 + JWT 注入 + 401 处理 + i18n
 │       ├── i18n.ts                             # vue-i18n 配置（浏览器语言检测）
 │       ├── upload.ts                           # 客户端压缩 + XHR 进度上传
@@ -152,6 +152,8 @@ photo-gallery/
 │       │   ├── ui.ts                           # JWT + 解锁状态 + 弹窗状态
 │       │   └── toast.ts                        # Toast 通知队列
 │       ├── types/                              # TypeScript 类型定义
+│       ├── layouts/
+│       │   └── MainLayout.vue                   # 主布局（Konami 门禁 / 布局 / 事件 / 动画）
 │       └── components/
 │           ├── KonamiGate.vue                  # Konami 密码门禁
 │           ├── AppHeader.vue                   # 渐变标题

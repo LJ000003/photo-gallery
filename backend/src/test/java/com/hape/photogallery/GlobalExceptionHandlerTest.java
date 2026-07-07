@@ -87,16 +87,16 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void handleRuntimeException_shouldNotLeakMessage() {
+    void handleException_shouldNotLeakMessage() {
         RuntimeException ex = new RuntimeException("内部数据库密码: secret123");
-        ResponseEntity<ApiResponse<Void>> res = handler.handleRuntimeException(ex);
+        ResponseEntity<ApiResponse<Void>> res = handler.handleException(ex);
         assertThat(res.getStatusCode().value()).isEqualTo(500);
         assertThat(res.getBody().getMessage()).doesNotContain("secret123");
         assertThat(res.getBody().getMessage()).isEqualTo("系统繁忙，请稍后重试");
     }
 
     @Test
-    void handleGenericException() {
+    void handleException_checkException() {
         Exception ex = new Exception("未知错误");
         ResponseEntity<ApiResponse<Void>> res = handler.handleException(ex);
         assertThat(res.getStatusCode().value()).isEqualTo(500);

@@ -13,7 +13,6 @@ if (-not (Test-Path "node_modules")) {
   npm ci
   if ($LASTEXITCODE -ne 0) { throw "npm ci failed" }
 }
-$env:VITE_ADMIN_PASSWORD = if ($env:ADMIN_PASSWORD) { $env:ADMIN_PASSWORD } else { "photoadmin" }
 npm run build
 if ($LASTEXITCODE -ne 0) { throw "Frontend build failed" }
 

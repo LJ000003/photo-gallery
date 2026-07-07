@@ -43,12 +43,7 @@ router.beforeEach((to) => {
   if (to.path.startsWith('/share/')) return true
 
   const ui = useUiStore()
-  if (!ui.unlocked) {
-    document.title = '照片管理器 — 已锁定'
-    return false
-  }
-
-  document.title = '照片管理器'
+  document.title = ui.unlocked ? '照片管理器' : '照片管理器 — 已锁定'
   return true
 })
 

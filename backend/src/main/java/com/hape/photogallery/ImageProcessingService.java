@@ -98,8 +98,15 @@ public class ImageProcessingService {
         if (image == null) return;
 
         int h = (int) ((double) image.getHeight() / image.getWidth() * width);
-        BufferedImage thumb = new BufferedImage(width, h, BufferedImage.TYPE_INT_RGB);
+        boolean hasAlpha = image.getColorModel().hasAlpha();
+        int type = hasAlpha ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB;
+        BufferedImage thumb = new BufferedImage(width, h, type);
         Graphics2D g = thumb.createGraphics();
+        if (hasAlpha) {
+            g.setComposite(java.awt.AlphaComposite.Clear);
+            g.fillRect(0, 0, width, h);
+            g.setComposite(java.awt.AlphaComposite.SrcOver);
+        }
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
         g.drawImage(image, 0, 0, width, h, null);
         g.dispose();
@@ -113,12 +120,15 @@ public class ImageProcessingService {
         java.util.Iterator<ImageWriter> writers = ImageIO.getImageWritersByFormatName("jpeg");
         if (writers.hasNext()) {
             ImageWriter writer = writers.next();
-            ImageWriteParam param = writer.getDefaultWriteParam();
-            param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
-            param.setCompressionQuality(0.75f);
-            writer.setOutput(new FileImageOutputStream(thumbPath.toFile()));
-            writer.write(null, new IIOImage(thumb, null, null), param);
-            writer.dispose();
+            try {
+                ImageWriteParam param = writer.getDefaultWriteParam();
+                param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+                param.setCompressionQuality(0.75f);
+                writer.setOutput(new FileImageOutputStream(thumbPath.toFile()));
+                writer.write(null, new IIOImage(thumb, null, null), param);
+            } finally {
+                writer.dispose();
+            }
         } else {
             ImageIO.write(thumb, "jpeg", thumbPath.toFile());
         }
@@ -143,15 +153,18 @@ public class ImageProcessingService {
             java.util.Iterator<ImageWriter> writers = ImageIO.getImageWritersByMIMEType("image/webp");
             if (!writers.hasNext()) return;
             ImageWriter writer = writers.next();
-            ImageWriteParam param = writer.getDefaultWriteParam();
-            param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
-            if (param.canWriteCompressed()) {
-                param.setCompressionType("Lossy");
-                param.setCompressionQuality(0.8f);
+            try {
+                ImageWriteParam param = writer.getDefaultWriteParam();
+                param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+                if (param.canWriteCompressed()) {
+                    param.setCompressionType("Lossy");
+                    param.setCompressionQuality(0.8f);
+                }
+                writer.setOutput(new FileImageOutputStream(webpPath.toFile()));
+                writer.write(null, new IIOImage(img, null, null), param);
+            } finally {
+                writer.dispose();
             }
-            writer.setOutput(new FileImageOutputStream(webpPath.toFile()));
-            writer.write(null, new IIOImage(img, null, null), param);
-            writer.dispose();
         } catch (IOException e) {
             // WebP generation failure is non-fatal
         }

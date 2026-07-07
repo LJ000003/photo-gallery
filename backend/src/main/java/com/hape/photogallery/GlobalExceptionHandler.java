@@ -68,13 +68,6 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(404, "资源不存在"));
     }
 
-    @ExceptionHandler(RuntimeException.class)
-    public ResponseEntity<ApiResponse<Void>> handleRuntimeException(RuntimeException ex) {
-        log.error("Unexpected runtime error", ex);
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error(500, "系统繁忙，请稍后重试"));
-    }
-
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleException(Exception ex) {
         log.error("Unhandled exception in request", ex);

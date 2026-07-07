@@ -5,7 +5,6 @@
   },
   "auth": {
     "title": "Unlock Photo Gallery",
-    "enterPassword": "Enter admin password",
     "unlock": "Unlock",
     "success": "Authenticated",
     "failed": "Authentication failed, please retry",
