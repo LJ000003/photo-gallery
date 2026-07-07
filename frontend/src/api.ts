@@ -1,8 +1,6 @@
 import type { ApiResponse } from './types/api'
 import i18n from './i18n'
 
-const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || 'photoadmin'
-
 export async function api(
   url: string,
   options: RequestInit & { body?: unknown; token?: string; skipAuth?: boolean } = {},
@@ -35,7 +33,6 @@ export async function requestToken(): Promise<string> {
   const res = await fetch('/api/auth/unlock', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ password: ADMIN_PASSWORD }),
   })
   if (!res.ok) throw new Error(i18n.global.t('auth.failed'))
   const data: ApiResponse<{ token: string }> = await res.json()

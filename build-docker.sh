@@ -13,7 +13,6 @@ if [ ! -d "node_modules" ]; then
   echo "  → 安装依赖..."
   npm ci
 fi
-export VITE_ADMIN_PASSWORD="${ADMIN_PASSWORD:-photoadmin}"
 npm run build
 
 echo ""

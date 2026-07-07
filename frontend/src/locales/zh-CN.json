@@ -5,7 +5,6 @@
   },
   "auth": {
     "title": "照片管理器解锁",
-    "enterPassword": "输入管理密码",
     "unlock": "解锁",
     "success": "认证成功",
     "failed": "认证失败，请重试",
