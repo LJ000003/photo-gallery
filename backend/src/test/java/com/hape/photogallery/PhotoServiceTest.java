@@ -285,9 +285,7 @@ class PhotoServiceTest {
     void batchDelete_shouldReturnCount() {
         Photo p1 = new Photo(); p1.setId(1L); p1.setName("a"); p1.setFileName("2026/07/a.jpg");
         Photo p2 = new Photo(); p2.setId(2L); p2.setName("b"); p2.setFileName("2026/07/b.jpg");
-        when(photoRepo.findById(1L)).thenReturn(Optional.of(p1));
-        when(photoRepo.findById(2L)).thenReturn(Optional.of(p2));
-        when(exifRepo.findByPhoto_Id(any())).thenReturn(Optional.empty());
+        when(photoRepo.findAllById(List.of(1L, 2L))).thenReturn(List.of(p1, p2));
 
         int count = service.batchDelete(List.of(1L, 2L));
         assertThat(count).isEqualTo(2);
@@ -295,7 +293,7 @@ class PhotoServiceTest {
 
     @Test
     void batchDelete_skipMissing() {
-        when(photoRepo.findById(1L)).thenReturn(Optional.empty());
+        when(photoRepo.findAllById(List.of(1L))).thenReturn(List.of());
 
         int count = service.batchDelete(List.of(1L));
         assertThat(count).isEqualTo(0);
