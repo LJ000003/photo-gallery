@@ -165,9 +165,18 @@ public class PhotoService {
 
     // === 文件路径 ===
 
+    /** 安全解析上传目录内的相对路径，防止 ../ 穿越 */
+    private Path resolveSafe(String relativePath) {
+        Path resolved = uploadDir.resolve(relativePath).normalize();
+        if (!resolved.startsWith(uploadDir)) {
+            throw new SecurityException("Invalid file path");
+        }
+        return resolved;
+    }
+
     public Path getFilePath(Long id) {
         Photo photo = getById(id);
-        return uploadDir.resolve(photo.getFileName());
+        return resolveSafe(photo.getFileName());
     }
 
     public Path getThumbnailPath(Long id) {
@@ -184,16 +193,16 @@ public class PhotoService {
         Path thumbDir = width == 400
                 ? uploadDir.resolve(dateDir).resolve("thumbnails")
                 : uploadDir.resolve(dateDir).resolve("thumbnails").resolve(String.valueOf(width));
-        Path thumb = thumbDir.resolve(baseName);
+        Path thumb = resolveSafe(uploadDir.relativize(thumbDir.resolve(baseName)).toString());
         if (Files.exists(thumb)) return thumb;
 
         // 小尺寸不存在时，回退到 400px 档
         if (width != 400) {
-            Path fallback = uploadDir.resolve(dateDir).resolve("thumbnails").resolve(baseName);
+            Path fallback = resolveSafe(dateDir + "/thumbnails/" + baseName);
             if (Files.exists(fallback)) return fallback;
         }
 
-        return uploadDir.resolve(fn);
+        return resolveSafe(fn);
     }
 
     public Path getWebpPath(Long id) {
@@ -202,7 +211,7 @@ public class PhotoService {
         int lastSlash = fn.lastIndexOf('/');
         String dateDir = fn.substring(0, lastSlash);
         String baseName = fn.substring(lastSlash + 1);
-        Path webp = uploadDir.resolve(dateDir).resolve("webp").resolve(baseName + ".webp");
+        Path webp = resolveSafe(dateDir + "/webp/" + baseName + ".webp");
         if (Files.exists(webp)) return webp;
         return getFilePath(id);
     }

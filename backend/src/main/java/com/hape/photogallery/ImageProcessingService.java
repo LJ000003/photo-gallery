@@ -120,12 +120,15 @@ public class ImageProcessingService {
         java.util.Iterator<ImageWriter> writers = ImageIO.getImageWritersByFormatName("jpeg");
         if (writers.hasNext()) {
             ImageWriter writer = writers.next();
-            ImageWriteParam param = writer.getDefaultWriteParam();
-            param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
-            param.setCompressionQuality(0.75f);
-            writer.setOutput(new FileImageOutputStream(thumbPath.toFile()));
-            writer.write(null, new IIOImage(thumb, null, null), param);
-            writer.dispose();
+            try {
+                ImageWriteParam param = writer.getDefaultWriteParam();
+                param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+                param.setCompressionQuality(0.75f);
+                writer.setOutput(new FileImageOutputStream(thumbPath.toFile()));
+                writer.write(null, new IIOImage(thumb, null, null), param);
+            } finally {
+                writer.dispose();
+            }
         } else {
             ImageIO.write(thumb, "jpeg", thumbPath.toFile());
         }
@@ -150,15 +153,18 @@ public class ImageProcessingService {
             java.util.Iterator<ImageWriter> writers = ImageIO.getImageWritersByMIMEType("image/webp");
             if (!writers.hasNext()) return;
             ImageWriter writer = writers.next();
-            ImageWriteParam param = writer.getDefaultWriteParam();
-            param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
-            if (param.canWriteCompressed()) {
-                param.setCompressionType("Lossy");
-                param.setCompressionQuality(0.8f);
+            try {
+                ImageWriteParam param = writer.getDefaultWriteParam();
+                param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+                if (param.canWriteCompressed()) {
+                    param.setCompressionType("Lossy");
+                    param.setCompressionQuality(0.8f);
+                }
+                writer.setOutput(new FileImageOutputStream(webpPath.toFile()));
+                writer.write(null, new IIOImage(img, null, null), param);
+            } finally {
+                writer.dispose();
             }
-            writer.setOutput(new FileImageOutputStream(webpPath.toFile()));
-            writer.write(null, new IIOImage(img, null, null), param);
-            writer.dispose();
         } catch (IOException e) {
             // WebP generation failure is non-fatal
         }
