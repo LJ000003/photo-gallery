@@ -88,6 +88,7 @@ public class PhotoService {
         return repo.findByIdIn(ids, pageable);
     }
 
+    @Transactional
     @CacheEvict(value = "photos", allEntries = true)
     public Photo upload(MultipartFile file, String name, String description,
                         List<Long> tagIds, Long categoryId, String watermark) throws IOException {
@@ -208,26 +209,27 @@ public class PhotoService {
 
     // === 删除 ===
 
+    @Transactional
     @CacheEvict(value = "photos", allEntries = true)
     public void delete(Long id) {
         Photo photo = getById(id);
-        deletePhotoFiles(photo);
         exifRepo.findByPhoto_Id(id).ifPresent(exifRepo::delete);
         repo.delete(photo);
+        deletePhotoFiles(photo);
     }
 
+    @Transactional
     @CacheEvict(value = "photos", allEntries = true)
     public int batchDelete(List<Long> ids) {
-        int count = 0;
-        for (Long id : ids) {
-            Photo photo = repo.findById(id).orElse(null);
-            if (photo == null) continue;
+        List<Photo> photos = repo.findAllById(ids);
+        if (photos.isEmpty()) return 0;
+        List<Long> photoIds = photos.stream().map(Photo::getId).toList();
+        exifRepo.deleteByPhoto_IdIn(photoIds);
+        repo.deleteAll(photos);
+        for (Photo photo : photos) {
             deletePhotoFiles(photo);
-            exifRepo.findByPhoto_Id(id).ifPresent(exifRepo::delete);
-            repo.delete(photo);
-            count++;
         }
-        return count;
+        return photos.size();
     }
 
     private void deletePhotoFiles(Photo photo) {

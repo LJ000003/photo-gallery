@@ -11,6 +11,8 @@ public interface ExifDataRepository extends JpaRepository<ExifData, Long> {
 
     Optional<ExifData> findByPhoto_Id(Long photoId);
 
+    void deleteByPhoto_IdIn(List<Long> photoIds);
+
     @Query("SELECT e FROM ExifData e WHERE e.dateTaken IS NOT NULL ORDER BY e.dateTaken DESC")
     List<ExifData> findWithDateTaken();
 
