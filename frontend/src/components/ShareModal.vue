@@ -30,3 +30,33 @@ const emit = defineEmits<{
     </div>
   </div>
 </template>
+
+<style scoped>
+.share-hint {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 14px;
+}
+.share-loading {
+  text-align: center;
+  color: var(--accent);
+  padding: 20px 0;
+}
+.share-row {
+  display: flex;
+  gap: 10px;
+}
+.share-input {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  outline: none;
+}
+.share-input:focus {
+  border-color: var(--accent2);
+}
+</style>

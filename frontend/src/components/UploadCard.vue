@@ -339,3 +339,205 @@ async function onSubmit(): Promise<void> {
     @done="onEditorDone"
   />
 </template>
+
+<style scoped>
+.upload-card {
+  background: var(--glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px;
+  margin-bottom: 32px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  transition: border-color 0.4s;
+}
+.upload-card:hover {
+  border-color: rgba(0, 212, 255, 0.3);
+}
+.upload-card h2 {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 18px;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.file-area {
+  position: relative;
+  margin-bottom: 16px;
+}
+.file-area input[type='file'] {
+  display: none;
+}
+.file-area label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 150px;
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  color: var(--text-dim);
+  background: rgba(255, 255, 255, 0.02);
+  transition: all 0.3s;
+}
+.file-area label:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(0, 212, 255, 0.05);
+  box-shadow: var(--glow-cyan);
+}
+.file-area label.drag-over {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(0, 212, 255, 0.1);
+  box-shadow: 0 0 30px rgba(0, 212, 255, 0.5);
+  transform: scale(1.02);
+}
+.file-icon {
+  font-size: 40px;
+  font-weight: 200;
+  line-height: 1;
+}
+.file-area img {
+  width: 100%;
+  height: 220px;
+  object-fit: contain;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.3);
+}
+.single-preview-wrap {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+}
+.preview-hidden {
+  display: none !important;
+}
+
+.form-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.form-row input {
+  flex: 1;
+  min-width: 150px;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 14px;
+  color: var(--text);
+  outline: none;
+  transition: all 0.3s;
+}
+.form-row input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1);
+}
+.form-row input::placeholder {
+  color: var(--text-dim);
+}
+
+.upload-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+.progress-track {
+  flex: 1;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  border-radius: 3px;
+  transition: width 0.2s ease;
+}
+.progress-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  min-width: 36px;
+  text-align: right;
+}
+
+@media (max-width: 768px) {
+  .upload-card {
+    padding: 18px;
+    margin-bottom: 20px;
+  }
+  .file-area label {
+    height: 120px;
+    font-size: 13px;
+  }
+  .file-area img {
+    height: 160px;
+  }
+  .form-row {
+    flex-direction: column;
+  }
+  .preview-grid {
+    grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+    max-height: 150px;
+  }
+  .preview-item img {
+    height: 56px;
+  }
+  .preview-item span {
+    font-size: 10px;
+  }
+}
+
+.btn-clear {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-dim);
+  font-size: 13px;
+  padding: 12px 20px;
+}
+.btn-clear:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text);
+}
+
+.preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.preview-item {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border);
+}
+.preview-item img {
+  width: 100%;
+  height: 80px;
+  object-fit: cover;
+  display: block;
+}
+.preview-item span {
+  display: block;
+  padding: 4px 6px;
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+</style>

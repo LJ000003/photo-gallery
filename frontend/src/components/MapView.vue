@@ -171,3 +171,41 @@ onUnmounted(() => {
     <div ref="mapContainer" class="map-container"></div>
   </div>
 </template>
+
+<style scoped>
+.map-wrap {
+  margin-top: 24px;
+  min-height: 400px;
+  width: 100%;
+}
+.map-loading,
+.map-empty {
+  text-align: center;
+  color: var(--text-dim);
+  padding: 60px 20px;
+  font-size: 15px;
+}
+.map-container {
+  width: 100%;
+  height: 500px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+@media (max-width: 768px) {
+  .map-wrap {
+    margin-top: 16px;
+    min-height: 0;
+    width: 100%;
+  }
+  .map-container {
+    height: calc(100vh - 260px);
+    min-height: 300px;
+    width: 100% !important;
+    margin: 0;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+}
+</style>

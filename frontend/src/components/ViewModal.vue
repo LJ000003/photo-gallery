@@ -41,28 +41,30 @@ function onClose(): void {
 <template>
   <div id="viewModal" class="modal">
     <div class="modal-backdrop" @click="onClose"></div>
-    <div class="modal-content">
+    <div class="modal-content-wrap">
       <button class="modal-close" @click="onClose">&times;</button>
-      <div class="img-wrap">
-        <img
-          :src="`/api/photos/${photo.id}/thumbnail${tokenParam(photo.fileSize)}`"
-          :alt="photo.name"
-          decoding="async"
-          loading="lazy"
-        />
-        <img
-          class="img-full"
-          :class="{ show: fullLoaded }"
-          :src="`${webpUrl(photo.id)}${tokenParam(photo.fileSize)}`"
-          :alt="photo.name"
-          decoding="async"
-          loading="lazy"
-          @load="fullLoaded = true"
-        />
-      </div>
-      <div class="modal-info">
-        <h3>{{ photo.name }}</h3>
-        <p>{{ photo.description }}</p>
+      <div class="modal-content">
+        <div class="img-wrap">
+          <img
+            :src="`/api/photos/${photo.id}/thumbnail${tokenParam(photo.fileSize)}`"
+            :alt="photo.name"
+            decoding="async"
+            loading="lazy"
+          />
+          <img
+            class="img-full"
+            :class="{ show: fullLoaded }"
+            :src="`${webpUrl(photo.id)}${tokenParam(photo.fileSize)}`"
+            :alt="photo.name"
+            decoding="async"
+            loading="lazy"
+            @load="fullLoaded = true"
+          />
+        </div>
+        <div class="modal-info">
+          <h3>{{ photo.name }}</h3>
+          <p>{{ photo.description }}</p>
+        </div>
       </div>
     </div>
   </div>

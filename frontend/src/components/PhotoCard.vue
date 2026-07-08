@@ -178,3 +178,98 @@ async function onDelete(): Promise<void> {
     @done="onImageEditDone"
   />
 </template>
+
+<style scoped>
+.card-tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.card-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 10px;
+  color: #fff;
+}
+
+.btn-img-edit {
+  background: rgba(0, 212, 255, 0.1);
+  color: var(--accent);
+  font-size: 13px;
+  padding: 7px 10px;
+}
+.btn-img-edit:hover {
+  background: rgba(0, 212, 255, 0.25);
+  box-shadow: var(--glow);
+}
+
+.search-hl {
+  background: rgba(255, 200, 0, 0.35);
+  color: #ffd700;
+  border-radius: 2px;
+}
+.photo-desc {
+  font-size: 12px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 2px 0 4px;
+}
+.photo-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.card-check {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 5;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s;
+  opacity: 0;
+}
+.photo-card:hover .card-check,
+.photo-card.selected .card-check {
+  opacity: 1;
+}
+.photo-card.selected .card-check {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+.check-mark {
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+}
+.photo-card.selected {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 20px rgba(0, 212, 255, 0.2);
+}
+
+@media (max-width: 768px) {
+  .photo-actions {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .photo-actions button {
+    font-size: 11px;
+    padding: 5px 10px;
+  }
+  .photo-card:hover .card-check {
+    opacity: 0;
+  }
+}
+</style>

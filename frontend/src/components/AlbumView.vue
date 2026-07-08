@@ -8,6 +8,8 @@ import { useConfirm } from '../useConfirm'
 import { tokenParam } from '../utils/token'
 import { formatSize } from '../utils/format'
 import AlbumEditModal from './AlbumEditModal.vue'
+import SortSwitch from './SortSwitch.vue'
+import type { SortOption } from './SortSwitch.vue'
 import type { Album } from '../types/album'
 import type { Photo } from '../types/photo'
 import type { ApiResponse, PageResponse } from '../types/api'
@@ -35,6 +37,11 @@ const photoPage = ref(0)
 const photoHasMore = ref(false)
 const photoLoading = ref(false)
 const editingAlbum = ref<Album | { id: null; name: string; description: string } | null>(null)
+
+const sortOptions: SortOption[] = [
+  { key: 'time', label: 'gallery.sortTime' },
+  { key: 'name', label: 'gallery.sortName' },
+]
 
 function handleSort(key: string): void {
   if (props.sortBy === key) {
@@ -240,49 +247,12 @@ watch(albumPhotos, () => {
         <h3>
           {{ selectedAlbum.name }} <span class="album-count">({{ selectedAlbum.photoCount }})</span>
         </h3>
-        <div class="sort-switch">
-          <span class="sort-label">排序方式：</span>
-          <div class="sort-track sort-2cols">
-            <div
-              class="sort-slider"
-              :style="{ transform: `translateX(${props.sortBy === 'time' ? 0 : 100}%)` }"
-            ></div>
-            <button
-              class="sort-opt"
-              :class="{ active: props.sortBy === 'time' }"
-              @click="handleSort('time')"
-            >
-              时间
-              <span v-if="props.sortBy === 'time'" class="sort-arrows">
-                <i
-                  class="iconfont icon-jiantou_qiehuanxiangshang_o sort-arrow-down"
-                  :class="{ active: props.sortOrder === 'asc' }"
-                ></i>
-                <i
-                  class="iconfont icon-jiantou_qiehuanxiangshang_o"
-                  :class="{ active: props.sortOrder === 'desc' }"
-                ></i>
-              </span>
-            </button>
-            <button
-              class="sort-opt"
-              :class="{ active: props.sortBy === 'name' }"
-              @click="handleSort('name')"
-            >
-              名称
-              <span v-if="props.sortBy === 'name'" class="sort-arrows">
-                <i
-                  class="iconfont icon-jiantou_qiehuanxiangshang_o sort-arrow-down"
-                  :class="{ active: props.sortOrder === 'asc' }"
-                ></i>
-                <i
-                  class="iconfont icon-jiantou_qiehuanxiangshang_o"
-                  :class="{ active: props.sortOrder === 'desc' }"
-                ></i>
-              </span>
-            </button>
-          </div>
-        </div>
+        <SortSwitch
+          :options="sortOptions"
+          :model-value="props.sortBy"
+          :order="props.sortOrder"
+          @toggle="handleSort"
+        />
       </div>
       <div class="gallery">
         <div v-for="p in albumPhotos" :key="p.id" class="photo-card" @click="emit('view', p)">

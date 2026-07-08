@@ -1,9 +1,9 @@
 package com.hape.photogallery.dto;
 
-import com.hape.photogallery.Album;
-import com.hape.photogallery.Category;
-import com.hape.photogallery.Photo;
-import com.hape.photogallery.Tag;
+import com.hape.photogallery.entity.Album;
+import com.hape.photogallery.entity.Category;
+import com.hape.photogallery.entity.Photo;
+import com.hape.photogallery.entity.Tag;
 
 import java.time.LocalDateTime;
 import java.util.Set;

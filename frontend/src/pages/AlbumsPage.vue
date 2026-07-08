@@ -15,8 +15,8 @@ const albumSortBy = ref('time')
 const albumSortOrder = ref('desc')
 
 const sortOptions: SortOption[] = [
-  { key: 'time', label: '时间' },
-  { key: 'name', label: '名称' },
+  { key: 'time', label: 'gallery.sortTime' },
+  { key: 'name', label: 'gallery.sortName' },
 ]
 
 function onSortToggle(key: string): void {

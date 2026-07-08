@@ -33,3 +33,56 @@ function onLinkClick(path: string, e: MouseEvent): void {
     </div>
   </div>
 </template>
+
+<style scoped>
+.sort-label {
+  font-size: 13px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.view-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.view-track {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.view-opt {
+  position: relative;
+  padding: 8px 24px;
+  font-size: 14px;
+  color: var(--text-dim);
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--border);
+  cursor: pointer;
+  transition:
+    color 0.3s,
+    background 0.3s;
+}
+.view-opt:last-child {
+  border-right: none;
+}
+.view-opt.active {
+  color: var(--accent);
+  background: rgba(0, 212, 255, 0.12);
+}
+.view-opt:hover {
+  color: var(--text);
+}
+
+@media (max-width: 768px) {
+  .view-track {
+    margin: 0 auto;
+  }
+  .view-opt {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+}
+</style>

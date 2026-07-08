@@ -45,7 +45,7 @@
 ### 图片处理
 - **响应式缩略图** — 上传自动生成 200 px + 400 px 双档，前端 `srcset` + `sizes` 按视口和 DPR 自动选择
 - **编辑器** — Canvas 全分辨率旋转/镜像/裁剪
-- **水印** — 右下角半透明白色文字，字号自适应图片宽度
+- **水印** — 右下角半透明白色文字，字号自适应图片宽度，字体/大小/透明度可配置
 - **WebP** — 上传自动生成 Lossy WebP 副本，运行时检测浏览器支持
 - **EXIF 自动旋转** — 根据 Orientation 标签自动纠正方向
 
@@ -77,6 +77,7 @@
 - 后端：Spring MessageSource，`messages.properties` 双语错误消息
 
 ### 其他
+- 前端组件样式分量管理：组件独有样式使用 Vue `<style scoped>`，跨组件共享样式（弹窗骨架/按钮/移动端适配）保留全局 CSS
 - 健康检查端点 `/actuator/health`（DB + 磁盘空间）
 - Toast 通知、自定义确认弹窗、Lottie 加载动画
 - 回到顶部、光标拖尾、波纹效果
@@ -93,39 +94,62 @@ photo-gallery/
 │   ├── src/main/java/com/hape/photogallery/
 │   │   ├── PhotoGalleryApplication.java        # @SpringBootApplication + @EnableCaching
 │   │   ├── ApiResponse.java                    # 统一响应体 {code, message, data}
-│   │   ├── SecurityConfig.java                 # SecurityFilterChain + CORS + BCrypt
-│   │   ├── JwtUtil.java                        # HS256 JWT 签发与验签
-│   │   ├── JwtAuthFilter.java                  # OncePerRequestFilter
-│   │   ├── RateLimitFilter.java                # IP 限流（固定窗口计数 + Caffeine）
-│   │   ├── AuthController.java                 # POST /api/auth/unlock + 分享生成
-│   │   ├── ShareController.java                # 分享链接 + 落地面
-│   │   ├── Photo.java / Tag.java / Category.java / Album.java
-│   │   ├── ExifData.java                       # EXIF 元数据实体
-│   │   ├── PhotoController.java                # 照片 REST API
-│   │   ├── TagController.java                  # 标签 CRUD
-│   │   ├── CategoryController.java             # 分类 CRUD
-│   │   ├── AlbumController.java                # 相册 CRUD
-│   │   ├── PhotoService.java                   # 核心业务逻辑
-│   │   ├── TagService.java                     # 标签服务（含缓存驱逐）
-│   │   ├── CategoryService.java                # 分类服务（含缓存驱逐）
-│   │   ├── AlbumService.java                   # 相册服务（含缓存驱逐）
-│   │   ├── ImageProcessingService.java         # 缩略图(多档)/WebP/水印/旋转/镜像
-│   │   ├── PhotoRepository.java                # JPQL 分页 + 筛选 + 搜索
-│   │   ├── ExifService.java                    # metadata-extractor 集成
-│   │   ├── CoordUtil.java                      # WGS-84 → GCJ-02 坐标转换
-│   │   ├── CacheControlFilter.java             # 全局 Cache-Control 头
-│   │   └── GlobalExceptionHandler.java         # @RestControllerAdvice
+│   │   ├── controller/
+│   │   │   ├── AuthController.java             # POST /api/auth/unlock + 分享生成
+│   │   │   ├── ShareController.java            # 分享链接 + 落地面
+│   │   │   ├── PhotoController.java            # 照片 REST API
+│   │   │   ├── TagController.java              # 标签 CRUD
+│   │   │   ├── CategoryController.java         # 分类 CRUD
+│   │   │   ├── AlbumController.java            # 相册 CRUD
+│   │   │   └── HelloController.java            # 根端点
+│   │   ├── service/
+│   │   │   ├── PhotoService.java               # 核心业务逻辑
+│   │   │   ├── TagService.java                 # 标签服务（含缓存驱逐）
+│   │   │   ├── CategoryService.java            # 分类服务（含缓存驱逐）
+│   │   │   ├── AlbumService.java               # 相册服务（含缓存驱逐）
+│   │   │   ├── ImageProcessingService.java     # 缩略图(多档)/WebP/水印/旋转/镜像
+│   │   │   └── ExifService.java                # metadata-extractor 集成
+│   │   ├── repository/
+│   │   │   ├── PhotoRepository.java            # JPQL 分页 + 筛选 + 搜索
+│   │   │   ├── TagRepository.java
+│   │   │   ├── CategoryRepository.java
+│   │   │   ├── AlbumRepository.java
+│   │   │   └── ExifDataRepository.java
+│   │   ├── entity/
+│   │   │   ├── Photo.java                      # 照片实体
+│   │   │   ├── Tag.java                        # 标签实体
+│   │   │   ├── Category.java                   # 分类实体
+│   │   │   ├── Album.java                      # 相册实体
+│   │   │   └── ExifData.java                   # EXIF 元数据实体
+│   │   ├── dto/
+│   │   │   ├── PhotoResponse.java              # Photo DTO
+│   │   │   ├── PhotoUpdateRequest.java         # 更新请求体
+│   │   │   ├── TimelineItem.java               # 时间线项
+│   │   │   └── MapItem.java                    # 地图项（含 GCJ-02 坐标）
+│   │   ├── config/
+│   │   │   ├── SecurityConfig.java             # SecurityFilterChain + CORS + BCrypt
+│   │   │   ├── JwtUtil.java                    # HS256 JWT 签发与验签
+│   │   │   ├── JwtAuthFilter.java              # OncePerRequestFilter
+│   │   │   ├── RateLimitFilter.java            # IP 限流（固定窗口计数 + Caffeine）
+│   │   │   └── CacheControlFilter.java         # 全局 Cache-Control 头
+│   │   ├── exception/
+│   │   │   ├── BusinessException.java          # 业务异常
+│   │   │   ├── FileSizeExceededException.java  # 文件大小异常
+│   │   │   ├── InvalidFileTypeException.java   # 文件格式异常
+│   │   │   └── GlobalExceptionHandler.java     # @RestControllerAdvice
+│   │   └── util/
+│   │       └── CoordUtil.java                  # WGS-84 → GCJ-02 坐标转换
 │   ├── src/main/resources/
-│   │   ├── application.properties              # 公共配置 + Caffeine + i18n
+│   │   ├── application.properties              # 公共配置 + Caffeine + i18n + 水印
 │   │   ├── application-dev.yml                 # 开发环境 (ddl-auto: update)
 │   │   ├── application-prod.yml                # 生产环境 (ddl-auto: validate)
 │   │   ├── logback-spring.xml                  # 控制台 + 按天滚动 + 错误分离
 │   │   ├── i18n/
 │   │   │   ├── messages.properties             # 中文错误消息（默认）
 │   │   │   └── messages_en_US.properties       # 英文错误消息
-│   │   ├── db/migration/                       # Flyway V1–V4
+│   │   ├── db/migration/                       # Flyway V1–V5
 │   │   └── static/                             # 前端构建产物 (SPA)
-│   └── Dockerfile                              # JRE 17 Alpine
+│   └── Dockerfile                              # JRE 17 Alpine + Noto CJK 字体
 │
 ├── frontend/
 │   ├── .env / .env.example                     # 前端环境变量
@@ -137,11 +161,11 @@ photo-gallery/
 │   └── src/
 │       ├── main.ts                             # 入口（Pinia + Router + i18n + SW 注册）
 │       ├── App.vue                             # 根组件（RouterView 入口）
-│       ├── api.ts                              # fetch 封装 + JWT 注入 + 401 处理 + i18n
+│       ├── api.ts                              # fetch 封装 + JWT 注入 + AuthError 类型
 │       ├── i18n.ts                             # vue-i18n 配置（浏览器语言检测）
 │       ├── upload.ts                           # 客户端压缩 + XHR 进度上传
 │       ├── webp.ts                             # WebP 检测 + 响应式缩略图 srcset
-│       ├── style.css                           # 全局样式（暗色毛玻璃 + 移动端）
+│       ├── style.css                           # 全局样式（仅 CSS 变量 + 跨组件共享样式）
 │       ├── store.ts                            # 全局标签/分类/相册数据
 │       ├── useConfirm.ts                       # 确认弹窗 composable
 │       ├── locales/
@@ -152,22 +176,33 @@ photo-gallery/
 │       │   ├── ui.ts                           # JWT + 解锁状态 + 弹窗状态
 │       │   └── toast.ts                        # Toast 通知队列
 │       ├── types/                              # TypeScript 类型定义
+│       ├── composables/
+│       │   ├── useAppEffects.ts                # 背景光球 + 光标拖尾 + 入场动画
+│       │   └── usePhotoActions.ts              # 照片操作（删除/批量/分享/复制）
 │       ├── layouts/
-│       │   └── MainLayout.vue                   # 主布局（Konami 门禁 / 布局 / 事件 / 动画）
+│       │   └── MainLayout.vue                  # 主布局（Konami 门禁 / 布局 / 事件）
+│       ├── pages/
+│       │   ├── GalleryPage.vue                 # 网格主页面（虚拟滚动 + 骨架屏）
+│       │   ├── AlbumsPage.vue                  # 相册页面
+│       │   ├── TimelinePage.vue                # 时间线页面
+│       │   └── MapPage.vue                     # 地图页面
 │       └── components/
 │           ├── KonamiGate.vue                  # Konami 密码门禁
-│           ├── AppHeader.vue                   # 渐变标题
+│           ├── AppHeader.vue                   # 渐变标题 + RGB 彩蛋
 │           ├── UploadCard.vue                  # 上传区域（进度条/压缩/拖拽/粘贴）
 │           ├── PhotoCard.vue                   # 3D 倾斜卡片 + srcset
 │           ├── ViewModal.vue                   # 大图查看（WebP 优先）
 │           ├── EditModal.vue                   # 编辑信息 + 分配分类/标签/相册
 │           ├── FilterSidebar.vue               # 分类/标签筛选侧边栏
-│           ├── AlbumView.vue                   # 相册网格 + 详情
+│           ├── AlbumView.vue                   # 相册网格 + 详情（复用 SortSwitch）
 │           ├── AlbumEditModal.vue              # 相册编辑 + 照片选择器
 │           ├── TimelineView.vue                # EXIF 时间线
 │           ├── MapView.vue                     # 地图聚合标注（ResizeObserver 自适应）
 │           ├── ImageEditor.vue                 # Canvas 图片编辑器
+│           ├── ShareModal.vue                  # 分享弹窗
 │           ├── ShareViewer.vue                 # 分享落地面
+│           ├── SortSwitch.vue                  # 排序切换器（复用组件）
+│           ├── ViewSwitcher.vue                # 视图切换器
 │           ├── ToastProvider.vue               # Toast 容器
 │           ├── ConfirmDialog.vue               # 确认弹窗
 │           └── LottieLoader.vue                # Lottie 动画
@@ -200,6 +235,9 @@ CREATE DATABASE IF NOT EXISTS photodb CHARACTER SET utf8mb4 COLLATE utf8mb4_unic
 | `DB_PASSWORD` | 数据库密码 | **必填** |
 | `JWT_SECRET` | JWT HS256 签名密钥 | **必填** |
 | `ADMIN_PASSWORD` | Konami 解锁后的管理密码 | `photoadmin` |
+| `photo.watermark.font` | 水印字体 | `SansSerif`（Docker 环境安装 WenQuanYi Zen Hei 支持中文） |
+| `photo.watermark.font-size-ratio` | 水印大小（图片宽度 ÷ 此值） | `40` |
+| `photo.watermark.color-alpha` | 水印透明度（0-255） | `180` |
 | `VITE_ADMIN_PASSWORD` | 前端密码（构建时注入） | 自动继承 `ADMIN_PASSWORD` |
 
 **Windows (PowerShell):**
@@ -298,7 +336,7 @@ scp backend/target/photo-gallery-*.jar root@<IP>:/opt/photo-gallery/backend/targ
 ssh root@<IP> "cd /opt/photo-gallery && docker compose up -d --build"
 ```
 
-访问 `http://<IP>`（端口映射 `80:8080`）。
+访问 `http://<IP>:8080`（`127.0.0.1:8080:8080`，仅绑定 localhost，推荐通过 Nginx 或 cloudflared 反向代理对外暴露）。
 
 #### 3. 常用命令
 

@@ -9,6 +9,10 @@ spring:
 
 photo:
   upload-dir: /data/photo-uploads
+  watermark:
+    font: SansSerif
+    font-size-ratio: 40
+    color-alpha: 180
 
 cors:
   allowed-origins: http://localhost:*,https://hape233.online
