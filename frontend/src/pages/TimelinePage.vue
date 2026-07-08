@@ -41,3 +41,28 @@ function onViewClickActive(path: string): void {
     <TimelineView :sort-order="timelineSortOrder" @view="(p) => (ui.viewPhoto = p as Photo)" />
   </section>
 </template>
+
+<style scoped>
+.sort-arrows {
+  position: absolute;
+  display: inline-flex;
+  font-size: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.sort-arrows i {
+  display: inline-block;
+  opacity: 0.25;
+  transition: opacity 0.2s;
+}
+.sort-arrows i:last-child {
+  margin-left: -8px;
+}
+.sort-arrows i.active {
+  opacity: 1;
+  color: var(--accent);
+}
+.sort-arrow-down {
+  transform: rotate(180deg);
+}
+</style>

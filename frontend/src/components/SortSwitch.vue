@@ -45,3 +45,104 @@ const emit = defineEmits<{
     </div>
   </div>
 </template>
+
+<style scoped>
+.sort-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sort-label {
+  font-size: 13px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.sort-track {
+  position: relative;
+  display: flex;
+  width: 272px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.sort-track.sort-2cols {
+  width: 182px;
+}
+.sort-slider {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 90px;
+  height: 100%;
+  background: rgba(0, 212, 255, 0.12);
+  border-radius: 10px;
+  transition: transform 0.3s ease;
+  pointer-events: none;
+}
+.sort-opt {
+  position: relative;
+  z-index: 1;
+  width: 90px;
+  flex: 0 0 90px;
+  padding: 9px 0;
+  font-size: 14px;
+  color: var(--text-dim);
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--border);
+  cursor: pointer;
+  transition: color 0.3s;
+  text-align: center;
+}
+.sort-opt:last-child {
+  border-right: none;
+}
+.sort-opt.active {
+  color: var(--accent);
+}
+.sort-opt:hover {
+  color: var(--text);
+}
+.sort-arrows {
+  position: absolute;
+  display: inline-flex;
+  font-size: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.sort-arrows i {
+  display: inline-block;
+  opacity: 0.25;
+  transition: opacity 0.2s;
+}
+.sort-arrows i:last-child {
+  margin-left: -8px;
+}
+.sort-arrows i.active {
+  opacity: 1;
+  color: var(--accent);
+}
+.sort-arrow-down {
+  transform: rotate(180deg);
+}
+
+@media (max-width: 768px) {
+  .sort-switch {
+    margin-left: 0;
+  }
+  .sort-track {
+    width: 227px;
+  }
+  .sort-track.sort-2cols {
+    width: 152px;
+  }
+  .sort-opt {
+    width: 75px;
+    flex: 0 0 75px;
+    font-size: 12px;
+  }
+  .sort-slider {
+    width: 75px;
+  }
+}
+</style>

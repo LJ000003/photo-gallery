@@ -137,3 +137,112 @@ watch(
     </div>
   </div>
 </template>
+
+<style scoped>
+.timeline-wrap {
+  margin-top: 24px;
+  min-height: 300px;
+}
+.timeline-loading,
+.timeline-empty {
+  text-align: center;
+  color: var(--text-dim);
+  padding: 60px 20px;
+  font-size: 15px;
+}
+.timeline {
+  position: relative;
+  padding-left: 40px;
+}
+.timeline-line {
+  position: absolute;
+  left: 18px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: linear-gradient(to bottom, var(--accent), rgba(0, 212, 255, 0.1));
+}
+.timeline-group {
+  margin-bottom: 32px;
+}
+.timeline-month {
+  position: relative;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 16px;
+  padding-left: 8px;
+}
+.timeline-month::before {
+  content: '';
+  position: absolute;
+  left: -27px;
+  top: 6px;
+  width: 10px;
+  height: 10px;
+  background: var(--accent);
+  border-radius: 50%;
+  box-shadow: 0 0 8px rgba(0, 212, 255, 0.6);
+}
+.timeline-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+.timeline-card {
+  display: flex;
+  gap: 12px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px;
+  cursor: pointer;
+  transition:
+    border-color 0.3s,
+    transform 0.2s;
+}
+.timeline-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+.timeline-card img {
+  width: 100px;
+  height: 70px;
+  object-fit: cover;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.timeline-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+}
+.timeline-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0 0 4px;
+}
+.timeline-date {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin: 0 0 2px;
+}
+.timeline-camera {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin: 0;
+  opacity: 0.7;
+}
+
+@media (max-width: 768px) {
+  .timeline-wrap {
+    margin-top: 16px;
+    padding: 0 4px;
+  }
+}
+</style>

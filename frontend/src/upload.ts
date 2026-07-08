@@ -1,3 +1,5 @@
+import { AuthError } from './api'
+
 const MAX_DIM = 1920
 const JPEG_QUALITY = 0.85
 const COMPRESS_SIZE_THRESHOLD = 1024 * 1024 // 1MB
@@ -92,7 +94,7 @@ export function uploadWithProgress(
         localStorage.removeItem('jwt_token')
         localStorage.removeItem('konami_unlocked')
         window.location.reload()
-        reject(new Error('登录已过期，请重新解锁'))
+        reject(new AuthError('登录已过期，请重新解锁'))
         return
       }
       let data: unknown = null

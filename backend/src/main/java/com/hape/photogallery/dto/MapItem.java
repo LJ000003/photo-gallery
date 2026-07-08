@@ -1,6 +1,6 @@
 package com.hape.photogallery.dto;
 
-import com.hape.photogallery.ExifData;
+import com.hape.photogallery.entity.ExifData;
 
 public class MapItem {
 

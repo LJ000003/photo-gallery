@@ -118,3 +118,141 @@ onMounted(() => {
     <ToastProvider />
   </template>
 </template>
+
+<style scoped>
+.page {
+  position: relative;
+  z-index: 1;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+  display: flex;
+  gap: 28px;
+  align-items: flex-start;
+}
+.main-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.relock-wrap {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 100;
+}
+.relock-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 15px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.4;
+  transition: opacity 0.3s;
+}
+.relock-btn:hover {
+  opacity: 1;
+}
+.relock-hint {
+  position: absolute;
+  top: 40px;
+  right: 0;
+  padding: 5px 12px;
+  background: var(--accent2);
+  color: #fff;
+  font-size: 12px;
+  border-radius: 8px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.relock-wrap:hover .relock-hint {
+  opacity: 1;
+}
+
+.back-top {
+  position: fixed;
+  right: 24px;
+  bottom: 32px;
+  z-index: 100;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s;
+  padding: 0;
+}
+.back-top:hover {
+  border-color: var(--accent);
+  box-shadow: var(--glow-cyan);
+  transform: translateY(-2px);
+}
+
+.sidebar-toggle {
+  display: none;
+}
+.sidebar-backdrop {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .page {
+    flex-direction: column;
+    padding: 16px 12px 48px;
+    gap: 16px;
+    align-items: stretch;
+  }
+  .main-content {
+    width: 100%;
+  }
+  .back-top {
+    right: 12px;
+    bottom: 20px;
+    width: 38px;
+    height: 38px;
+    font-size: 16px;
+  }
+  .sidebar-toggle {
+    display: flex;
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 50;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--glass);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 18px;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+  }
+  .sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 199;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+  }
+}
+</style>

@@ -319,3 +319,204 @@ onMounted(() => {
     </div>
   </aside>
 </template>
+
+<style scoped>
+.sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 24px;
+  z-index: 2;
+  pointer-events: auto;
+}
+.filter-group {
+  background: var(--glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.filter-group h3 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+.sidebar-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 11px;
+}
+.sidebar-toolbar label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  color: var(--text-dim);
+  user-select: none;
+}
+.sidebar-toolbar label input[type='checkbox'],
+.item-check {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.sidebar-toolbar label input[type='checkbox']:checked,
+.item-check:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.sidebar-toolbar label input[type='checkbox']:checked::after,
+.item-check:checked::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 0px;
+  width: 5px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.item-check {
+  opacity: 0;
+}
+.filter-group li:hover .item-check,
+.filter-group li .item-check:checked {
+  opacity: 1;
+}
+.item-edit-input {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--text);
+  outline: none;
+}
+.edit-color-pick {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.filter-group ul {
+  list-style: none;
+  margin-bottom: 8px;
+}
+.filter-group li {
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.filter-group li:hover {
+  background: var(--glass-hover);
+  color: var(--text);
+}
+.filter-group li.active {
+  background: rgba(0, 212, 255, 0.12);
+  color: var(--accent);
+}
+.filter-group li.empty {
+  cursor: default;
+  color: var(--text-dim);
+  opacity: 0.5;
+}
+.tag-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.item-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.btn-item-edit,
+.btn-item-del {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 14px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--text-dim);
+  border: none;
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.2s,
+    color 0.2s;
+}
+.filter-group li:hover .btn-item-edit,
+.filter-group li:hover .btn-item-del {
+  opacity: 1;
+}
+.btn-item-edit:hover {
+  color: var(--accent);
+}
+.btn-item-del:hover {
+  color: var(--accent3);
+}
+
+@media (max-width: 768px) {
+  .item-check {
+    opacity: 0.6;
+  }
+  .btn-item-edit,
+  .btn-item-del {
+    opacity: 0.6;
+  }
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 260px;
+    height: 100vh;
+    z-index: 200;
+    padding: 16px;
+    padding-top: 60px;
+    background: rgba(10, 10, 20, 0.97);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-right: 1px solid var(--border);
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    overflow-y: auto;
+  }
+  .sidebar.open {
+    transform: translateX(0);
+  }
+}
+</style>

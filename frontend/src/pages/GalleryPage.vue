@@ -283,3 +283,38 @@ const sortOptions: SortOption[] = [
     />
   </section>
 </template>
+
+<style scoped>
+.gallery-virt {
+  min-height: 200px;
+}
+.gallery-virt-row {
+  will-change: transform;
+}
+
+.search-input {
+  width: 240px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.3s;
+}
+.search-input::placeholder {
+  color: var(--text-dim);
+}
+.search-input:focus {
+  border-color: var(--accent);
+}
+
+@media (max-width: 768px) {
+  .toolbar-center .search-input {
+    flex: 1 1 100%;
+    max-width: 100%;
+    width: 100%;
+  }
+}
+</style>

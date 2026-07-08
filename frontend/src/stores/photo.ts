@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { api } from '../api'
+import { api, AuthError } from '../api'
 import type { Photo } from '../types/photo'
 import type { ApiResponse, PageResponse } from '../types/api'
 import type { SortField, SortOrder } from '../types/view'
@@ -68,7 +68,7 @@ export const usePhotoStore = defineStore('photo', () => {
       hasMore.value = page.value < totalPages
       totalCount.value = totalElements
     } catch (err) {
-      if (err instanceof Error && err.message !== '登录已过期，请重新解锁') {
+      if (!(err instanceof AuthError)) {
         console.error('加载照片失败:', err)
       }
     } finally {
