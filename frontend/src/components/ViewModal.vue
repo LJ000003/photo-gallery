@@ -46,7 +46,7 @@ function onClose(): void {
       <div class="modal-content">
         <div class="img-wrap">
           <img
-            :src="`/api/photos/${photo.id}/thumbnail${tokenParam(photo.fileSize)}`"
+            :src="`/api/v1/photos/${photo.id}/thumbnail${tokenParam(photo.fileSize)}`"
             :alt="photo.name"
             decoding="async"
             loading="lazy"

@@ -17,6 +17,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(value = CategoryController.class,
             excludeAutoConfiguration = SecurityAutoConfiguration.class)
+@org.springframework.context.annotation.Import(com.hape.photogallery.config.JwtService.class)
 class CategoryControllerTest {
 
     @Autowired
@@ -29,7 +30,7 @@ class CategoryControllerTest {
     void listCategories_shouldReturnCategories() throws Exception {
         when(categoryService.listAll()).thenReturn(List.of(new Category("风景")));
 
-        mockMvc.perform(get("/api/categories"))
+        mockMvc.perform(get("/api/v1/categories"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
     }

@@ -34,6 +34,11 @@ const router = createRouter({
           name: 'map',
           component: () => import('../pages/MapPage.vue'),
         },
+        {
+          path: 'trash',
+          name: 'trash',
+          component: () => import('../pages/TrashPage.vue'),
+        },
       ],
     },
   ],

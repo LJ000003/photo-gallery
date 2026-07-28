@@ -2,6 +2,8 @@ package com.hape.photogallery.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
+import org.hibernate.annotations.SQLRestriction;
+
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -11,6 +13,7 @@ import java.util.Set;
 
 @Entity
 @Table(name = "photos")
+@SQLRestriction("deleted_at IS NULL")
 public class Photo {
 
     @Id
@@ -41,6 +44,8 @@ public class Photo {
 
     @ManyToMany(mappedBy = "photos")
     private Set<Album> albums = new HashSet<>();
+
+    private LocalDateTime deletedAt;
 
     public Photo() {}
 
@@ -73,4 +78,6 @@ public class Photo {
     public void setCategory(Category category) { this.category = category; }
     public Set<Album> getAlbums() { return albums; }
     public void setAlbums(Set<Album> albums) { this.albums = albums; }
+    public LocalDateTime getDeletedAt() { return deletedAt; }
+    public void setDeletedAt(LocalDateTime deletedAt) { this.deletedAt = deletedAt; }
 }

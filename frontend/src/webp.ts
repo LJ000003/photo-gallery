@@ -14,11 +14,11 @@ export function supportsWebp(): boolean {
 }
 
 export function webpUrl(photoId: number): string {
-  return supportsWebp() ? `/api/photos/${photoId}/webp` : `/api/photos/${photoId}/file`
+  return supportsWebp() ? `/api/v1/photos/${photoId}/webp` : `/api/v1/photos/${photoId}/file`
 }
 
 export function thumbUrl(photoId: number, width = 400): string {
-  return `/api/photos/${photoId}/thumbnail?w=${width}`
+  return `/api/v1/photos/${photoId}/thumbnail?w=${width}`
 }
 
 export function thumbSrcset(photoId: number): string {

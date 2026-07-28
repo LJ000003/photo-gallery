@@ -30,7 +30,7 @@ public class ShareController {
     }
 
     /** 分享页 API — 返回 JWT claims 中指定的照片 */
-    @GetMapping("/api/share/view")
+    @GetMapping("/api/v1/share/view")
     public ApiResponse<Page<PhotoResponse>> view(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,

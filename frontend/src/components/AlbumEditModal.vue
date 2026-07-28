@@ -2,14 +2,14 @@
 import { ref, onMounted, computed } from 'vue'
 import gsap from 'gsap'
 import { api } from '../api'
-import { useStore } from '../store'
+import { useDataStore } from '../stores/data'
 import { useToastStore } from '../stores/toast'
 import type { Photo } from '../types/photo'
 import type { Album } from '../types/album'
 import { tokenParam } from '../utils/token'
 import type { ApiResponse, PageResponse } from '../types/api'
 
-const { refreshAlbums } = useStore()
+const { refreshAlbums } = useDataStore()
 const toast = useToastStore()
 const props = defineProps<{ album: Album | { id: null; name: string; description: string } }>()
 const emit = defineEmits<{
@@ -149,7 +149,7 @@ async function onDelete(): Promise<void> {
             @click="togglePhoto(p.id)"
           >
             <img
-              :src="`/api/photos/${p.id}/thumbnail${tokenParam()}`"
+              :src="`/api/v1/photos/${p.id}/thumbnail${tokenParam()}`"
               :alt="p.name"
               loading="lazy"
             />

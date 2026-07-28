@@ -11,9 +11,15 @@ const toastStore = useToastStore()
       :key="t.id"
       class="toast-item"
       :class="t.type"
-      @click="toastStore.remove(t.id)"
     >
-      {{ t.message }}
+      <span class="toast-msg">{{ t.message }}</span>
+      <button
+        v-if="t.action"
+        class="toast-action"
+        @click="t.action.onClick(); toastStore.remove(t.id)"
+      >
+        {{ t.action.label }}
+      </button>
     </div>
   </div>
 </template>
@@ -34,13 +40,32 @@ const toastStore = useToastStore()
   border-radius: 10px;
   font-size: 14px;
   color: #fff;
-  cursor: pointer;
   pointer-events: auto;
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   animation: toast-in 0.3s ease;
-  max-width: 360px;
+  max-width: 400px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.toast-msg {
+  flex: 1;
+}
+.toast-action {
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s;
+}
+.toast-action:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 .toast-item.success {
   background: rgba(0, 200, 100, 0.85);

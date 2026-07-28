@@ -30,7 +30,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
                                     FilterChain chain)
             throws ServletException, IOException {
 
-        if (!("/api/auth/unlock".equals(request.getServletPath())
+        if (!("/api/v1/auth/unlock".equals(request.getServletPath())
                 && "POST".equalsIgnoreCase(request.getMethod()))) {
             chain.doFilter(request, response);
             return;

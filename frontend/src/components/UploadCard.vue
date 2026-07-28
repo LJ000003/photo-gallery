@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref, nextTick, onMounted, onUnmounted } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import gsap from 'gsap'
-import { useStore } from '../store'
+import { useDataStore } from '../stores/data'
 import { useToastStore } from '../stores/toast'
 import { compressImages, uploadWithProgress } from '../upload'
 import ImageEditor from './ImageEditor.vue'
@@ -15,7 +16,8 @@ const MAX_BATCH = 50
 
 const emit = defineEmits<{ uploaded: [] }>()
 
-const { tags: allTags, categories: allCats, loadAll } = useStore()
+const dataStore = useDataStore()
+const { tags: allTags, categories: allCats } = storeToRefs(dataStore)
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const preview = ref<HTMLImageElement | null>(null)

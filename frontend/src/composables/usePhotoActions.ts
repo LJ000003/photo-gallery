@@ -21,12 +21,23 @@ export function usePhotoActions() {
     }
   }
 
+  async function restorePhoto(id: number): Promise<void> {
+    try {
+      const res = await api(`/api/photos/${id}/restore`, { method: 'POST' })
+      if (!res.ok) throw new Error(await extractErrorMessage(res))
+      await photo.resetAndReload()
+      toast.success('已恢复')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '恢复失败')
+    }
+  }
+
   async function deletePhoto(id: number): Promise<void> {
     try {
       const res = await api(`/api/photos/${id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error(await extractErrorMessage(res))
       photo.removePhoto(id)
-      toast.success('删除成功')
+      toast.add('删除成功', 'success', 5000, { label: '撤销', onClick: () => restorePhoto(id) })
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '删除失败')
     }
@@ -40,7 +51,16 @@ export function usePhotoActions() {
       })
       if (!res.ok) throw new Error(await extractErrorMessage(res))
       photo.removePhotos(ids)
-      toast.success(`已删除 ${ids.length} 张照片`)
+      toast.add(`已删除 ${ids.length} 张照片`, 'success', 5000, {
+        label: '撤销',
+        onClick: async () => {
+          for (const id of ids) {
+            await api(`/api/photos/${id}/restore`, { method: 'POST' })
+          }
+          await photo.resetAndReload()
+          toast.success('已恢复')
+        },
+      })
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '批量删除失败')
     }

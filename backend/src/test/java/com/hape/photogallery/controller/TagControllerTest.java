@@ -18,6 +18,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(value = TagController.class,
             excludeAutoConfiguration = SecurityAutoConfiguration.class)
+@org.springframework.context.annotation.Import(com.hape.photogallery.config.JwtService.class)
 class TagControllerTest {
 
     @Autowired
@@ -30,7 +31,7 @@ class TagControllerTest {
     void listTags_shouldReturnTags() throws Exception {
         when(tagService.listAll()).thenReturn(List.of(new Tag("日出", "#ff8800")));
 
-        mockMvc.perform(get("/api/tags"))
+        mockMvc.perform(get("/api/v1/tags"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
     }
@@ -40,7 +41,7 @@ class TagControllerTest {
         Tag tag = new Tag("新标签", "#ff0"); tag.setId(1L);
         when(tagService.create("新标签", "#ff0")).thenReturn(tag);
 
-        mockMvc.perform(post("/api/tags")
+        mockMvc.perform(post("/api/v1/tags")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"新标签\",\"color\":\"#ff0\"}"))
                 .andExpect(status().isOk())

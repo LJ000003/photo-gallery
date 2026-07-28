@@ -91,16 +91,17 @@ class AlbumServiceTest {
     // ==================== delete ====================
 
     @Test
-    void delete_shouldRemoveAlbum() {
+    void delete_shouldSoftDelete() {
         Album a = new Album("a"); a.setId(1L);
         when(albumRepo.findById(1L)).thenReturn(Optional.of(a));
 
         service.delete(1L);
-        verify(albumRepo).delete(a);
+        verify(albumRepo).save(a);
+        assertThat(a.getDeletedAt()).isNotNull();
     }
 
     @Test
-    void delete_withPhotos_shouldDisassociate() {
+    void delete_withPhotos_shouldKeepAssociations() {
         Album a = new Album("a"); a.setId(1L);
         Photo p = new Photo(); p.setId(1L); p.setName("p1");
         a.getPhotos().add(p);
@@ -109,8 +110,8 @@ class AlbumServiceTest {
 
         service.delete(1L);
 
-        verify(photoRepo).save(p);
-        assertThat(p.getAlbums()).isEmpty();
+        verify(photoRepo, never()).save(any(Photo.class));
+        assertThat(p.getAlbums()).hasSize(1); // 软删除保留关联
     }
 
     // ==================== listPhotos ====================

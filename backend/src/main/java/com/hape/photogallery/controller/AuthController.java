@@ -4,8 +4,10 @@ import java.util.List;
 import java.util.Map;
 
 import com.hape.photogallery.ApiResponse;
-import com.hape.photogallery.config.JwtUtil;
-import com.hape.photogallery.exception.BusinessException;
+import com.hape.photogallery.config.JwtService;
+import com.hape.photogallery.dto.ShareGenerateRequest;
+
+import jakarta.validation.Valid;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,10 +18,16 @@ public class AuthController {
 
     private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
+    private final JwtService jwtService;
+
+    public AuthController(JwtService jwtService) {
+        this.jwtService = jwtService;
+    }
+
     /** Konami 码解锁 — 能走到这里说明已通过前端摇杆验证，直接签发 admin JWT */
-    @PostMapping("/api/auth/unlock")
+    @PostMapping("/api/v1/auth/unlock")
     public ApiResponse<Map<String, Object>> unlock() {
-        String token = JwtUtil.issueAdmin(24 * 60 * 60 * 1000);
+        String token = jwtService.issueAdmin(24 * 60 * 60 * 1000);
         log.info("Admin JWT issued");
         return ApiResponse.success(Map.of(
                 "token", token,
@@ -28,26 +36,16 @@ public class AuthController {
     }
 
     /** 管理员生成分享链接 */
-    @PostMapping("/api/share/generate")
-    public ApiResponse<Map<String, String>> generateShare(@RequestBody Map<String, Object> body) {
-        Object raw = body.get("photoIds");
-        if (!(raw instanceof List<?> list) || list.isEmpty()) {
-            throw new BusinessException(400, "请选择至少一张照片");
-        }
-        List<Long> photoIds = list.stream()
-                .map(o -> ((Number) o).longValue())
-                .toList();
-        String permission = (String) body.getOrDefault("permission", "view");
-        int expireDays = body.get("expireDays") != null
-                ? ((Number) body.get("expireDays")).intValue() : 7;
-
-        String token = JwtUtil.issueShare(photoIds, permission, expireDays * 24L * 60 * 60 * 1000);
+    @PostMapping("/api/v1/share/generate")
+    public ApiResponse<Map<String, String>> generateShare(@Valid @RequestBody ShareGenerateRequest req) {
+        String token = jwtService.issueShare(req.getPhotoIds(), req.getPermission(),
+                req.getExpireDays() * 24L * 60 * 60 * 1000);
         String shareUrl = "/share/" + token;
 
         return ApiResponse.success(Map.of(
                 "url", shareUrl,
                 "token", token,
-                "expiresIn", String.valueOf(expireDays * 86400)
+                "expiresIn", String.valueOf(req.getExpireDays() * 86400)
         ));
     }
 }

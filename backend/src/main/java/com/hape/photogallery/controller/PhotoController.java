@@ -5,6 +5,7 @@ import com.hape.photogallery.dto.MapItem;
 import com.hape.photogallery.dto.PhotoResponse;
 import com.hape.photogallery.dto.PhotoUpdateRequest;
 import com.hape.photogallery.dto.TimelineItem;
+import com.hape.photogallery.dto.TransformRequest;
 import com.hape.photogallery.entity.ExifData;
 import com.hape.photogallery.entity.Photo;
 import com.hape.photogallery.exception.BusinessException;
@@ -30,7 +31,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/v1")
 public class PhotoController {
 
     private final PhotoService service;
@@ -115,9 +116,15 @@ public class PhotoController {
         return ApiResponse.success(Map.of("deleted", count));
     }
 
+    @PostMapping("/photos/{id}/restore")
+    public ApiResponse<String> restore(@PathVariable Long id) {
+        service.restore(id);
+        return ApiResponse.success("恢复成功");
+    }
+
     @GetMapping("/photos/{id}/file")
     public ResponseEntity<Resource> getFile(@PathVariable Long id) {
-        Photo photo = service.getById(id);
+        Photo photo = service.getByIdIncludeDeleted(id);
         Resource resource = new FileSystemResource(service.getFilePath(id));
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(photo.getContentType()))
@@ -135,7 +142,7 @@ public class PhotoController {
     @GetMapping("/photos/{id}/thumbnail")
     public ResponseEntity<Resource> getThumbnail(@PathVariable Long id,
                                                  @RequestParam(defaultValue = "400") int w) {
-        Photo photo = service.getById(id);
+        Photo photo = service.getByIdIncludeDeleted(id);
         Resource resource = new FileSystemResource(service.getThumbnailPath(id, w));
         return ResponseEntity.ok()
                 .contentType(MediaType.IMAGE_JPEG)
@@ -183,15 +190,10 @@ public class PhotoController {
     }
 
     @PostMapping("/photos/{id}/transform")
-    public ApiResponse<String> transform(@PathVariable Long id, @RequestBody Map<String, Object> body)
-            throws IOException {
-        int rotate = body.get("rotate") != null ? ((Number) body.get("rotate")).intValue() : 0;
-        String mirror = (String) body.getOrDefault("mirror", "none");
-        Double cx = body.get("cx") != null ? ((Number) body.get("cx")).doubleValue() : null;
-        Double cy = body.get("cy") != null ? ((Number) body.get("cy")).doubleValue() : null;
-        Double cw = body.get("cw") != null ? ((Number) body.get("cw")).doubleValue() : null;
-        Double ch = body.get("ch") != null ? ((Number) body.get("ch")).doubleValue() : null;
-        service.transformPhoto(id, rotate, mirror, cx, cy, cw, ch);
+    public ApiResponse<String> transform(@PathVariable Long id,
+                                         @RequestBody TransformRequest body) throws IOException {
+        service.transformPhoto(id, body.getRotate(), body.getMirror(),
+                body.getCx(), body.getCy(), body.getCw(), body.getCh());
         return ApiResponse.success("ok");
     }
 }

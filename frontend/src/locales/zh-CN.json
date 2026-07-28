@@ -16,7 +16,8 @@
     "grid": "网格",
     "albums": "相册",
     "timeline": "时间线",
-    "map": "地图"
+    "map": "地图",
+    "trash": "回收站"
   },
   "gallery": {
     "myPhotos": "我的照片",
@@ -133,6 +134,7 @@
     "tooMany": "请求过于频繁，请稍后再试"
   },
   "general": {
+    "undo": "撤销",
     "confirm": "确定",
     "cancel": "取消",
     "close": "✕",

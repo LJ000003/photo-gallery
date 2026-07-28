@@ -2,6 +2,8 @@ package com.hape.photogallery.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
+import org.hibernate.annotations.SQLRestriction;
+
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import java.time.LocalDateTime;
@@ -10,6 +12,7 @@ import java.util.Set;
 
 @Entity
 @Table(name = "albums")
+@SQLRestriction("deleted_at IS NULL")
 public class Album {
 
     @Id
@@ -32,6 +35,8 @@ public class Album {
     @JsonIgnore
     private Set<Photo> photos = new HashSet<>();
 
+    private LocalDateTime deletedAt;
+
     public Album() {}
 
     public Album(String name) {
@@ -51,6 +56,8 @@ public class Album {
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public Set<Photo> getPhotos() { return photos; }
     public void setPhotos(Set<Photo> photos) { this.photos = photos; }
+    public LocalDateTime getDeletedAt() { return deletedAt; }
+    public void setDeletedAt(LocalDateTime deletedAt) { this.deletedAt = deletedAt; }
 
     @com.fasterxml.jackson.annotation.JsonProperty
     public int getPhotoCount() { return photos != null ? photos.size() : 0; }

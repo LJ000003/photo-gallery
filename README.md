@@ -66,6 +66,7 @@
 - **IP 限流** — `/api/auth/unlock` 每 IP 每秒最多 10 次（Caffeine 固定窗口计数）
 - **BCrypt 密码哈希** — 管理密码加密存储
 - **缓存一致性** — 所有写操作（照片/相册/标签/分类）自动驱逐列表缓存
+- **软删除 + 回收站** — 删除标记 `deleted_at`（Hibernate @SQLRestriction 全局过滤），5 秒 Toast 撤销 + 回收站可恢复/彻底删除，每天凌晨 3 点（Asia/Shanghai）自动清理 30 天前记录
 
 ### PWA（渐进式 Web 应用）
 - 可安装到桌面/主屏幕（Android Chrome + iOS Safari + 桌面 Edge/Chrome）
@@ -101,6 +102,7 @@ photo-gallery/
 │   │   │   ├── TagController.java              # 标签 CRUD
 │   │   │   ├── CategoryController.java         # 分类 CRUD
 │   │   │   ├── AlbumController.java            # 相册 CRUD
+│   │   │   ├── TrashController.java            # 回收站 API
 │   │   │   └── HelloController.java            # 根端点
 │   │   ├── service/
 │   │   │   ├── PhotoService.java               # 核心业务逻辑
@@ -147,7 +149,7 @@ photo-gallery/
 │   │   ├── i18n/
 │   │   │   ├── messages.properties             # 中文错误消息（默认）
 │   │   │   └── messages_en_US.properties       # 英文错误消息
-│   │   ├── db/migration/                       # Flyway V1–V5
+│   │   ├── db/migration/                       # Flyway V1–V6
 │   │   └── static/                             # 前端构建产物 (SPA)
 │   └── Dockerfile                              # JRE 17 Alpine + Noto CJK 字体
 │
@@ -185,7 +187,8 @@ photo-gallery/
 │       │   ├── GalleryPage.vue                 # 网格主页面（虚拟滚动 + 骨架屏）
 │       │   ├── AlbumsPage.vue                  # 相册页面
 │       │   ├── TimelinePage.vue                # 时间线页面
-│       │   └── MapPage.vue                     # 地图页面
+│       │   ├── MapPage.vue                     # 地图页面
+│       │   ├── TrashPage.vue                   # 回收站页面
 │       └── components/
 │           ├── KonamiGate.vue                  # Konami 密码门禁
 │           ├── AppHeader.vue                   # 渐变标题 + RGB 彩蛋
@@ -424,6 +427,8 @@ certbot --nginx -d 你的域名   # 免费 SSL
 |------|------|
 | `GET /api/**` | `ROLE_admin` 或 `ROLE_viewer` |
 | `POST/PUT/DELETE /api/**` | `ROLE_admin` |
+| `GET /api/trash/**` | `ROLE_admin` 或 `ROLE_viewer`（仅浏览） |
+| `POST/DELETE /api/trash/**` | `ROLE_admin`（恢复/彻底删除） |
 | `POST /api/auth/unlock` | 公开（含限流） |
 | `GET /share/**` | 公开 |
 | `/actuator/health` | 公开 |
