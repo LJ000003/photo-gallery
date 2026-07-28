@@ -13,6 +13,7 @@ import com.hape.photogallery.repository.CategoryRepository;
 import com.hape.photogallery.repository.ExifDataRepository;
 import com.hape.photogallery.repository.PhotoRepository;
 import com.hape.photogallery.repository.TagRepository;
+import com.hape.photogallery.service.StorageService;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,6 +25,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -38,6 +40,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@org.mockito.junit.jupiter.MockitoSettings(strictness = org.mockito.quality.Strictness.LENIENT)
 class PhotoServiceTest {
 
     @Mock private PhotoRepository photoRepo;
@@ -47,6 +50,7 @@ class PhotoServiceTest {
     @Mock private ExifService exifService;
     @Mock private ImageProcessingService imageService;
     @Mock private AlbumService albumService;
+    @Mock private StorageService storage;
 
     @TempDir Path tempDir;
 
@@ -60,8 +64,28 @@ class PhotoServiceTest {
 
     @BeforeEach
     void setUp() throws IOException {
+        when(storage.getUploadDir()).thenReturn(tempDir);
+        when(storage.resolveSafe(any())).thenAnswer(inv -> {
+            String path = inv.getArgument(0);
+            return tempDir.resolve(path).normalize();
+        });
+        doAnswer(inv -> {
+            java.nio.file.Files.copy(
+                ((MultipartFile) inv.getArgument(0)).getInputStream(),
+                (Path) inv.getArgument(1));
+            return null;
+        }).when(storage).store(any(MultipartFile.class), any(Path.class));
+        doAnswer(inv -> {
+            java.nio.file.Files.createDirectories(inv.getArgument(0));
+            return null;
+        }).when(storage).createDirectories(any(Path.class));
+        doAnswer(inv -> {
+            java.nio.file.Files.deleteIfExists(tempDir.resolve((String) inv.getArgument(0)));
+            return null;
+        }).when(storage).deleteFile(any());
+
         service = new PhotoService(photoRepo, tagRepo, catRepo, exifRepo, exifService,
-                imageService, albumService, tempDir.toString());
+                imageService, albumService, storage);
     }
 
     // ==================== listAll ====================
@@ -258,7 +282,7 @@ class PhotoServiceTest {
     // ==================== delete ====================
 
     @Test
-    void delete_shouldRemovePhotoAndFiles() throws IOException {
+    void delete_shouldSoftDelete() throws IOException {
         Path filePath = tempDir.resolve("2026/07/test.jpg");
         Files.createDirectories(filePath.getParent());
         Files.write(filePath, JPEG_BYTES);
@@ -266,26 +290,25 @@ class PhotoServiceTest {
         Photo p = new Photo(); p.setId(1L); p.setName("test");
         p.setFileName("2026/07/test.jpg");
         when(photoRepo.findById(1L)).thenReturn(Optional.of(p));
-        when(exifRepo.findByPhoto_Id(1L)).thenReturn(Optional.empty());
 
         service.delete(1L);
 
-        verify(photoRepo).delete(p);
-        assertThat(Files.exists(filePath)).isFalse();
+        verify(photoRepo).save(p);
+        assertThat(p.getDeletedAt()).isNotNull();
+        assertThat(Files.exists(filePath)).isTrue(); // 软删除不删文件
     }
 
     @Test
-    void delete_withExif_shouldDeleteExif() {
+    void delete_shouldNotTouchExif() {
         Photo p = new Photo(); p.setId(1L); p.setName("test");
         p.setFileName("2026/07/test.jpg");
-        ExifData exif = new ExifData(); exif.setId(10L);
         when(photoRepo.findById(1L)).thenReturn(Optional.of(p));
-        when(exifRepo.findByPhoto_Id(1L)).thenReturn(Optional.of(exif));
 
         service.delete(1L);
 
-        verify(exifRepo).delete(exif);
-        verify(photoRepo).delete(p);
+        verify(exifRepo, never()).delete(any());
+        verify(photoRepo).save(p);
+        assertThat(p.getDeletedAt()).isNotNull();
     }
 
     // ==================== batchDelete ====================

@@ -1,5 +1,6 @@
 package com.hape.photogallery.service;
 
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -83,9 +84,30 @@ public class AlbumService {
     @CacheEvict(value = {"albums", "photos"}, allEntries = true)
     public void delete(Long id) {
         Album a = albumRepo.findById(id).orElseThrow(() -> new BusinessException(404, "相册不存在"));
+        a.setDeletedAt(LocalDateTime.now());
+        albumRepo.save(a);
+    }
+
+    @Transactional
+    @CacheEvict(value = {"albums", "photos"}, allEntries = true)
+    public void restore(Long id) {
+        Album a = albumRepo.findDeletedById(id)
+                .orElseThrow(() -> new BusinessException(404, "未找到可恢复的相册"));
+        a.setDeletedAt(null);
+        albumRepo.save(a);
+    }
+
+    public List<Album> listDeleted() {
+        return albumRepo.findDeleted();
+    }
+
+    @Transactional
+    @CacheEvict(value = {"albums", "photos"}, allEntries = true)
+    public void permanentlyDelete(Long id) {
+        Album a = albumRepo.findDeletedById(id)
+                .orElseThrow(() -> new BusinessException(404, "未找到该相册"));
         for (Photo p : new HashSet<>(a.getPhotos())) {
             p.getAlbums().remove(a);
-            photoRepo.save(p);
         }
         a.getPhotos().clear();
         albumRepo.delete(a);

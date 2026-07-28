@@ -18,6 +18,7 @@ public class PhotoResponse {
     private Set<Tag> tags;
     private Set<Album> albums;
     private LocalDateTime createdAt;
+    private LocalDateTime deletedAt;
 
     public static PhotoResponse from(Photo photo) {
         PhotoResponse r = new PhotoResponse();
@@ -29,6 +30,7 @@ public class PhotoResponse {
         r.tags = photo.getTags();
         r.albums = photo.getAlbums();
         r.createdAt = photo.getCreatedAt();
+        r.deletedAt = photo.getDeletedAt();
         return r;
     }
 
@@ -40,4 +42,5 @@ public class PhotoResponse {
     public Set<Tag> getTags() { return tags; }
     public Set<Album> getAlbums() { return albums; }
     public LocalDateTime getCreatedAt() { return createdAt; }
+    public LocalDateTime getDeletedAt() { return deletedAt; }
 }

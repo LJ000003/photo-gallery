@@ -4,5 +4,6 @@ export interface Album {
   description: string
   coverPhotoId?: number | null
   createdAt: string
+  deletedAt?: string
   photoCount: number
 }

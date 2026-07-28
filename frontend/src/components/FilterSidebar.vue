@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick } from 'vue'
-import { useStore } from '../store'
+import { storeToRefs } from 'pinia'
+import { useDataStore } from '../stores/data'
 import { useConfirm } from '../useConfirm'
 import { api } from '../api'
 import type { Tag } from '../types/tag'
@@ -16,7 +17,9 @@ const emit = defineEmits<{
   'update:selectedCategoryIds': [ids: number[]]
 }>()
 
-const { tags, categories, loadAll, refreshTags, refreshCategories } = useStore()
+const dataStore = useDataStore()
+const { tags, categories } = storeToRefs(dataStore)
+const { loadAll, refreshTags, refreshCategories } = dataStore
 const newTagName = ref('')
 const newTagColor = ref('#00d4ff')
 const newCatName = ref('')

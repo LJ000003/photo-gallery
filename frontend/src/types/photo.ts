@@ -12,6 +12,7 @@ export interface Photo {
   albums?: Album[]
   createdAt?: string
   updatedAt?: string
+  deletedAt?: string
 }
 
 export interface PhotoPatch {

@@ -1,59 +1,55 @@
 package com.hape.photogallery.config;
 
-import java.security.Key;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.List;
 
 import javax.crypto.SecretKey;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 
-public class JwtUtil {
+@Component
+public class JwtService {
 
-    private static final String SECRET = requireEnv("JWT_SECRET");
+    private final SecretKey key;
 
-    private static String requireEnv(String name) {
-        String value = System.getenv(name);
-        if (value == null || value.isBlank()) {
+    public JwtService(@Value("${JWT_SECRET:}") String secret) {
+        if (secret == null || secret.isBlank()) {
             throw new IllegalStateException(
-                "必须设置环境变量 " + name + "，例如: export " + name + "=$(openssl rand -base64 32)"
-            );
+                "必须设置环境变量 JWT_SECRET，例如: export JWT_SECRET=$(openssl rand -base64 32)");
         }
-        return value;
+        this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
-    private static final Key KEY = Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8));
-
-    /** 签发 admin JWT */
-    public static String issueAdmin(long durationMs) {
+    public String issueAdmin(long durationMs) {
         return Jwts.builder()
                 .claim("role", "admin")
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + durationMs))
-                .signWith(KEY)
+                .signWith(key)
                 .compact();
     }
 
-    /** 签发分享链接 JWT */
-    public static String issueShare(List<Long> photoIds, String permission, long durationMs) {
+    public String issueShare(List<Long> photoIds, String permission, long durationMs) {
         return Jwts.builder()
                 .claim("role", "viewer")
                 .claim("photos", photoIds)
                 .claim("permission", permission)
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + durationMs))
-                .signWith(KEY)
+                .signWith(key)
                 .compact();
     }
 
-    /** 验签并返回 Claims，无效则返回 null */
-    public static Claims verify(String token) {
+    public Claims verify(String token) {
         try {
-            return Jwts.parser().verifyWith((SecretKey) KEY).build()
+            return Jwts.parser().verifyWith(key).build()
                     .parseSignedClaims(token).getPayload();
         } catch (JwtException e) {
             return null;

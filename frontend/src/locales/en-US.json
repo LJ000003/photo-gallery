@@ -16,6 +16,7 @@
     "grid": "Grid",
     "albums": "Albums",
     "timeline": "Timeline",
+    "trash": "Trash",
     "map": "Map"
   },
   "gallery": {
@@ -133,6 +134,7 @@
     "tooMany": "Too many requests, please try again later"
   },
   "general": {
+    "undo": "Undo",
     "confirm": "Confirm",
     "cancel": "Cancel",
     "close": "✕",

@@ -2,7 +2,7 @@
 import { ref, onMounted, computed, nextTick, watch } from 'vue'
 import gsap from 'gsap'
 import { api } from '../api'
-import { useStore } from '../store'
+import { useDataStore } from '../stores/data'
 import { useToastStore } from '../stores/toast'
 import { useConfirm } from '../useConfirm'
 import { tokenParam } from '../utils/token'
@@ -25,9 +25,10 @@ const emit = defineEmits<{
   'update:sortOrder': [order: string]
 }>()
 
-const { refreshAlbums } = useStore()
+const { refreshAlbums } = useDataStore()
 const toast = useToastStore()
 const confirmFn = useConfirm()
+const brokenCovers = ref(new Set<number>())
 
 const albums = ref<Album[]>([])
 const loading = ref(true)
@@ -137,6 +138,18 @@ function openEdit(album: Album): void {
   editingAlbum.value = album
 }
 
+async function revertDeleteAlbum(id: number): Promise<void> {
+  try {
+    const res = await api(`/api/albums/${id}/restore`, { method: 'POST' })
+    if (!res.ok) throw new Error('恢复失败')
+    await loadAlbums()
+    refreshAlbums()
+    toast.success('已恢复')
+  } catch (err) {
+    toast.error(err instanceof Error ? err.message : '恢复失败')
+  }
+}
+
 async function deleteAlbum(album: Album): Promise<void> {
   if (!(await confirmFn(`确定删除相册「${album.name}」？照片不会被删除。`, '删除相册'))) return
   albums.value = albums.value.filter((a) => a.id !== album.id)
@@ -144,7 +157,7 @@ async function deleteAlbum(album: Album): Promise<void> {
     const res = await api(`/api/albums/${album.id}`, { method: 'DELETE' })
     if (!res.ok) throw new Error('删除失败')
     refreshAlbums()
-    toast.success('已删除')
+    toast.add('已删除', 'success', 5000, { label: '撤销', onClick: () => revertDeleteAlbum(album.id!) })
   } catch (err) {
     toast.error(err instanceof Error ? err.message : '删除失败')
     loadAlbums()
@@ -217,9 +230,10 @@ watch(albumPhotos, () => {
         <div v-for="a in sortedAlbums" :key="a.id" class="album-card" @click="selectAlbum(a)">
           <div class="album-cover">
             <img
-              v-if="a.coverPhotoId"
-              :src="`/api/photos/${a.coverPhotoId}/thumbnail${tokenParam()}`"
+              v-if="a.coverPhotoId && !brokenCovers.has(a.id!)"
+              :src="`/api/v1/photos/${a.coverPhotoId}/thumbnail${tokenParam()}`"
               loading="lazy"
+              @error="brokenCovers.add(a.id!)"
             />
             <div v-else class="album-cover-placeholder">?</div>
           </div>
@@ -258,7 +272,7 @@ watch(albumPhotos, () => {
         <div v-for="p in albumPhotos" :key="p.id" class="photo-card" @click="emit('view', p)">
           <div class="photo-thumb">
             <img
-              :src="`/api/photos/${p.id}/thumbnail${tokenParam()}`"
+              :src="`/api/v1/photos/${p.id}/thumbnail${tokenParam()}`"
               :alt="p.name"
               loading="lazy"
             />

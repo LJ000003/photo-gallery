@@ -18,9 +18,9 @@ describe('webp', () => {
     // so supportsWebp is likely true in this environment
     const url = webpUrl(42)
     if (supportsWebp()) {
-      expect(url).toBe('/api/photos/42/webp')
+      expect(url).toBe('/api/v1/photos/42/webp')
     } else {
-      expect(url).toBe('/api/photos/42/file')
+      expect(url).toBe('/api/v1/photos/42/file')
     }
   })
 })

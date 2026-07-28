@@ -10,7 +10,7 @@ import com.hape.photogallery.service.TagService;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/v1")
 public class TagController {
 
     private final TagService tagService;

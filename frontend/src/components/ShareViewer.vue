@@ -81,7 +81,7 @@ onMounted(() => {
 
       <div v-for="p in photos" :key="p.id" class="photo-card" @click="viewPhoto = p">
         <div class="photo-thumb">
-          <img :src="`/api/photos/${p.id}/thumbnail?token=${token}`" :alt="p.name" loading="lazy" />
+          <img :src="`/api/v1/photos/${p.id}/thumbnail?token=${token}`" :alt="p.name" loading="lazy" />
         </div>
         <div class="photo-overlay"><button class="btn-primary mini">查看</button></div>
         <div class="photo-info">

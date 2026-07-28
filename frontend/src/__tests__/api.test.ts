@@ -92,7 +92,7 @@ describe('requestToken', () => {
 
     const token = await requestToken()
     expect(token).toBe('admin-jwt')
-    expect(mockFetch.mock.calls[0][0]).toBe('/api/auth/unlock')
+    expect(mockFetch.mock.calls[0][0]).toBe('/api/v1/auth/unlock')
     expect(mockFetch.mock.calls[0][1].method).toBe('POST')
   })
 

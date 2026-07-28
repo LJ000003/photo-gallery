@@ -1,6 +1,8 @@
 import type { ApiResponse } from './types/api'
 import i18n from './i18n'
 
+const BASE = '/api/v1'
+
 export class AuthError extends Error {
   constructor(message: string) {
     super(message)
@@ -24,7 +26,7 @@ export async function api(
     headers['Content-Type'] = 'application/json'
   }
 
-  const res = await fetch(url, { ...fetchOptions, headers })
+  const res = await fetch(url.replace(/^\/api/, BASE), { ...fetchOptions, headers })
 
   if (!skipAuth && (res.status === 401 || res.status === 403)) {
     localStorage.removeItem('jwt_token')
@@ -37,7 +39,7 @@ export async function api(
 }
 
 export async function requestToken(): Promise<string> {
-  const res = await fetch('/api/auth/unlock', {
+  const res = await fetch(BASE + '/auth/unlock', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
   })

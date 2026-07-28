@@ -4,22 +4,23 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import javax.imageio.ImageIO;
 
-import org.springframework.beans.factory.annotation.Value;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -41,6 +42,7 @@ import com.hape.photogallery.util.CoordUtil;
 @Service
 public class PhotoService {
 
+    private static final Logger log = LoggerFactory.getLogger(PhotoService.class);
     private static final long MAX_FILE_SIZE = 10 * 1024 * 1024;
 
     private final PhotoRepository repo;
@@ -50,14 +52,14 @@ public class PhotoService {
     private final ExifService exifService;
     private final ImageProcessingService imageService;
     private final AlbumService albumService;
-    private final Path uploadDir;
+    private final StorageService storage;
 
     public PhotoService(PhotoRepository repo, TagRepository tagRepo, CategoryRepository catRepo,
                         ExifDataRepository exifRepo,
                         ExifService exifService,
                         ImageProcessingService imageService,
                         AlbumService albumService,
-                        @Value("${photo.upload-dir:uploads}") String uploadDir) {
+                        StorageService storage) {
         this.repo = repo;
         this.tagRepo = tagRepo;
         this.catRepo = catRepo;
@@ -65,12 +67,7 @@ public class PhotoService {
         this.exifService = exifService;
         this.imageService = imageService;
         this.albumService = albumService;
-        this.uploadDir = Paths.get(uploadDir).toAbsolutePath().normalize();
-        try {
-            Files.createDirectories(this.uploadDir);
-        } catch (IOException e) {
-            throw new RuntimeException("无法创建上传目录: " + this.uploadDir, e);
-        }
+        this.storage = storage;
     }
 
     @Cacheable(value = "photos", key = "{#tagIds, #categoryIds, #pageable}")
@@ -97,6 +94,12 @@ public class PhotoService {
                 .orElseThrow(() -> new BusinessException(404, "该照片已被删除或不存在"));
     }
 
+    public Photo getByIdIncludeDeleted(Long id) {
+        return repo.findById(id)
+                .or(() -> repo.findDeletedById(id))
+                .orElseThrow(() -> new BusinessException(404, "该照片不存在"));
+    }
+
     public Page<Photo> findByIds(List<Long> ids, Pageable pageable) {
         return repo.findByIdIn(ids, pageable);
     }
@@ -112,15 +115,14 @@ public class PhotoService {
 
         LocalDateTime now = LocalDateTime.now();
         String dateDir = String.format("%04d/%02d", now.getYear(), now.getMonthValue());
-        Path datePath = uploadDir.resolve(dateDir);
-        Files.createDirectories(datePath);
+        Path datePath = storage.getUploadDir().resolve(dateDir);
+        storage.createDirectories(datePath);
 
         String baseName = UUID.randomUUID() + "_" + file.getOriginalFilename();
         String storedName = dateDir + "/" + baseName;
-        Path target = uploadDir.resolve(storedName);
-        Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
+        Path target = storage.getUploadDir().resolve(storedName);
+        storage.store(file, target);
 
-        // 先存 Photo 拿到 ID，然后在图片处理之前提取 EXIF（否则重编码会丢失 EXIF）
         Photo photo = new Photo();
         photo.setName(name != null && !name.isBlank() ? name : file.getOriginalFilename());
         photo.setDescription(description);
@@ -139,7 +141,6 @@ public class PhotoService {
 
         Photo saved = repo.save(photo);
 
-        // 图片处理之前提取 EXIF，保留原始元数据
         try {
             exifService.extractAndSave(saved, target);
         } catch (Exception e) {
@@ -178,18 +179,9 @@ public class PhotoService {
 
     // === 文件路径 ===
 
-    /** 安全解析上传目录内的相对路径，防止 ../ 穿越 */
-    private Path resolveSafe(String relativePath) {
-        Path resolved = uploadDir.resolve(relativePath).normalize();
-        if (!resolved.startsWith(uploadDir)) {
-            throw new SecurityException("Invalid file path");
-        }
-        return resolved;
-    }
-
     public Path getFilePath(Long id) {
-        Photo photo = getById(id);
-        return resolveSafe(photo.getFileName());
+        Photo photo = getByIdIncludeDeleted(id);
+        return storage.resolveSafe(photo.getFileName());
     }
 
     public Path getThumbnailPath(Long id) {
@@ -197,47 +189,46 @@ public class PhotoService {
     }
 
     public Path getThumbnailPath(Long id, int width) {
-        Photo photo = getById(id);
+        Photo photo = getByIdIncludeDeleted(id);
         String fn = photo.getFileName();
         int lastSlash = fn.lastIndexOf('/');
         String dateDir = fn.substring(0, lastSlash);
         String baseName = fn.substring(lastSlash + 1);
 
+        Path uploadDir = storage.getUploadDir();
         Path thumbDir = width == 400
                 ? uploadDir.resolve(dateDir).resolve("thumbnails")
                 : uploadDir.resolve(dateDir).resolve("thumbnails").resolve(String.valueOf(width));
-        Path thumb = resolveSafe(uploadDir.relativize(thumbDir.resolve(baseName)).toString());
+        Path thumb = storage.resolveSafe(uploadDir.relativize(thumbDir.resolve(baseName)).toString());
         if (Files.exists(thumb)) return thumb;
 
-        // 小尺寸不存在时，回退到 400px 档
         if (width != 400) {
-            Path fallback = resolveSafe(dateDir + "/thumbnails/" + baseName);
+            Path fallback = storage.resolveSafe(dateDir + "/thumbnails/" + baseName);
             if (Files.exists(fallback)) return fallback;
         }
 
-        return resolveSafe(fn);
+        return storage.resolveSafe(fn);
     }
 
     public Path getWebpPath(Long id) {
-        Photo photo = getById(id);
+        Photo photo = getByIdIncludeDeleted(id);
         String fn = photo.getFileName();
         int lastSlash = fn.lastIndexOf('/');
         String dateDir = fn.substring(0, lastSlash);
         String baseName = fn.substring(lastSlash + 1);
-        Path webp = resolveSafe(dateDir + "/webp/" + baseName + ".webp");
+        Path webp = storage.resolveSafe(dateDir + "/webp/" + baseName + ".webp");
         if (Files.exists(webp)) return webp;
         return getFilePath(id);
     }
 
-    // === 删除 ===
+    // === 删除（软删除） ===
 
     @Transactional
     @CacheEvict(value = {"photos", "timeline", "map"}, allEntries = true)
     public void delete(Long id) {
         Photo photo = getById(id);
-        exifRepo.findByPhoto_Id(id).ifPresent(exifRepo::delete);
-        repo.delete(photo);
-        deletePhotoFiles(photo);
+        photo.setDeletedAt(LocalDateTime.now());
+        repo.save(photo);
     }
 
     @Transactional
@@ -245,26 +236,58 @@ public class PhotoService {
     public int batchDelete(List<Long> ids) {
         List<Photo> photos = repo.findAllById(ids);
         if (photos.isEmpty()) return 0;
-        List<Long> photoIds = photos.stream().map(Photo::getId).toList();
-        exifRepo.deleteByPhoto_IdIn(photoIds);
-        repo.deleteAll(photos);
-        for (Photo photo : photos) {
-            deletePhotoFiles(photo);
+        for (Photo p : photos) {
+            p.setDeletedAt(LocalDateTime.now());
         }
+        repo.saveAll(photos);
         return photos.size();
     }
 
+    @Transactional
+    @CacheEvict(value = {"photos", "timeline", "map"}, allEntries = true)
+    public void restore(Long id) {
+        Photo photo = repo.findDeletedById(id)
+                .orElseThrow(() -> new BusinessException(404, "未找到可恢复的照片"));
+        photo.setDeletedAt(null);
+        repo.save(photo);
+    }
+
+    @Scheduled(cron = "0 0 3 * * ?", zone = "Asia/Shanghai")
+    @Transactional
+    public void cleanupDeletedPermanently() {
+        LocalDateTime threshold = LocalDateTime.now().minusDays(30);
+        List<Photo> expired = repo.findDeletedBefore(threshold);
+        if (expired.isEmpty()) return;
+        for (Photo p : expired) {
+            deletePhotoFiles(p);
+            exifRepo.findByPhoto_Id(p.getId()).ifPresent(exifRepo::delete);
+            repo.delete(p);
+        }
+        log.info("已永久清理 {} 张过期照片", expired.size());
+    }
+
+    public Page<Photo> listDeleted(Pageable pageable) {
+        return repo.findDeleted(pageable);
+    }
+
+    @Transactional
+    public void permanentlyDelete(Long id) {
+        Photo photo = repo.findDeletedById(id)
+                .orElseThrow(() -> new BusinessException(404, "未找到该照片"));
+        exifRepo.findByPhoto_Id(id).ifPresent(exifRepo::delete);
+        deletePhotoFiles(photo);
+        repo.delete(photo);
+    }
+
     private void deletePhotoFiles(Photo photo) {
-        try {
-            Files.deleteIfExists(uploadDir.resolve(photo.getFileName()));
-            String fn = photo.getFileName();
-            int lastSlash = fn.lastIndexOf('/');
-            String dateDir = fn.substring(0, lastSlash);
-            String baseName = fn.substring(lastSlash + 1);
-            Files.deleteIfExists(uploadDir.resolve(dateDir).resolve("thumbnails").resolve(baseName));
-            Files.deleteIfExists(uploadDir.resolve(dateDir).resolve("thumbnails").resolve("200").resolve(baseName));
-            Files.deleteIfExists(uploadDir.resolve(dateDir).resolve("webp").resolve(baseName + ".webp"));
-        } catch (IOException ignored) {}
+        storage.deleteFile(photo.getFileName());
+        String fn = photo.getFileName();
+        int lastSlash = fn.lastIndexOf('/');
+        String dateDir = fn.substring(0, lastSlash);
+        String baseName = fn.substring(lastSlash + 1);
+        storage.deleteFile(dateDir + "/thumbnails/" + baseName);
+        storage.deleteFile(dateDir + "/thumbnails/200/" + baseName);
+        storage.deleteFile(dateDir + "/webp/" + baseName + ".webp");
     }
 
     // === 批量上传 ===
@@ -285,6 +308,7 @@ public class PhotoService {
     private static final int BATCH_SIZE = 100;
 
     public int migrateThumbnails() {
+        Path uploadDir = storage.getUploadDir();
         int count = 0;
         var pageable = PageRequest.of(0, BATCH_SIZE);
         Page<Photo> page;
@@ -310,6 +334,7 @@ public class PhotoService {
     }
 
     public int migrateWebp() {
+        Path uploadDir = storage.getUploadDir();
         int count = 0;
         var pageable = PageRequest.of(0, BATCH_SIZE);
         Page<Photo> page;
@@ -360,7 +385,7 @@ public class PhotoService {
         Page<Photo> page;
         do {
             page = repo.findAll(pageable);
-            count += exifService.extractForExisting(page.getContent(), uploadDir);
+            count += exifService.extractForExisting(page.getContent(), storage.getUploadDir());
             pageable = pageable.next();
         } while (page.hasNext());
         return count;
@@ -368,7 +393,7 @@ public class PhotoService {
 
     public ExifData extractExifForPhoto(Long id) {
         Photo photo = getById(id);
-        Path filePath = uploadDir.resolve(photo.getFileName());
+        Path filePath = storage.getUploadDir().resolve(photo.getFileName());
         if (!Files.exists(filePath)) return null;
         return exifService.extractAndSave(photo, filePath);
     }
@@ -379,7 +404,7 @@ public class PhotoService {
     @CacheEvict(value = {"photos", "timeline", "map"}, allEntries = true)
     public void transformPhoto(Long id, int rotate, String mirror, Double cx, Double cy, Double cw, Double ch) throws IOException {
         Photo photo = getById(id);
-        Path filePath = uploadDir.resolve(photo.getFileName());
+        Path filePath = storage.getUploadDir().resolve(photo.getFileName());
         if (!Files.exists(filePath)) return;
 
         BufferedImage img = ImageIO.read(filePath.toFile());

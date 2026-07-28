@@ -19,6 +19,12 @@ import jakarta.servlet.http.HttpServletResponse;
 @Component
 public class JwtAuthFilter extends OncePerRequestFilter {
 
+    private final JwtService jwtService;
+
+    public JwtAuthFilter(JwtService jwtService) {
+        this.jwtService = jwtService;
+    }
+
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
@@ -35,7 +41,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         }
 
         if (token != null) {
-            Claims claims = JwtUtil.verify(token);
+            Claims claims = jwtService.verify(token);
             if (claims != null) {
                 String role = claims.get("role", String.class);
                 List<SimpleGrantedAuthority> authorities = List.of(
@@ -43,10 +49,10 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
                 if ("viewer".equals(role)) {
                     @SuppressWarnings("unchecked")
-                    List<Integer> photos = claims.get("photos", List.class);
+                    List<?> photos = claims.get("photos", List.class);
                     if (photos != null) {
                         request.setAttribute("sharePhotoIds",
-                                photos.stream().map(Integer::longValue).toList());
+                                photos.stream().map(n -> ((Number) n).longValue()).toList());
                     }
                     request.setAttribute("sharePermission", claims.get("permission", String.class));
                 }

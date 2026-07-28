@@ -8,7 +8,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 public interface PhotoRepository extends JpaRepository<Photo, Long> {
 
@@ -35,4 +37,15 @@ public interface PhotoRepository extends JpaRepository<Photo, Long> {
 
     @Query("SELECT p FROM Photo p WHERE p.albums IS EMPTY")
     Page<Photo> findUnassigned(Pageable pageable);
+
+    @Query(nativeQuery = true, value = "SELECT * FROM photos WHERE id = ?1 AND deleted_at IS NOT NULL")
+    Optional<Photo> findDeletedById(Long id);
+
+    @Query(nativeQuery = true, value = "SELECT * FROM photos WHERE deleted_at IS NOT NULL AND deleted_at < ?1")
+    List<Photo> findDeletedBefore(LocalDateTime threshold);
+
+    @Query(nativeQuery = true,
+           value = "SELECT * FROM photos WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC",
+           countQuery = "SELECT COUNT(*) FROM photos WHERE deleted_at IS NOT NULL")
+    Page<Photo> findDeleted(Pageable pageable);
 }

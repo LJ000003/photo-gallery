@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { storeToRefs } from 'pinia'
 import gsap from 'gsap'
-import { useStore } from '../store'
+import { useDataStore } from '../stores/data'
 import { useToastStore } from '../stores/toast'
 import { api } from '../api'
 import type { Photo } from '../types/photo'
@@ -17,15 +18,9 @@ const emit = defineEmits<{
   saved: []
 }>()
 
-const {
-  tags: allTags,
-  categories: allCats,
-  albums: allAlbums,
-  loadAll,
-  refreshTags,
-  refreshCategories,
-  refreshAlbums,
-} = useStore()
+const dataStore = useDataStore()
+const { tags: allTags, categories: allCats, albums: allAlbums } = storeToRefs(dataStore)
+const { loadAll, refreshTags, refreshCategories, refreshAlbums } = dataStore
 const editName = ref('')
 const editDesc = ref('')
 const selectedTagIds = ref<number[]>([])

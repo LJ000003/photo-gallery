@@ -1,4 +1,5 @@
 import { AuthError } from './api'
+import i18n from './i18n'
 
 const MAX_DIM = 1920
 const JPEG_QUALITY = 0.85
@@ -76,7 +77,7 @@ export function uploadWithProgress(
 ): Promise<{ ok: boolean; status: number; data: unknown }> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
-    xhr.open('POST', url)
+    xhr.open('POST', url.replace(/^\/api/, '/api/v1'))
 
     const token = localStorage.getItem('jwt_token')
     if (token) {
@@ -94,7 +95,7 @@ export function uploadWithProgress(
         localStorage.removeItem('jwt_token')
         localStorage.removeItem('konami_unlocked')
         window.location.reload()
-        reject(new AuthError('登录已过期，请重新解锁'))
+        reject(new AuthError(i18n.global.t('auth.expired')))
         return
       }
       let data: unknown = null
