@@ -12,7 +12,7 @@
 |------|------|------|
 | 运行时 | Java | 17 |
 | 后端框架 | Spring Boot | 3.3.0 |
-| 安全 | Spring Security + JWT (jjwt) + BCrypt | 0.12.6 |
+| 安全 | Spring Security + JWT (jjwt) | 0.12.6 |
 | ORM | Spring Data JPA + Hibernate | — |
 | 数据库 | MySQL + Flyway 迁移 | 8.0+ |
 | 缓存 | Spring Cache + Caffeine | — |
@@ -26,7 +26,7 @@
 | 虚拟滚动 | @tanstack/vue-virtual | — |
 | 地图 | Leaflet + markercluster | 1.9.4 |
 | 动画 | GSAP + Lottie | — |
-| 国际化 | vue-i18n | — |
+| 国际化 | vue-i18n（前端）+ Spring MessageSource（后端） | — |
 | PWA | vite-plugin-pwa + Workbox | — |
 | 部署 | Docker Compose / Nginx 反向代理 | — |
 
@@ -35,16 +35,16 @@
 ## 功能
 
 ### 照片管理
-- **上传** — 拖拽/粘贴/批量，魔数校验（JPEG/PNG/GIF/BMP/WebP），客户端 Canvas 压缩大图，XHR 实时进度条
+- **上传** — 拖拽/粘贴/批量（单次最多 50 张），魔数校验（JPEG/PNG/GIF/BMP/WebP），客户端 Canvas 压缩大图（最大 1920px，JPEG 质量 0.85），XHR 实时进度条
 - **浏览** — 虚拟滚动（DOM 节点数恒定，万张照片不卡）、3D 倾斜卡片、骨架屏加载
 - **编辑** — 名称/描述修改、分类/标签/相册分配
-- **批量操作** — 多选、全选、批量删除、批量上传、批量生成分享链接
+- **批量操作** — 多选、全选、批量删除、批量生成分享链接
 - **搜索** — 即时模糊搜索名称和描述
 - **排序** — 时间/名称/大小，正序倒序自由切换
 
 ### 图片处理
 - **响应式缩略图** — 上传自动生成 200 px + 400 px 双档，前端 `srcset` + `sizes` 按视口和 DPR 自动选择
-- **编辑器** — Canvas 全分辨率旋转/镜像/裁剪
+- **编辑器** — Canvas 全分辨率旋转（任意角度）/镜像（水平/垂直）/裁剪
 - **水印** — 右下角半透明白色文字，字号自适应图片宽度，字体/大小/透明度可配置
 - **WebP** — 上传自动生成 Lossy WebP 副本，运行时检测浏览器支持
 - **EXIF 自动旋转** — 根据 Orientation 标签自动纠正方向
@@ -55,26 +55,26 @@
 - **相册** — 多对多分组，封面卡片网格，时间/名称排序，"未分配"自动汇总
 
 ### EXIF 与浏览
-- **EXIF 提取** — 拍摄时间、相机型号、焦距、光圈、快门、ISO、GPS
+- **EXIF 提取** — 拍摄时间、相机型号、镜头型号、焦距、光圈、快门、ISO、GPS
 - **时间线** — 按年月分组，正序/倒序
 - **地图** — Leaflet 聚合标注，WGS-84 → GCJ-02 坐标转换，高德卫星底图 + 道路标注叠加，移动端自适应高度 + ResizeObserver
 
 ### 安全
-- **Konami 门禁** — 密码序列解锁（↑↑↓↓←→←→ B A B A），键盘 + 触摸双模式
-- **JWT 双角色** — admin（管理）/ viewer（分享查看）
-- **限时分享链接** — 选中照片生成 7 天链接，朋友无需密码即可查看
-- **IP 限流** — `/api/auth/unlock` 每 IP 每秒最多 10 次（Caffeine 固定窗口计数）
-- **BCrypt 密码哈希** — 管理密码加密存储
+- **Konami 门禁** — 密码序列解锁（↑↑↓↓←→←→ B A B A），键盘 + 触摸双模式，前端验证通过后调后端签发 admin JWT
+- **JWT 双角色** — admin（24h，管理）/ viewer（7 天，分享查看）
+- **限时分享链接** — 选中照片生成分享链接，朋友无需密码即可查看
+- **IP 限流** — `/api/v1/auth/unlock` 每 IP 每秒最多 10 次（Caffeine 固定窗口计数）
 - **缓存一致性** — 所有写操作（照片/相册/标签/分类）自动驱逐列表缓存
 - **软删除 + 回收站** — 删除标记 `deleted_at`（Hibernate @SQLRestriction 全局过滤），5 秒 Toast 撤销 + 回收站可恢复/彻底删除，每天凌晨 3 点（Asia/Shanghai）自动清理 30 天前记录
+- **前端错误边界** — 组件异常自动捕获，显示降级页面（重试 / 刷新 / 复制错误信息），切换路由自动恢复
 
 ### PWA（渐进式 Web 应用）
 - 可安装到桌面/主屏幕（Android Chrome + iOS Safari + 桌面 Edge/Chrome）
-- Service Worker 离线缓存：静态资源预缓存 + 缩略图 CacheFirst + API NetworkFirst
+- Service Worker 离线缓存：静态资源预缓存 + 缩略图 CacheFirst（7 天）+ API NetworkFirst（5 分钟）
 - Web App Manifest + iOS `apple-mobile-web-app-capable` 独立窗口
 
 ### 国际化
-- 前端：`vue-i18n`，zh-CN / en-US 双语，浏览器语言自动检测
+- 前端：`vue-i18n`，zh-CN / en-US 双语，浏览器语言自动检测，localStorage 可覆盖
 - 后端：Spring MessageSource，`messages.properties` 双语错误消息
 
 ### 其他
@@ -83,7 +83,7 @@
 - Toast 通知、自定义确认弹窗、Lottie 加载动画
 - 回到顶部、光标拖尾、波纹效果
 - 移动端响应式（侧边抽屉、工具栏居中、hover 降级、地图适配）
-- SpringDoc `/swagger-ui.html` 交互式 API 文档
+- SpringDoc `/swagger-ui.html` 交互式 API 文档（开发环境启用）
 
 ---
 
@@ -96,8 +96,8 @@ photo-gallery/
 │   │   ├── PhotoGalleryApplication.java        # @SpringBootApplication + @EnableCaching
 │   │   ├── ApiResponse.java                    # 统一响应体 {code, message, data}
 │   │   ├── controller/
-│   │   │   ├── AuthController.java             # POST /api/auth/unlock + 分享生成
-│   │   │   ├── ShareController.java            # 分享链接 + 落地面
+│   │   │   ├── AuthController.java             # POST /api/v1/auth/unlock + 分享链接生成
+│   │   │   ├── ShareController.java            # 分享落地面 + 查看 API
 │   │   │   ├── PhotoController.java            # 照片 REST API
 │   │   │   ├── TagController.java              # 标签 CRUD
 │   │   │   ├── CategoryController.java         # 分类 CRUD
@@ -106,11 +106,13 @@ photo-gallery/
 │   │   │   └── HelloController.java            # 根端点
 │   │   ├── service/
 │   │   │   ├── PhotoService.java               # 核心业务逻辑
-│   │   │   ├── TagService.java                 # 标签服务（含缓存驱逐）
-│   │   │   ├── CategoryService.java            # 分类服务（含缓存驱逐）
-│   │   │   ├── AlbumService.java               # 相册服务（含缓存驱逐）
+│   │   │   ├── TagService.java                 # 标签服务
+│   │   │   ├── CategoryService.java            # 分类服务
+│   │   │   ├── AlbumService.java               # 相册服务
 │   │   │   ├── ImageProcessingService.java     # 缩略图(多档)/WebP/水印/旋转/镜像
-│   │   │   └── ExifService.java                # metadata-extractor 集成
+│   │   │   ├── ExifService.java                # metadata-extractor 集成
+│   │   │   ├── StorageService.java             # 存储接口（可扩展不同后端）
+│   │   │   └── LocalStorageService.java        # 本地文件系统存储实现
 │   │   ├── repository/
 │   │   │   ├── PhotoRepository.java            # JPQL 分页 + 筛选 + 搜索
 │   │   │   ├── TagRepository.java
@@ -118,21 +120,24 @@ photo-gallery/
 │   │   │   ├── AlbumRepository.java
 │   │   │   └── ExifDataRepository.java
 │   │   ├── entity/
-│   │   │   ├── Photo.java                      # 照片实体
+│   │   │   ├── Photo.java                      # 照片实体（软删除）
 │   │   │   ├── Tag.java                        # 标签实体
 │   │   │   ├── Category.java                   # 分类实体
-│   │   │   ├── Album.java                      # 相册实体
-│   │   │   └── ExifData.java                   # EXIF 元数据实体
+│   │   │   ├── Album.java                      # 相册实体（软删除）
+│   │   │   └── ExifData.java                   # EXIF 元数据实体（OneToOne）
 │   │   ├── dto/
-│   │   │   ├── PhotoResponse.java              # Photo DTO
+│   │   │   ├── PhotoResponse.java              # 照片响应 DTO
 │   │   │   ├── PhotoUpdateRequest.java         # 更新请求体
 │   │   │   ├── TimelineItem.java               # 时间线项
-│   │   │   └── MapItem.java                    # 地图项（含 GCJ-02 坐标）
+│   │   │   ├── MapItem.java                    # 地图项（含 GCJ-02 坐标）
+│   │   │   ├── ShareGenerateRequest.java       # 分享链接生成请求
+│   │   │   ├── TransformRequest.java           # 图片变换参数
+│   │   │   └── AlbumRequest.java               # 相册创建/更新请求
 │   │   ├── config/
-│   │   │   ├── SecurityConfig.java             # SecurityFilterChain + CORS + BCrypt
-│   │   │   ├── JwtUtil.java                    # HS256 JWT 签发与验签
+│   │   │   ├── SecurityConfig.java             # SecurityFilterChain + CORS
+│   │   │   ├── JwtService.java                 # HS256 JWT 签发与验签
 │   │   │   ├── JwtAuthFilter.java              # OncePerRequestFilter
-│   │   │   ├── RateLimitFilter.java            # IP 限流（固定窗口计数 + Caffeine）
+│   │   │   ├── RateLimitFilter.java            # IP 固定窗口限流（Caffeine）
 │   │   │   └── CacheControlFilter.java         # 全局 Cache-Control 头
 │   │   ├── exception/
 │   │   │   ├── BusinessException.java          # 业务异常
@@ -145,74 +150,77 @@ photo-gallery/
 │   │   ├── application.properties              # 公共配置 + Caffeine + i18n + 水印
 │   │   ├── application-dev.yml                 # 开发环境 (ddl-auto: update)
 │   │   ├── application-prod.yml                # 生产环境 (ddl-auto: validate)
-│   │   ├── logback-spring.xml                  # 控制台 + 按天滚动 + 错误分离
+│   │   ├── logback-spring.xml                  # 控制台 + 按天滚动文件（30/90 天保留）
 │   │   ├── i18n/
-│   │   │   ├── messages.properties             # 中文错误消息（默认）
+│   │   │   ├── messages.properties             # 中文错误消息
 │   │   │   └── messages_en_US.properties       # 英文错误消息
-│   │   ├── db/migration/                       # Flyway V1–V6
+│   │   ├── db/migration/                       # Flyway 迁移脚本 V1–V6
 │   │   └── static/                             # 前端构建产物 (SPA)
-│   └── Dockerfile                              # JRE 17 Alpine + Noto CJK 字体
+│   ├── Dockerfile                              # JRE 17 Alpine + 文泉驿字体 + curl
+│   └── pom.xml                                 # Maven 配置
 │
 ├── frontend/
-│   ├── .env / .env.example                     # 前端环境变量
-│   ├── vite.config.js                          # Vite + PWA + 分包配置
+│   ├── vite.config.js                          # Vite + PWA + 手动分包
 │   ├── tsconfig.json                           # TypeScript 严格模式
 │   ├── index.html                              # 入口 + iOS PWA meta 标签
 │   ├── public/
 │   │   └── pwa-icon.svg                        # PWA 图标
 │   └── src/
-│       ├── main.ts                             # 入口（Pinia + Router + i18n + SW 注册）
-│       ├── App.vue                             # 根组件（RouterView 入口）
-│       ├── api.ts                              # fetch 封装 + JWT 注入 + AuthError 类型
+│       ├── main.ts                             # 入口（Pinia + Router + i18n + 全局错误处理）
+│       ├── App.vue                             # 根组件（错误边界 + RouterView）
+│       ├── api.ts                              # fetch 封装 + JWT 注入
 │       ├── i18n.ts                             # vue-i18n 配置（浏览器语言检测）
 │       ├── upload.ts                           # 客户端压缩 + XHR 进度上传
 │       ├── webp.ts                             # WebP 检测 + 响应式缩略图 srcset
-│       ├── style.css                           # 全局样式（仅 CSS 变量 + 跨组件共享样式）
-│       ├── store.ts                            # 全局标签/分类/相册数据
+│       ├── style.css                           # 全局样式（CSS 变量 + 跨组件共享样式）
 │       ├── useConfirm.ts                       # 确认弹窗 composable
-│       ├── locales/
-│       │   ├── zh-CN.json                      # 70+ 中文翻译键
-│       │   └── en-US.json                      # 70+ 英文翻译键
+│       ├── router/
+│       │   └── index.ts                        # Vue Router（SPA + MainLayout 子路由）
 │       ├── stores/
-│       │   ├── photo.ts                        # 照片数据 + 分页 + 排序 + 搜索 + URL 同步
+│       │   ├── photo.ts                        # 照片数据 + 分页 + 排序 + 搜索
 │       │   ├── ui.ts                           # JWT + 解锁状态 + 弹窗状态
-│       │   └── toast.ts                        # Toast 通知队列
+│       │   ├── toast.ts                        # Toast 通知队列
+│       │   └── data.ts                         # 标签/分类/相册缓存
 │       ├── types/                              # TypeScript 类型定义
+│       ├── utils/
+│       │   ├── format.ts                       # 格式化工具函数
+│       │   └── token.ts                        # JWT 解析工具
 │       ├── composables/
 │       │   ├── useAppEffects.ts                # 背景光球 + 光标拖尾 + 入场动画
 │       │   └── usePhotoActions.ts              # 照片操作（删除/批量/分享/复制）
 │       ├── layouts/
-│       │   └── MainLayout.vue                  # 主布局（Konami 门禁 / 布局 / 事件）
+│       │   └── MainLayout.vue                  # 主布局（Konami 门禁 / 侧边栏 / 事件）
 │       ├── pages/
 │       │   ├── GalleryPage.vue                 # 网格主页面（虚拟滚动 + 骨架屏）
 │       │   ├── AlbumsPage.vue                  # 相册页面
 │       │   ├── TimelinePage.vue                # 时间线页面
 │       │   ├── MapPage.vue                     # 地图页面
-│       │   ├── TrashPage.vue                   # 回收站页面
+│       │   └── TrashPage.vue                   # 回收站页面
 │       └── components/
-│           ├── KonamiGate.vue                  # Konami 密码门禁
-│           ├── AppHeader.vue                   # 渐变标题 + RGB 彩蛋
+│           ├── KonamiGate.vue                  # Konami 密码门禁（键盘 + 触摸）
+│           ├── AppHeader.vue                   # 渐变标题
 │           ├── UploadCard.vue                  # 上传区域（进度条/压缩/拖拽/粘贴）
 │           ├── PhotoCard.vue                   # 3D 倾斜卡片 + srcset
 │           ├── ViewModal.vue                   # 大图查看（WebP 优先）
 │           ├── EditModal.vue                   # 编辑信息 + 分配分类/标签/相册
 │           ├── FilterSidebar.vue               # 分类/标签筛选侧边栏
-│           ├── AlbumView.vue                   # 相册网格 + 详情（复用 SortSwitch）
+│           ├── AlbumView.vue                   # 相册网格 + 详情
 │           ├── AlbumEditModal.vue              # 相册编辑 + 照片选择器
 │           ├── TimelineView.vue                # EXIF 时间线
 │           ├── MapView.vue                     # 地图聚合标注（ResizeObserver 自适应）
 │           ├── ImageEditor.vue                 # Canvas 图片编辑器
 │           ├── ShareModal.vue                  # 分享弹窗
 │           ├── ShareViewer.vue                 # 分享落地面
-│           ├── SortSwitch.vue                  # 排序切换器（复用组件）
+│           ├── SortSwitch.vue                  # 排序切换器
 │           ├── ViewSwitcher.vue                # 视图切换器
 │           ├── ToastProvider.vue               # Toast 容器
 │           ├── ConfirmDialog.vue               # 确认弹窗
-│           └── LottieLoader.vue                # Lottie 动画
+│           ├── LottieLoader.vue                # Lottie 动画
+│           └── ErrorFallback.vue               # 错误降级页面
 │
-├── .env / .env.example                         # Docker Compose 环境变量
-├── docker-compose.yml                          # MySQL + App + 数据卷
-├── build-docker.ps1 / build-docker.sh          # Docker 一键构建（含 npm ci）
+├── .env.example                                # Docker Compose 环境变量模板
+├── docker-compose.yml                          # MySQL + App + 健康检查 + 内存限制
+├── build-docker.ps1 / build-docker.sh          # Docker 一键构建
 └── build-traditional.ps1 / build-traditional.sh  # 传统 JAR 一键构建
 ```
 
@@ -237,24 +245,20 @@ CREATE DATABASE IF NOT EXISTS photodb CHARACTER SET utf8mb4 COLLATE utf8mb4_unic
 | `DB_USERNAME` | 数据库用户名 | `root` |
 | `DB_PASSWORD` | 数据库密码 | **必填** |
 | `JWT_SECRET` | JWT HS256 签名密钥 | **必填** |
-| `ADMIN_PASSWORD` | Konami 解锁后的管理密码 | `photoadmin` |
 | `photo.watermark.font` | 水印字体 | `SansSerif`（Docker 环境安装 WenQuanYi Zen Hei 支持中文） |
 | `photo.watermark.font-size-ratio` | 水印大小（图片宽度 ÷ 此值） | `40` |
 | `photo.watermark.color-alpha` | 水印透明度（0-255） | `180` |
-| `VITE_ADMIN_PASSWORD` | 前端密码（构建时注入） | 自动继承 `ADMIN_PASSWORD` |
 
 **Windows (PowerShell):**
 ```powershell
 $env:DB_PASSWORD="你的数据库密码"
 $env:JWT_SECRET="$(openssl rand -base64 32)"
-$env:ADMIN_PASSWORD="你们朋友间的共享密码"
 ```
 
 **Linux / macOS:**
 ```bash
 export DB_PASSWORD=你的数据库密码
 export JWT_SECRET=$(openssl rand -base64 32)
-export ADMIN_PASSWORD=你们朋友间的共享密码
 ```
 
 ### 3. 启动后端
@@ -279,8 +283,8 @@ npm run dev
 ### 5. 首次使用
 
 1. 打开页面 → Konami 街机界面
-2. 输入 **`↑ ↑ ↓ ↓ ← → ← → B A B A`**（或点击虚拟按键）
-3. 输入管理密码 → 签发 24h admin JWT
+2. 输入 **`↑ ↑ ↓ ↓ ← → ← → B A B A`**（键盘方向键 + 字母键，或点击虚拟按键）
+3. 前端验证通过后自动调后端签发 24h admin JWT
 4. 进入管理系统，开始上传照片
 
 ---
@@ -294,7 +298,7 @@ npm run dev
 ./build-docker.sh          # Docker 镜像
 ```
 
-构建脚本自动完成：`npm ci`（首次）→ 前端构建 → 复制到 `backend/static` → Maven 打包 → Docker 启动。
+构建脚本自动完成：`npm ci` → 前端构建 → 复制到 `backend/static` → Maven 打包 → Docker 启动。
 
 ### 手动构建
 
@@ -327,21 +331,22 @@ DB_HOST=mysql
 DB_USERNAME=root
 DB_PASSWORD=${MYSQL_ROOT_PASSWORD}
 JWT_SECRET=$(openssl rand -base64 32)
-ADMIN_PASSWORD=你们朋友间的共享密码
 ```
 
-#### 2. 上传并启动
+#### 2. 构建并启动
 
 ```bash
-scp docker-compose.yml .env root@<IP>:/opt/photo-gallery/
-scp backend/Dockerfile root@<IP>:/opt/photo-gallery/backend/
-scp backend/target/photo-gallery-*.jar root@<IP>:/opt/photo-gallery/backend/target/
-ssh root@<IP> "cd /opt/photo-gallery && docker compose up -d --build"
+# 在项目根目录执行
+docker compose up -d --build
 ```
 
-访问 `http://<IP>:8080`（`127.0.0.1:8080:8080`，仅绑定 localhost，推荐通过 Nginx 或 cloudflared 反向代理对外暴露）。
+访问 `http://localhost:8080`（端口仅绑定 127.0.0.1，推荐通过 Nginx 或 cloudflared 反向代理对外暴露）。
 
-#### 3. 常用命令
+#### 3. 容器资源配置
+
+应用容器限制 768M 内存（JVM 堆 448M + Metaspace 128M），MySQL 容器限制 512M（InnoDB buffer pool 128M）。两者均配置了 Docker healthcheck，异常时自动重启。适用于 2GB 内存服务器。
+
+#### 4. 常用命令
 
 ```bash
 docker compose ps              # 查看状态
@@ -406,13 +411,13 @@ certbot --nginx -d 你的域名   # 免费 SSL
 ```
 ┌─────────────────────────────────────────────────────┐
 │  Konami 解锁 (前端交互)                               │
-│    → POST /api/auth/unlock (ADMIN_PASSWORD)         │
-│    → IP 令牌桶限流（每 IP 每秒 ≤ 10 次）              │
-│    → BCrypt 验密                                    │
+│    → 输入 ↑↑↓↓←→←→ B A B A 密码序列（前端验证）       │
+│    → POST /api/v1/auth/unlock                       │
+│    → IP 固定窗口限流（每 IP 每秒 ≤ 10 次）            │
 │    → 签发 24h admin JWT (role: admin)               │
 │                                                     │
 │  分享链接                                             │
-│    → POST /api/share/generate {photoIds}            │
+│    → POST /api/v1/share/generate {photoIds}         │
 │    → 签发 7 天 viewer JWT (role: viewer + photos)   │
 │    → /share/{token} → ShareViewer 落地面            │
 └─────────────────────────────────────────────────────┘
@@ -425,14 +430,14 @@ certbot --nginx -d 你的域名   # 免费 SSL
 
 | 请求 | 权限 |
 |------|------|
-| `GET /api/**` | `ROLE_admin` 或 `ROLE_viewer` |
-| `POST/PUT/DELETE /api/**` | `ROLE_admin` |
-| `GET /api/trash/**` | `ROLE_admin` 或 `ROLE_viewer`（仅浏览） |
-| `POST/DELETE /api/trash/**` | `ROLE_admin`（恢复/彻底删除） |
-| `POST /api/auth/unlock` | 公开（含限流） |
+| `GET /api/v1/**` | `ROLE_admin` 或 `ROLE_viewer` |
+| `POST/PUT/DELETE /api/v1/**` | `ROLE_admin` |
+| `GET /api/v1/trash/**` | `ROLE_admin` 或 `ROLE_viewer`（仅浏览） |
+| `POST/DELETE /api/v1/trash/**` | `ROLE_admin`（恢复/彻底删除） |
+| `POST /api/v1/auth/unlock` | 公开（含限流） |
 | `GET /share/**` | 公开 |
 | `/actuator/health` | 公开 |
-| `/swagger-ui/**` | 公开 |
+| `/swagger-ui/**` | 公开（仅开发环境） |
 | 静态资源 | 公开 |
 
 ---
@@ -444,4 +449,4 @@ GET /actuator/health
 → {"status":"UP","components":{"db":{"status":"UP"},"diskSpace":{"status":"UP"}}}
 ```
 
-可用于 Docker healthcheck 或 K8s 探针。
+Docker 容器通过 `curl http://localhost:8080/actuator/health` 每 15 秒探测一次，连续 3 次失败自动重启容器。
