@@ -133,6 +133,12 @@
   "rateLimit": {
     "tooMany": "Too many requests, please try again later"
   },
+  "processing": {
+    "processing": "Processing...",
+    "failed": "Processing failed",
+    "retry": "Retry",
+    "retrying": "Retrying..."
+  },
   "general": {
     "undo": "Undo",
     "confirm": "Confirm",

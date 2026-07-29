@@ -98,6 +98,27 @@ function tiltOff(): void {
   })
 }
 
+const retrying = ref(false)
+
+async function retryProcessing(): Promise<void> {
+  retrying.value = true
+  try {
+    const res = await api(`/api/photos/${props.photo.id}/retry-processing`, { method: 'POST' })
+    if (res.ok) {
+      // 立即更新本地状态，避免等待整页刷新
+      props.photo.processingStatus = 'PROCESSING'
+      props.photo.errorMessage = undefined
+      toast.success(t('processing.retry'))
+    } else {
+      toast.error(t('general.operationFailed'))
+    }
+  } catch {
+    toast.error(t('general.networkError'))
+  } finally {
+    retrying.value = false
+  }
+}
+
 async function onDelete(): Promise<void> {
   if (!(await confirmFn(t('photo.deleteConfirm'), t('photo.delete')))) return
   await gsap.to(cardRef.value, {
@@ -138,6 +159,19 @@ async function onDelete(): Promise<void> {
       />
       <div class="photo-overlay">
         <button class="btn-view" @click.stop="$emit('view')">{{ $t('photo.view') }}</button>
+      </div>
+      <div v-if="photo.processingStatus === 'PROCESSING'" class="processing-overlay">
+        <div class="processing-spinner"></div>
+        <span>{{ $t('processing.processing') }}</span>
+      </div>
+      <div v-if="photo.processingStatus === 'FAILED'" class="failed-overlay">
+        <span class="failed-icon">!</span>
+        <span class="failed-text">{{ photo.errorMessage || $t('processing.failed') }}</span>
+        <button
+          class="btn-retry"
+          @click.stop="retryProcessing"
+          :disabled="retrying"
+        >{{ retrying ? $t('processing.retrying') : $t('processing.retry') }}</button>
       </div>
     </div>
     <div class="photo-body">
@@ -257,6 +291,89 @@ async function onDelete(): Promise<void> {
 .photo-card.selected {
   border-color: var(--accent) !important;
   box-shadow: 0 0 20px rgba(0, 212, 255, 0.2);
+}
+
+/* 处理中遮罩 */
+.processing-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  z-index: 4;
+  pointer-events: none;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+.processing-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid rgba(255, 255, 255, 0.15);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* 处理失败遮罩 */
+.failed-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  z-index: 4;
+  color: #f59e0b;
+  font-size: 12px;
+  text-align: center;
+  padding: 12px;
+}
+.failed-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid #f59e0b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 700;
+  color: #f59e0b;
+}
+.failed-text {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #fbbf24;
+}
+.btn-retry {
+  pointer-events: auto;
+  padding: 4px 14px;
+  border-radius: 12px;
+  border: 1px solid #f59e0b;
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 4px;
+}
+.btn-retry:hover:not(:disabled) {
+  background: rgba(245, 158, 11, 0.3);
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.3);
+}
+.btn-retry:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 @media (max-width: 768px) {

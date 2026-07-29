@@ -51,6 +51,7 @@ class PhotoServiceTest {
     @Mock private ImageProcessingService imageService;
     @Mock private AlbumService albumService;
     @Mock private StorageService storage;
+    @Mock private AsyncImageProcessor asyncProcessor;
 
     @TempDir Path tempDir;
 
@@ -85,7 +86,7 @@ class PhotoServiceTest {
         }).when(storage).deleteFile(any());
 
         service = new PhotoService(photoRepo, tagRepo, catRepo, exifRepo, exifService,
-                imageService, albumService, storage);
+                imageService, albumService, storage, asyncProcessor);
     }
 
     // ==================== listAll ====================
@@ -170,7 +171,7 @@ class PhotoServiceTest {
     // ==================== upload ====================
 
     @Test
-    void upload_shouldSavePhotoAndProcessImage() throws IOException {
+    void upload_shouldSavePhotoAndTriggerAsyncProcessing() throws IOException {
         MockMultipartFile file = new MockMultipartFile("file", "test.jpg", "image/jpeg", JPEG_BYTES);
         when(photoRepo.save(any(Photo.class))).thenAnswer(inv -> {
             Photo p = inv.getArgument(0);
@@ -178,19 +179,16 @@ class PhotoServiceTest {
             return p;
         });
         when(tagRepo.findAllById(any())).thenReturn(List.of());
-        when(exifService.extractAndSave(any(), any())).thenReturn(null);
 
         Photo result = service.upload(file, "test", "desc", List.of(1L), 5L, "watermark");
 
         assertThat(result.getId()).isEqualTo(1L);
         assertThat(result.getName()).isEqualTo("test");
+        assertThat(result.getProcessingStatus()).isEqualTo("PROCESSING");
         verify(photoRepo).save(any());
         verify(imageService).validateImageMagicBytes(any());
-        verify(imageService).autoRotateIfNeeded(any());
-        verify(imageService).applyWatermark(any(), eq("watermark"));
-        verify(imageService).generateThumbnail(any(), any(), any());
-        verify(imageService).generateThumbnail(any(), any(), any(), eq(200));
-        verify(imageService).generateWebp(any(), any(), any());
+        // 图片处理已移至异步执行
+        verify(asyncProcessor).process(any(Photo.class), any(Path.class), any(), any(), eq("watermark"));
     }
 
     @Test

@@ -133,6 +133,12 @@
   "rateLimit": {
     "tooMany": "请求过于频繁，请稍后再试"
   },
+  "processing": {
+    "processing": "处理中...",
+    "failed": "处理失败",
+    "retry": "重试",
+    "retrying": "重试中..."
+  },
   "general": {
     "undo": "撤销",
     "confirm": "确定",

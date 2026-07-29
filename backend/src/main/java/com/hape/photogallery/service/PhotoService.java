@@ -25,6 +25,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import jakarta.annotation.PostConstruct;
+
 import com.hape.photogallery.dto.MapItem;
 import com.hape.photogallery.dto.PhotoResponse;
 import com.hape.photogallery.dto.PhotoUpdateRequest;
@@ -53,13 +55,15 @@ public class PhotoService {
     private final ImageProcessingService imageService;
     private final AlbumService albumService;
     private final StorageService storage;
+    private final AsyncImageProcessor asyncProcessor;
 
     public PhotoService(PhotoRepository repo, TagRepository tagRepo, CategoryRepository catRepo,
                         ExifDataRepository exifRepo,
                         ExifService exifService,
                         ImageProcessingService imageService,
                         AlbumService albumService,
-                        StorageService storage) {
+                        StorageService storage,
+                        AsyncImageProcessor asyncProcessor) {
         this.repo = repo;
         this.tagRepo = tagRepo;
         this.catRepo = catRepo;
@@ -68,6 +72,7 @@ public class PhotoService {
         this.imageService = imageService;
         this.albumService = albumService;
         this.storage = storage;
+        this.asyncProcessor = asyncProcessor;
     }
 
     @Cacheable(value = "photos", key = "{#tagIds, #categoryIds, #pageable}")
@@ -131,6 +136,7 @@ public class PhotoService {
         photo.setFileSize(file.getSize());
         photo.setContentType(file.getContentType());
         photo.setCreatedAt(now);
+        photo.setProcessingStatus("PROCESSING");
 
         if (tagIds != null && !tagIds.isEmpty()) {
             photo.setTags(new HashSet<>(tagRepo.findAllById(tagIds)));
@@ -141,21 +147,8 @@ public class PhotoService {
 
         Photo saved = repo.save(photo);
 
-        try {
-            exifService.extractAndSave(saved, target);
-        } catch (Exception e) {
-            // EXIF extraction failure should not block upload
-        }
-
-        imageService.autoRotateIfNeeded(target);
-
-        if (watermark != null && !watermark.isBlank()) {
-            imageService.applyWatermark(target, watermark);
-        }
-
-        imageService.generateThumbnail(target, dateDir, baseName);
-        imageService.generateThumbnail(target, dateDir, baseName, 200);
-        imageService.generateWebp(target, dateDir, baseName);
+        // 异步处理：EXIF、自动旋转、水印、缩略图、WebP
+        asyncProcessor.process(saved, target, dateDir, baseName, watermark);
 
         return saved;
     }
@@ -288,6 +281,39 @@ public class PhotoService {
         storage.deleteFile(dateDir + "/thumbnails/" + baseName);
         storage.deleteFile(dateDir + "/thumbnails/200/" + baseName);
         storage.deleteFile(dateDir + "/webp/" + baseName + ".webp");
+    }
+
+    // === 异步处理重试与恢复 ===
+
+    @Transactional
+    @CacheEvict(value = {"photos", "timeline", "map"}, allEntries = true)
+    public void retryProcessing(Long id) {
+        Photo photo = getById(id);
+        photo.setProcessingStatus("PROCESSING");
+        photo.setErrorMessage(null);
+        repo.save(photo);
+
+        Path target = storage.getUploadDir().resolve(photo.getFileName());
+        String fn = photo.getFileName();
+        int lastSlash = fn.lastIndexOf('/');
+        String dateDir = fn.substring(0, lastSlash);
+        String baseName = fn.substring(lastSlash + 1);
+
+        asyncProcessor.process(photo, target, dateDir, baseName, null);
+    }
+
+    @PostConstruct
+    @Transactional
+    public void recoverStuckOnStartup() {
+        List<Photo> stuck = repo.findByProcessingStatus("PROCESSING");
+        if (!stuck.isEmpty()) {
+            for (Photo p : stuck) {
+                p.setProcessingStatus("FAILED");
+                p.setErrorMessage("服务重启，处理中断");
+            }
+            repo.saveAll(stuck);
+            log.info("已将 {} 张处理中的照片标记为失败（服务重启）", stuck.size());
+        }
     }
 
     // === 批量上传 ===
