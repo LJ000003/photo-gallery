@@ -6,3 +6,6 @@ frontend/dist/
 .env
 .env.local
 .env.*.local
+doc
+# 本地开发配置（含真实密码，不提交）
+backend/src/main/resources/application-local.yml

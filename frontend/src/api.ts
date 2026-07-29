@@ -26,6 +26,8 @@ export async function api(
     headers['Content-Type'] = 'application/json'
   }
 
+  headers['X-Trace-Id'] = crypto.randomUUID().slice(0, 8)
+
   const res = await fetch(url.replace(/^\/api/, BASE), { ...fetchOptions, headers })
 
   if (!skipAuth && (res.status === 401 || res.status === 403)) {
@@ -33,6 +35,11 @@ export async function api(
     localStorage.removeItem('konami_unlocked')
     window.location.reload()
     throw new AuthError(i18n.global.t('auth.expired'))
+  }
+
+  if (!res.ok) {
+    const traceId = res.headers.get('X-Trace-Id') || headers['X-Trace-Id']
+    console.error(`[${traceId}] ${fetchOptions.method || 'GET'} ${url} → ${res.status}`)
   }
 
   return res

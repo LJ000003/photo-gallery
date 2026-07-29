@@ -1,0 +1,14 @@
+# === 本地开发配置模板 ===
+# 使用方法：复制此文件为 application-local.yml，修改为你的实际配置
+#   cp application-local.yml.example application-local.yml
+# application-local.yml 已在 .gitignore 中，不会被提交
+#
+# 注意：如果值包含特殊字符（@ ` ? { } [ ] : , & * # ? | - < > = ! %），
+#       请用引号包裹，例如 DB_PASSWORD: "@my-p@ssword"
+#       YAML 允许单引号 'value' 或双引号 "value"
+
+# 数据库密码（本地 MySQL root 密码）
+DB_PASSWORD: "your-password-here"
+
+# JWT 签名密钥（本地开发用固定值即可）
+JWT_SECRET: dev-secret-do-not-use-in-production

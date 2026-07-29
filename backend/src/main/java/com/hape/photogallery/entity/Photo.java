@@ -47,6 +47,9 @@ public class Photo {
 
     private LocalDateTime deletedAt;
 
+    private String processingStatus = "DONE";
+    private String errorMessage;
+
     public Photo() {}
 
     public Long getId() { return id; }
@@ -80,4 +83,8 @@ public class Photo {
     public void setAlbums(Set<Album> albums) { this.albums = albums; }
     public LocalDateTime getDeletedAt() { return deletedAt; }
     public void setDeletedAt(LocalDateTime deletedAt) { this.deletedAt = deletedAt; }
+    public String getProcessingStatus() { return processingStatus; }
+    public void setProcessingStatus(String processingStatus) { this.processingStatus = processingStatus; }
+    public String getErrorMessage() { return errorMessage; }
+    public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
 }

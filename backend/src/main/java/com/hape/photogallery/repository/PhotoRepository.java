@@ -48,4 +48,7 @@ public interface PhotoRepository extends JpaRepository<Photo, Long> {
            value = "SELECT * FROM photos WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC",
            countQuery = "SELECT COUNT(*) FROM photos WHERE deleted_at IS NOT NULL")
     Page<Photo> findDeleted(Pageable pageable);
+
+    @Query("SELECT p FROM Photo p WHERE p.processingStatus = :status")
+    List<Photo> findByProcessingStatus(@Param("status") String status);
 }

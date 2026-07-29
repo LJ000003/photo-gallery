@@ -13,6 +13,8 @@ export interface Photo {
   createdAt?: string
   updatedAt?: string
   deletedAt?: string
+  processingStatus?: string
+  errorMessage?: string
 }
 
 export interface PhotoPatch {

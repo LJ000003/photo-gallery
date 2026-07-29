@@ -196,4 +196,10 @@ public class PhotoController {
                 body.getCx(), body.getCy(), body.getCw(), body.getCh());
         return ApiResponse.success("ok");
     }
+
+    @PostMapping("/photos/{id}/retry-processing")
+    public ApiResponse<String> retryProcessing(@PathVariable Long id) {
+        service.retryProcessing(id);
+        return ApiResponse.success("已重新提交处理");
+    }
 }

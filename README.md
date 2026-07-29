@@ -43,6 +43,7 @@
 - **排序** — 时间/名称/大小，正序倒序自由切换
 
 ### 图片处理
+- **异步处理** — 上传后立即返回，EXIF 提取、水印、缩略图、WebP 由线程池后台完成。照片卡片显示"处理中"遮罩，失败可一键重试
 - **响应式缩略图** — 上传自动生成 200 px + 400 px 双档，前端 `srcset` + `sizes` 按视口和 DPR 自动选择
 - **编辑器** — Canvas 全分辨率旋转（任意角度）/镜像（水平/垂直）/裁剪
 - **水印** — 右下角半透明白色文字，字号自适应图片宽度，字体/大小/透明度可配置
@@ -105,10 +106,11 @@ photo-gallery/
 │   │   │   ├── TrashController.java            # 回收站 API
 │   │   │   └── HelloController.java            # 根端点
 │   │   ├── service/
-│   │   │   ├── PhotoService.java               # 核心业务逻辑
+│   │   │   ├── PhotoService.java               # 核心业务逻辑（异步图片处理）
 │   │   │   ├── TagService.java                 # 标签服务
 │   │   │   ├── CategoryService.java            # 分类服务
 │   │   │   ├── AlbumService.java               # 相册服务
+│   │   │   ├── AsyncImageProcessor.java        # @Async 异步图片处理（EXIF/水印/缩略图/WebP）
 │   │   │   ├── ImageProcessingService.java     # 缩略图(多档)/WebP/水印/旋转/镜像
 │   │   │   ├── ExifService.java                # metadata-extractor 集成
 │   │   │   ├── StorageService.java             # 存储接口（可扩展不同后端）
@@ -134,6 +136,7 @@ photo-gallery/
 │   │   │   ├── TransformRequest.java           # 图片变换参数
 │   │   │   └── AlbumRequest.java               # 相册创建/更新请求
 │   │   ├── config/
+│   │   │   ├── AsyncConfig.java                # @EnableAsync + 图片处理线程池
 │   │   │   ├── SecurityConfig.java             # SecurityFilterChain + CORS
 │   │   │   ├── JwtService.java                 # HS256 JWT 签发与验签
 │   │   │   ├── JwtAuthFilter.java              # OncePerRequestFilter
@@ -150,11 +153,12 @@ photo-gallery/
 │   │   ├── application.properties              # 公共配置 + Caffeine + i18n + 水印
 │   │   ├── application-dev.yml                 # 开发环境 (ddl-auto: update)
 │   │   ├── application-prod.yml                # 生产环境 (ddl-auto: validate)
+│   │   ├── application-local.yml.example       # 本地敏感配置模板（密码/JWT 密钥）
 │   │   ├── logback-spring.xml                  # 控制台 + 按天滚动文件（30/90 天保留）
 │   │   ├── i18n/
 │   │   │   ├── messages.properties             # 中文错误消息
 │   │   │   └── messages_en_US.properties       # 英文错误消息
-│   │   ├── db/migration/                       # Flyway 迁移脚本 V1–V6
+│   │   ├── db/migration/                       # Flyway 迁移脚本 V1–V7
 │   │   └── static/                             # 前端构建产物 (SPA)
 │   ├── Dockerfile                              # JRE 17 Alpine + 文泉驿字体 + curl
 │   └── pom.xml                                 # Maven 配置
@@ -238,28 +242,30 @@ Java 17+ / Maven 3.6+ / Node.js 18+ / MySQL 8.0+
 CREATE DATABASE IF NOT EXISTS photodb CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
-### 2. 设置环境变量
+### 2. 配置本地密钥
 
-| 变量 | 说明 | 默认值 |
-|------|------|--------|
-| `DB_USERNAME` | 数据库用户名 | `root` |
-| `DB_PASSWORD` | 数据库密码 | **必填** |
-| `JWT_SECRET` | JWT HS256 签名密钥 | **必填** |
-| `photo.watermark.font` | 水印字体 | `SansSerif`（Docker 环境安装 WenQuanYi Zen Hei 支持中文） |
-| `photo.watermark.font-size-ratio` | 水印大小（图片宽度 ÷ 此值） | `40` |
-| `photo.watermark.color-alpha` | 水印透明度（0-255） | `180` |
+借鉴 `.env` / `.env.example` 模式，敏感配置（数据库密码、JWT 密钥）存放在 `application-local.yml`，该文件已在 `.gitignore` 中，不会提交：
 
-**Windows (PowerShell):**
-```powershell
-$env:DB_PASSWORD="你的数据库密码"
-$env:JWT_SECRET="$(openssl rand -base64 32)"
-```
-
-**Linux / macOS:**
 ```bash
-export DB_PASSWORD=你的数据库密码
-export JWT_SECRET=$(openssl rand -base64 32)
+cd backend/src/main/resources
+
+# 复制模板（只需做一次）
+cp application-local.yml.example application-local.yml
+
+# 编辑 application-local.yml，填入你的本地 MySQL 密码
+# 如果密码含特殊字符（@ ` ? { } 等），请用引号包裹，例如 DB_PASSWORD: "@my-p@ss"
 ```
+
+模板默认内容：
+
+```yaml
+DB_PASSWORD: "your-password-here"
+JWT_SECRET: dev-secret-do-not-use-in-production
+```
+
+`application-dev.yml` 通过 `spring.config.import: optional:classpath:application-local.yml` 自动加载该文件（文件不存在时跳过，回退到环境变量）。
+
+> 环境变量仍可用于 CI/CD 等场景，优先级高于配置文件。
 
 ### 3. 启动后端
 
