@@ -1,11 +1,19 @@
 backend/target/
 frontend/node_modules/
 frontend/dist/
+frontend/coverage/
+frontend/test-results/
+frontend/playwright-report/
 .DS_Store
+Thumbs.db
 *.log
 .env
 .env.local
 .env.*.local
 doc
+# IDE
+.idea/
+*.iml
+.vscode/settings.json
 # 本地开发配置（含真实密码，不提交）
 backend/src/main/resources/application-local.yml

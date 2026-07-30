@@ -3,15 +3,16 @@ import { test, expect } from '@playwright/test'
 test.describe('navigation', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/')
-
-    // Unlock via Konami sequence
-    const konamiSeq = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a', 'b', 'a']
-    for (const key of konamiSeq) {
-      await page.keyboard.press(key)
-      await page.waitForTimeout(50)
-    }
-
-    // Wait for the main UI after unlock animation
+    const token = await page.evaluate(async () => {
+      const res = await fetch('/api/v1/auth/unlock', { method: 'POST' })
+      const json = await res.json()
+      return json.data.token as string
+    })
+    await page.evaluate((t) => {
+      localStorage.setItem('konami_unlocked', 'true')
+      localStorage.setItem('jwt_token', t)
+    }, token)
+    await page.reload()
     await page.waitForSelector('.header', { timeout: 5000 })
   })
 
