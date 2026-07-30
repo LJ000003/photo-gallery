@@ -95,8 +95,7 @@ class PhotoControllerTest {
     @Test
     void getById_shouldReturnPhoto() throws Exception {
         Photo p = new Photo(); p.setId(1L); p.setName("照片");
-        when(service.getById(1L)).thenReturn(p);
-        when(service.toResponse(p)).thenReturn(PhotoResponse.from(p));
+        when(service.getPhotoResponse(1L)).thenReturn(PhotoResponse.from(p));
 
         mockMvc.perform(get("/api/v1/photos/1"))
                 .andExpect(status().isOk())
