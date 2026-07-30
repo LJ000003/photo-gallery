@@ -50,7 +50,9 @@
     "success": "上传成功",
     "failed": "上传失败",
     "networkError": "网络错误",
-    "timeout": "上传超时"
+    "timeout": "上传超时",
+    "viewExisting": "查看已有",
+    "batchSkipped": "上传 {uploaded} 张，跳过 {skipped} 张重复"
   },
   "album": {
     "newAlbum": "+ 新建相册",
@@ -138,6 +140,21 @@
     "failed": "处理失败",
     "retry": "重试",
     "retrying": "重试中..."
+  },
+  "exif": {
+    "title": "拍摄信息",
+    "empty": "无拍摄信息",
+    "cameraGroup": "相机信息",
+    "shootGroup": "拍摄参数",
+    "locationGroup": "时间地点",
+    "cameraModel": "机身",
+    "lensModel": "镜头",
+    "focalLength": "焦距",
+    "aperture": "光圈",
+    "shutterSpeed": "快门",
+    "iso": "感光度",
+    "dateTaken": "拍摄时间",
+    "gps": "GPS 坐标"
   },
   "general": {
     "undo": "撤销",

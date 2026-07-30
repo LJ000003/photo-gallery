@@ -35,7 +35,7 @@
 ## 功能
 
 ### 照片管理
-- **上传** — 拖拽/粘贴/批量（单次最多 50 张），魔数校验（JPEG/PNG/GIF/BMP/WebP），客户端 Canvas 压缩大图（最大 1920px，JPEG 质量 0.85），XHR 实时进度条
+- **上传** — 拖拽/粘贴/批量（单次最多 50 张），魔数校验（JPEG/PNG/GIF/BMP/WebP），客户端 Canvas 压缩大图（最大 1920px，JPEG 质量 0.85），XHR 实时进度条，SHA-256 去重检测
 - **浏览** — 虚拟滚动（DOM 节点数恒定，万张照片不卡）、3D 倾斜卡片、骨架屏加载
 - **编辑** — 名称/描述修改、分类/标签/相册分配
 - **批量操作** — 多选、全选、批量删除、批量生成分享链接
@@ -43,7 +43,7 @@
 - **排序** — 时间/名称/大小，正序倒序自由切换
 
 ### 图片处理
-- **异步处理** — 上传后立即返回，EXIF 提取、水印、缩略图、WebP 由线程池后台完成。照片卡片显示"处理中"遮罩，失败可一键重试
+- **异步处理** — 上传后立即返回，EXIF 提取、水印、缩略图、WebP 由线程池后台完成。单次解码 + 展示级降采样优化，处理时间 ~3-5s。照片卡片自动轮询状态更新，无需手动刷新。失败可一键重试
 - **响应式缩略图** — 上传自动生成 200 px + 400 px 双档，前端 `srcset` + `sizes` 按视口和 DPR 自动选择
 - **编辑器** — Canvas 全分辨率旋转（任意角度）/镜像（水平/垂直）/裁剪
 - **水印** — 右下角半透明白色文字，字号自适应图片宽度，字体/大小/透明度可配置
@@ -57,16 +57,18 @@
 
 ### EXIF 与浏览
 - **EXIF 提取** — 拍摄时间、相机型号、镜头型号、焦距、光圈、快门、ISO、GPS
+- **EXIF 详情面板** — 照片查看弹窗内可折叠面板，按相机信息/拍摄参数/时间地点三组展示，中英双语
 - **时间线** — 按年月分组，正序/倒序
-- **地图** — Leaflet 聚合标注，WGS-84 → GCJ-02 坐标转换，高德卫星底图 + 道路标注叠加，移动端自适应高度 + ResizeObserver
+- **地图** — Leaflet 聚合标注，WGS-84 → GCJ-02 坐标转换（服务端非破坏性转换），高德卫星底图 + 道路标注叠加
 
 ### 安全
-- **Konami 门禁** — 密码序列解锁（↑↑↓↓←→←→ B A B A），键盘 + 触摸双模式，前端验证通过后调后端签发 admin JWT
+- **Konami 门禁** — Challenge-Response 架构：前端按键只记录不验证 → GET /api/v1/auth/challenge 获取一次性 nonce（60s TTL）→ POST /api/v1/auth/unlock 提交 nonce+序列给后端验证，序列仅存后端配置文件。键盘 + 触摸双模式
+- **暴力破解防护** — IP 失败计数（Caffeine），5 次错误封禁 15 分钟
 - **JWT 双角色** — admin（24h，管理）/ viewer（7 天，分享查看）
 - **限时分享链接** — 选中照片生成分享链接，朋友无需密码即可查看
-- **IP 限流** — `/api/v1/auth/unlock` 每 IP 每秒最多 10 次（Caffeine 固定窗口计数）
+- **SHA-256 去重** — 上传时计算文件哈希，检测重复上传，单张返回 409 + 已有照片数据，批量静默跳过
 - **缓存一致性** — 所有写操作（照片/相册/标签/分类）自动驱逐列表缓存
-- **软删除 + 回收站** — 删除标记 `deleted_at`（Hibernate @SQLRestriction 全局过滤），5 秒 Toast 撤销 + 回收站可恢复/彻底删除，每天凌晨 3 点（Asia/Shanghai）自动清理 30 天前记录
+- **软删除 + 回收站** — 删除标记 `deleted_at`（Hibernate @SQLRestriction 全局过滤），删除时清空哈希允许重新上传。5 秒 Toast 撤销 + 回收站可恢复/彻底删除，每天凌晨 3 点自动清理 30 天前记录
 - **前端错误边界** — 组件异常自动捕获，显示降级页面（重试 / 刷新 / 复制错误信息），切换路由自动恢复
 
 ### PWA（渐进式 Web 应用）
@@ -141,9 +143,13 @@ photo-gallery/
 │   │   │   ├── JwtService.java                 # HS256 JWT 签发与验签
 │   │   │   ├── JwtAuthFilter.java              # OncePerRequestFilter
 │   │   │   ├── RateLimitFilter.java            # IP 固定窗口限流（Caffeine）
+│   │   │   ├── NonceStore.java                 # 一次性 nonce（Caffeine 60s TTL）
+│   │   │   ├── FailedAttemptStore.java         # IP 失败计数（5次封15分钟）
+│   │   │   ├── TraceIdFilter.java              # 全链路 traceId（MDC + 响应头）
 │   │   │   └── CacheControlFilter.java         # 全局 Cache-Control 头
 │   │   ├── exception/
 │   │   │   ├── BusinessException.java          # 业务异常
+│   │   │   ├── DuplicateException.java         # 重复文件异常（409）
 │   │   │   ├── FileSizeExceededException.java  # 文件大小异常
 │   │   │   ├── InvalidFileTypeException.java   # 文件格式异常
 │   │   │   └── GlobalExceptionHandler.java     # @RestControllerAdvice
@@ -158,7 +164,7 @@ photo-gallery/
 │   │   ├── i18n/
 │   │   │   ├── messages.properties             # 中文错误消息
 │   │   │   └── messages_en_US.properties       # 英文错误消息
-│   │   ├── db/migration/                       # Flyway 迁移脚本 V1–V7
+│   │   ├── db/migration/                       # Flyway 迁移脚本 V1–V8（含 file_hash 去重）
 │   │   └── static/                             # 前端构建产物 (SPA)
 │   ├── Dockerfile                              # JRE 17 Alpine + 文泉驿字体 + curl
 │   └── pom.xml                                 # Maven 配置
@@ -290,7 +296,7 @@ npm run dev
 
 1. 打开页面 → Konami 街机界面
 2. 输入 **`↑ ↑ ↓ ↓ ← → ← → B A B A`**（键盘方向键 + 字母键，或点击虚拟按键）
-3. 前端验证通过后自动调后端签发 24h admin JWT
+3. 后端 Challenge-Response 验证通过后签发 24h admin JWT
 4. 进入管理系统，开始上传照片
 
 ---
@@ -415,18 +421,20 @@ certbot --nginx -d 你的域名   # 免费 SSL
 ## 鉴权
 
 ```
-┌─────────────────────────────────────────────────────┐
-│  Konami 解锁 (前端交互)                               │
-│    → 输入 ↑↑↓↓←→←→ B A B A 密码序列（前端验证）       │
-│    → POST /api/v1/auth/unlock                       │
-│    → IP 固定窗口限流（每 IP 每秒 ≤ 10 次）            │
-│    → 签发 24h admin JWT (role: admin)               │
-│                                                     │
-│  分享链接                                             │
-│    → POST /api/v1/share/generate {photoIds}         │
-│    → 签发 7 天 viewer JWT (role: viewer + photos)   │
-│    → /share/{token} → ShareViewer 落地面            │
-└─────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│  Konami 解锁 (Challenge-Response)                         │
+│    → 前端 Konami 按键只记录不验证（序列不在前端代码中）      │
+│    → GET /api/v1/auth/challenge → 获取一次性 nonce (60s)  │
+│    → POST /api/v1/auth/unlock {nonce, keys}               │
+│    → 后端比对序列 + nonce 验证（一次性消费）                 │
+│    → IP 限流（10次/s）+ 失败计数（5次封 15min）             │
+│    → 签发 24h admin JWT (role: admin)                     │
+│                                                          │
+│  分享链接                                                  │
+│    → POST /api/v1/share/generate {photoIds}              │
+│    → 签发 7 天 viewer JWT (role: viewer + photos)        │
+│    → /share/{token} → ShareViewer 落地面                 │
+└──────────────────────────────────────────────────────────┘
 ```
 
 | 入口 | JWT Claim | 权限 |

@@ -45,12 +45,23 @@ export async function api(
   return res
 }
 
-export async function requestToken(): Promise<string> {
-  const res = await fetch(BASE + '/auth/unlock', {
+export async function requestToken(keys: string[]): Promise<string> {
+  // Step 1: 获取一次性 nonce
+  const challengeRes = await fetch(BASE + '/auth/challenge')
+  if (!challengeRes.ok) throw new AuthError(i18n.global.t('auth.failed'))
+  const challengeData: ApiResponse<{ nonce: string }> = await challengeRes.json()
+  const nonce = challengeData.data.nonce
+
+  // Step 2: 发送 nonce + 按键序列给后端验证
+  const unlockRes = await fetch(BASE + '/auth/unlock', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nonce, keys }),
   })
-  if (!res.ok) throw new AuthError(i18n.global.t('auth.failed'))
-  const data: ApiResponse<{ token: string }> = await res.json()
+  if (!unlockRes.ok) {
+    const err: ApiResponse<null> = await unlockRes.json()
+    throw new AuthError(err.message || i18n.global.t('auth.failed'))
+  }
+  const data: ApiResponse<{ token: string }> = await unlockRes.json()
   return data.data.token
 }

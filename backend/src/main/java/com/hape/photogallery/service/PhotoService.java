@@ -9,6 +9,9 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.UUID;
 
 import javax.imageio.ImageIO;
@@ -23,6 +26,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.annotation.PostConstruct;
@@ -34,6 +39,7 @@ import com.hape.photogallery.dto.TimelineItem;
 import com.hape.photogallery.entity.ExifData;
 import com.hape.photogallery.entity.Photo;
 import com.hape.photogallery.exception.BusinessException;
+import com.hape.photogallery.exception.DuplicateException;
 import com.hape.photogallery.exception.FileSizeExceededException;
 import com.hape.photogallery.repository.CategoryRepository;
 import com.hape.photogallery.repository.ExifDataRepository;
@@ -94,9 +100,15 @@ public class PhotoService {
         return repo.search(q.trim(), pageable);
     }
 
+    @Transactional(readOnly = true)
     public Photo getById(Long id) {
         return repo.findById(id)
                 .orElseThrow(() -> new BusinessException(404, "该照片已被删除或不存在"));
+    }
+
+    @Transactional(readOnly = true)
+    public PhotoResponse getPhotoResponse(Long id) {
+        return toResponse(getById(id));
     }
 
     public Photo getByIdIncludeDeleted(Long id) {
@@ -118,6 +130,12 @@ public class PhotoService {
         }
         imageService.validateImageMagicBytes(file.getInputStream());
 
+        String hash = computeSha256(file);
+        repo.findByFileHash(hash).ifPresent(existing -> {
+            eagerLoad(existing);
+            throw new DuplicateException(toResponse(existing));
+        });
+
         LocalDateTime now = LocalDateTime.now();
         String dateDir = String.format("%04d/%02d", now.getYear(), now.getMonthValue());
         Path datePath = storage.getUploadDir().resolve(dateDir);
@@ -137,6 +155,7 @@ public class PhotoService {
         photo.setContentType(file.getContentType());
         photo.setCreatedAt(now);
         photo.setProcessingStatus("PROCESSING");
+        photo.setFileHash(hash);
 
         if (tagIds != null && !tagIds.isEmpty()) {
             photo.setTags(new HashSet<>(tagRepo.findAllById(tagIds)));
@@ -147,8 +166,18 @@ public class PhotoService {
 
         Photo saved = repo.save(photo);
 
-        // 异步处理：EXIF、自动旋转、水印、缩略图、WebP
-        asyncProcessor.process(saved, target, dateDir, baseName, watermark);
+        // 异步处理：确保主事务提交后再执行，避免异步线程读不到数据
+        final Long photoId = saved.getId();
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    asyncProcessor.process(photoId, target, dateDir, baseName, watermark);
+                }
+            });
+        } else {
+            asyncProcessor.process(photoId, target, dateDir, baseName, watermark);
+        }
 
         return saved;
     }
@@ -221,6 +250,7 @@ public class PhotoService {
     public void delete(Long id) {
         Photo photo = getById(id);
         photo.setDeletedAt(LocalDateTime.now());
+        photo.setFileHash(null);
         repo.save(photo);
     }
 
@@ -231,6 +261,7 @@ public class PhotoService {
         if (photos.isEmpty()) return 0;
         for (Photo p : photos) {
             p.setDeletedAt(LocalDateTime.now());
+            p.setFileHash(null);
         }
         repo.saveAll(photos);
         return photos.size();
@@ -299,7 +330,13 @@ public class PhotoService {
         String dateDir = fn.substring(0, lastSlash);
         String baseName = fn.substring(lastSlash + 1);
 
-        asyncProcessor.process(photo, target, dateDir, baseName, null);
+        final Long photoId = id;
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                asyncProcessor.process(photoId, target, dateDir, baseName, null);
+            }
+        });
     }
 
     @PostConstruct
@@ -322,9 +359,17 @@ public class PhotoService {
     public List<Photo> batchUpload(List<MultipartFile> files, String name, String description,
                                     List<Long> tagIds, Long categoryId, String watermark) throws IOException {
         List<Photo> results = new ArrayList<>();
+        int skipped = 0;
         for (MultipartFile file : files) {
             if (file.isEmpty()) continue;
-            results.add(upload(file, name, description, tagIds, categoryId, watermark));
+            try {
+                results.add(upload(file, name, description, tagIds, categoryId, watermark));
+            } catch (DuplicateException e) {
+                skipped++;
+            }
+        }
+        if (skipped > 0) {
+            log.info("批量上传跳过 {} 张重复照片", skipped);
         }
         return results;
     }
@@ -397,12 +442,13 @@ public class PhotoService {
     public List<MapItem> getMapPhotos(double swLat, double swLng, double neLat, double neLng) {
         List<ExifData> list = exifRepo.findWithGpsInBounds(swLat, swLng, neLat, neLng,
                 PageRequest.of(0, 500));
-        for (ExifData e : list) {
+        return list.stream().map(e -> {
+            MapItem item = MapItem.from(e);
             double[] gcj = CoordUtil.wgs84ToGcj02(e.getLongitude(), e.getLatitude());
-            e.setLongitude(gcj[0]);
-            e.setLatitude(gcj[1]);
-        }
-        return list.stream().map(this::toMapItem).toList();
+            item.setLatitude(gcj[1]);
+            item.setLongitude(gcj[0]);
+            return item;
+        }).toList();
     }
 
     public int extractExifForExisting() {
@@ -477,7 +523,31 @@ public class PhotoService {
         } catch (Exception ignored) {}
     }
 
+    // === 哈希 ===
+
+    public static String computeSha256(MultipartFile file) throws IOException {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] buf = new byte[8192];
+            int n;
+            try (var in = file.getInputStream()) {
+                while ((n = in.read(buf)) != -1) {
+                    md.update(buf, 0, n);
+                }
+            }
+            return HexFormat.of().formatHex(md.digest());
+        } catch (NoSuchAlgorithmException e) {
+            throw new IOException("SHA-256 不可用", e);
+        }
+    }
+
     // === DTO 转换 ===
+
+    private void eagerLoad(Photo photo) {
+        if (photo.getTags() != null) photo.getTags().size();
+        if (photo.getAlbums() != null) photo.getAlbums().size();
+        if (photo.getExifData() != null) photo.getExifData().getCameraModel();
+    }
 
     public PhotoResponse toResponse(Photo photo) {
         return PhotoResponse.from(photo);

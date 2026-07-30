@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterView, useRouter } from 'vue-router'
 import gsap from 'gsap'
@@ -26,6 +26,9 @@ const photo = usePhotoStore()
 const ui = useUiStore()
 const toast = useToastStore()
 
+const konamiReset = ref(0)
+const konamiSuccess = ref(0)
+
 function scrollToTop(): void {
   if ('ontouchstart' in window) {
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -51,17 +54,23 @@ function onCatFilterChange(ids: number[]): void {
   ui.sidebarOpen = false
 }
 
-async function onUnlock(): Promise<void> {
+async function onUnlock(keys: string[]): Promise<void> {
   useAppEffects()
   try {
-    const token = await requestToken()
+    const token = await requestToken(keys)
     ui.setToken(token)
-    ui.unlock()
-    router.replace(window.location.pathname + window.location.search)
-    photo.loadMore()
-    toast.success(t('auth.success'))
-  } catch {
-    toast.error(t('auth.failed'))
+    // 先触发 KonamiGate 成功动画，1.5s 后再解锁界面
+    konamiSuccess.value++
+    setTimeout(() => {
+      ui.unlock()
+      router.replace(window.location.pathname + window.location.search)
+      photo.loadMore()
+      toast.success(t('auth.success'))
+    }, 1500)
+  } catch (err) {
+    konamiReset.value++
+    const msg = err instanceof Error ? err.message : t('auth.failed')
+    toast.error(msg)
   }
 }
 
@@ -84,7 +93,12 @@ onMounted(() => {
 </script>
 
 <template>
-  <KonamiGate v-if="!ui.unlocked" @unlocked="onUnlock" />
+  <KonamiGate
+    v-if="!ui.unlocked"
+    :reset-trigger="konamiReset"
+    :success-trigger="konamiSuccess"
+    @unlocked="onUnlock"
+  />
   <template v-if="ui.unlocked">
     <span class="relock-wrap">
       <button class="relock-btn" @click="ui.reLock">🔒</button>

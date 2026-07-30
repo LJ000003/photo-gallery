@@ -21,8 +21,8 @@ vi.mock('gsap', () => ({
   },
 }))
 
-vi.mock('../../store', () => ({
-  useStore: () => ({
+vi.mock('../stores/data', () => ({
+  useDataStore: () => ({
     tags: {
       value: [
         { id: 1, name: 'nature', color: '#00ff00' },
@@ -40,6 +40,14 @@ vi.mock('../../store', () => ({
     refreshTags: vi.fn(),
     refreshCategories: vi.fn(),
     refreshAlbums: vi.fn(),
+  }),
+}))
+
+vi.mock('../stores/toast', () => ({
+  useToastStore: () => ({
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
   }),
 }))
 

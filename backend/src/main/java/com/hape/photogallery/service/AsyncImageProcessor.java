@@ -1,7 +1,10 @@
 package com.hape.photogallery.service;
 
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Path;
+
+import javax.imageio.ImageIO;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,53 +23,84 @@ public class AsyncImageProcessor {
     private final PhotoRepository photoRepo;
     private final ImageProcessingService imageService;
     private final ExifService exifService;
-    private final StorageService storage;
 
     public AsyncImageProcessor(PhotoRepository photoRepo,
                                 ImageProcessingService imageService,
-                                ExifService exifService,
-                                StorageService storage) {
+                                ExifService exifService) {
         this.photoRepo = photoRepo;
         this.imageService = imageService;
         this.exifService = exifService;
-        this.storage = storage;
     }
 
     @Async("imageTaskExecutor")
     @Transactional
-    public void process(Photo photo, Path target, String dateDir, String baseName, String watermark) {
+    public void process(Long photoId, Path target, String dateDir, String baseName, String watermark) {
+        log.info("开始异步处理 photo={}", photoId);
+        Photo photo = photoRepo.findById(photoId).orElse(null);
+        if (photo == null) {
+            log.warn("异步处理中止，照片不存在 photo={}", photoId);
+            return;
+        }
         try {
-            // EXIF 提取（非致命）
+            // 1. EXIF 提取（直接读文件元数据，不解码像素）
             try {
+                log.debug("  [1/5] EXIF 提取 photo={}", photoId);
                 exifService.extractAndSave(photo, target);
             } catch (Exception e) {
-                log.debug("EXIF 提取失败 (photo={}): {}", photo.getId(), e.getMessage());
+                log.warn("  EXIF 提取失败 photo={}: {}", photoId, e.getMessage());
             }
 
-            // 自动旋转（根据 EXIF Orientation 修正方向）
-            imageService.autoRotateIfNeeded(target);
-
-            // 水印
-            if (watermark != null && !watermark.isBlank()) {
-                imageService.applyWatermark(target, watermark);
+            // 2. 解码原图（只此一次）
+            BufferedImage img = ImageIO.read(target.toFile());
+            if (img == null) {
+                log.warn("  无法解码图片 photo={}", photoId);
+                photo.setProcessingStatus("FAILED");
+                photo.setErrorMessage("无法解码图片文件");
+                photoRepo.save(photo);
+                return;
             }
 
-            // 缩略图（400px + 200px）
-            imageService.generateThumbnail(target, dateDir, baseName);
-            imageService.generateThumbnail(target, dateDir, baseName, 200);
+            // 3. 自动旋转（内存中完成）
+            log.debug("  [2/5] 自动旋转 photo={}", photoId);
+            BufferedImage processed = imageService.autoRotateIfNeeded(img, target);
 
-            // WebP 转换
-            imageService.generateWebp(target, dateDir, baseName);
+            // 4. 水印（在旋转后的图上绘制）
+            boolean hasWatermark = watermark != null && !watermark.isBlank();
+            if (hasWatermark) {
+                log.debug("  [3/5] 水印 photo={}", photoId);
+                imageService.applyWatermark(processed, watermark);
+            }
 
-            // 标记完成
+            // 5. 如果图片被修改（旋转或水印），高质量写回原文件
+            if (processed != img || hasWatermark) {
+                log.debug("  写回原图 photo={}", photoId);
+                imageService.writeOriginalJpeg(processed, target);
+            }
+
+            // 6. 降采样到展示分辨率，加速后续衍生图生成
+            log.debug("  [4/5] 缩略图 photo={}", photoId);
+            BufferedImage display = imageService.downscaleToDisplay(processed);
+            imageService.generateThumbnail(display, dateDir, baseName);
+            imageService.generateThumbnail(display, dateDir, baseName, 200);
+
+            log.debug("  [5/5] WebP 转换 photo={}", photoId);
+            imageService.generateWebp(display, dateDir, baseName);
+
             photo.setProcessingStatus("DONE");
             photo.setErrorMessage(null);
             photoRepo.save(photo);
-        } catch (Exception e) {
-            log.error("异步图片处理失败 (photo={}): {}", photo.getId(), e.getMessage(), e);
-            photo.setProcessingStatus("FAILED");
-            photo.setErrorMessage(e.getMessage() != null ? e.getMessage() : "未知错误");
-            photoRepo.save(photo);
+            log.info("异步处理完成 photo={}", photoId);
+        } catch (Throwable e) {
+            log.error("异步处理失败 photo={}: {}", photoId, e.getMessage(), e);
+            try {
+                String msg = e.getMessage() != null ? e.getMessage() : "未知错误";
+                if (msg.length() > 500) msg = msg.substring(0, 497) + "...";
+                photo.setProcessingStatus("FAILED");
+                photo.setErrorMessage(msg);
+                photoRepo.save(photo);
+            } catch (Throwable inner) {
+                log.error("无法保存失败状态 photo={}", photoId, inner);
+            }
         }
     }
 }

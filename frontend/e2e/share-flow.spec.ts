@@ -1,19 +1,9 @@
 import { test, expect } from '@playwright/test'
+import { unlock } from './helpers'
 
 test.describe('share flow', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/')
-    const token = await page.evaluate(async () => {
-      const res = await fetch('/api/v1/auth/unlock', { method: 'POST' })
-      const json = await res.json()
-      return json.data.token as string
-    })
-    await page.evaluate((t) => {
-      localStorage.setItem('konami_unlocked', 'true')
-      localStorage.setItem('jwt_token', t)
-    }, token)
-    await page.reload()
-    await page.waitForSelector('.header', { timeout: 5000 })
+    await unlock(page)
   })
 
   test('share link page shows viewer-only mode', async ({ page }) => {

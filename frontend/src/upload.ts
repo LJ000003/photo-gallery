@@ -92,9 +92,6 @@ export function uploadWithProgress(
 
     xhr.onload = () => {
       if (xhr.status === 401 || xhr.status === 403) {
-        localStorage.removeItem('jwt_token')
-        localStorage.removeItem('konami_unlocked')
-        window.location.reload()
         reject(new AuthError(i18n.global.t('auth.expired')))
         return
       }

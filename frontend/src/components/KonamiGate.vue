@@ -1,60 +1,63 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
-import gsap from 'gsap'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 
-const emit = defineEmits<{
-  unlocked: []
+const KEY_COUNT = 12
+
+const props = defineProps<{
+  resetTrigger: number
+  successTrigger: number
 }>()
 
-const TARGET: string[] = [
-  'up',
-  'up',
-  'down',
-  'down',
-  'left',
-  'right',
-  'left',
-  'right',
-  'B',
-  'A',
-  'B',
-  'A',
-]
+const emit = defineEmits<{
+  unlocked: [keys: string[]]
+}>()
+
 const pressed = ref<string[]>([])
 const activeBtn = ref<string | null>(null)
 const shake = ref(false)
+const verifying = ref(false)
 const success = ref(false)
 const history = ref<string[]>([])
 
 function press(dir: string): void {
-  if (success.value) return
+  if (success.value || verifying.value || shake.value) return
   activeBtn.value = dir
   setTimeout(() => {
     activeBtn.value = null
   }, 150)
 
   pressed.value.push(dir)
+  history.value = [...pressed.value]
 
-  const idx = pressed.value.length - 1
-  if (pressed.value[idx] !== TARGET[idx]) {
+  if (pressed.value.length === KEY_COUNT) {
+    verifying.value = true
+    emit('unlocked', [...pressed.value])
+  }
+}
+
+// 后端验证通过，父组件递增 successTrigger
+watch(
+  () => props.successTrigger,
+  () => {
+    verifying.value = false
+    success.value = true
+  },
+)
+
+// 后端验证失败，父组件递增 resetTrigger
+watch(
+  () => props.resetTrigger,
+  () => {
+    verifying.value = false
+    success.value = false
     shake.value = true
     setTimeout(() => {
       shake.value = false
-    }, 500)
-    pressed.value = []
-    history.value = []
-    return
-  }
-
-  history.value = [...pressed.value]
-
-  if (pressed.value.length === TARGET.length) {
-    success.value = true
-    setTimeout(() => {
-      emit('unlocked')
-    }, 1500)
-  }
-}
+      pressed.value = []
+      history.value = []
+    }, 600)
+  },
+)
 
 function handleKey(e: KeyboardEvent): void {
   const map: Record<string, string> = {
@@ -85,16 +88,19 @@ onUnmounted(() => {
 <template>
   <div class="arcade-gate" :class="{ shake, success }">
     <div class="arcade-screen">
-      <div class="arcade-title">{{ success ? 'CONGRATULATIONS' : 'PRESS START' }}</div>
-      <div v-if="success" class="hp-popup">HP +30 ♥</div>
-      <div v-else class="progress-bar">
+      <div class="arcade-title">
+            {{ success ? 'CONGRATULATIONS' : verifying ? 'CHECKING...' : 'PRESS START' }}
+          </div>
+          <div v-if="success" class="hp-popup">HP +30 ♥</div>
+          <div v-if="verifying" class="hp-popup verifying">...</div>
+          <div v-if="!success && !verifying" class="progress-bar">
         <span
-          v-for="i in TARGET.length"
+          v-for="i in KEY_COUNT"
           :key="i"
           class="progress-dot"
           :class="{
             filled: history.length >= i,
-            wrong: shake && i === history.length + 1,
+            wrong: shake,
           }"
         >
           {{
@@ -413,6 +419,19 @@ onUnmounted(() => {
     0 0 12px #ff446688,
     0 0 30px #ff446644;
   animation: hp-pop 0.6s ease;
+}
+.hp-popup.verifying {
+  color: #ffdd00;
+  font-size: 28px;
+  letter-spacing: 6px;
+  text-shadow:
+    0 0 20px #ffdd0066,
+    0 0 40px #ffdd0044;
+  animation: verifying-blink 0.6s ease-in-out infinite alternate;
+}
+@keyframes verifying-blink {
+  from { opacity: 0.4; }
+  to { opacity: 1; }
 }
 @keyframes hp-pop {
   0% {

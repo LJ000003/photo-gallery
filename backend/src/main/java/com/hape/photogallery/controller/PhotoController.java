@@ -9,6 +9,7 @@ import com.hape.photogallery.dto.TransformRequest;
 import com.hape.photogallery.entity.ExifData;
 import com.hape.photogallery.entity.Photo;
 import com.hape.photogallery.exception.BusinessException;
+import com.hape.photogallery.exception.DuplicateException;
 import com.hape.photogallery.service.AlbumService;
 import com.hape.photogallery.service.PhotoService;
 
@@ -65,18 +66,22 @@ public class PhotoController {
 
     @GetMapping("/photos/{id}")
     public PhotoResponse get(@PathVariable Long id) {
-        return service.toResponse(service.getById(id));
+        return service.getPhotoResponse(id);
     }
 
     @PostMapping("/photos")
-    public PhotoResponse upload(@RequestParam("file") MultipartFile file,
+    public ResponseEntity<?> upload(@RequestParam("file") MultipartFile file,
                         @RequestParam(value = "name", required = false) String name,
                         @RequestParam(value = "description", required = false) String description,
                         @RequestParam(value = "tagIds", required = false) List<Long> tagIds,
                         @RequestParam(value = "categoryId", required = false) Long categoryId,
                         @RequestParam(value = "watermark", required = false) String watermark)
             throws IOException {
-        return service.toResponse(service.upload(file, name, description, tagIds, categoryId, watermark));
+        try {
+            return ResponseEntity.ok(service.toResponse(service.upload(file, name, description, tagIds, categoryId, watermark)));
+        } catch (DuplicateException e) {
+            return ResponseEntity.status(409).body(ApiResponse.error(409, e.getMessage(), e.getExisting()));
+        }
     }
 
     private static final int MAX_BATCH_SIZE = 50;
