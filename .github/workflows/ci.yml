@@ -81,6 +81,8 @@ jobs:
         run: cd frontend && npx playwright install chromium --with-deps
 
       - name: Start backend (H2)
+        env:
+          JWT_SECRET: test-jwt-secret-key-for-unit-tests-minimum-256-bits
         run: |
           cd backend
           java -jar target/*.jar \
