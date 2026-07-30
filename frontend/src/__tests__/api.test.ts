@@ -83,23 +83,41 @@ describe('requestToken', () => {
     vi.restoreAllMocks()
   })
 
+  const konamiKeys = ['up','up','down','down','left','right','left','right','B','A','B','A']
+
   it('returns token on successful auth', async () => {
-    const mockFetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ code: 200, data: { token: 'admin-jwt' } }),
+    let callCount = 0
+    const mockFetch = vi.fn().mockImplementation(() => {
+      callCount++
+      if (callCount === 1) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ code: 200, data: { nonce: 'test-nonce' } }),
+        })
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ code: 200, data: { token: 'admin-jwt' } }),
+      })
     })
     vi.stubGlobal('fetch', mockFetch)
 
-    const token = await requestToken()
+    const token = await requestToken(konamiKeys)
     expect(token).toBe('admin-jwt')
-    expect(mockFetch.mock.calls[0][0]).toBe('/api/v1/auth/unlock')
-    expect(mockFetch.mock.calls[0][1].method).toBe('POST')
+    expect(mockFetch.mock.calls[0][0]).toBe('/api/v1/auth/challenge')
+    expect(mockFetch.mock.calls[1][0]).toBe('/api/v1/auth/unlock')
+    expect(mockFetch.mock.calls[1][1].method).toBe('POST')
   })
 
   it('throws on auth failure', async () => {
-    const mockFetch = vi.fn().mockResolvedValue({ ok: false })
+    const mockFetch = vi.fn().mockImplementation((url: string) => {
+      if (url === '/api/v1/auth/challenge') {
+        return Promise.resolve({ ok: false })
+      }
+      return Promise.resolve({ ok: false })
+    })
     vi.stubGlobal('fetch', mockFetch)
 
-    await expect(requestToken()).rejects.toThrow('Authentication failed')
+    await expect(requestToken(konamiKeys)).rejects.toThrow('Authentication failed')
   })
 })

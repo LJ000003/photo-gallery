@@ -50,7 +50,9 @@
     "success": "Upload succeeded",
     "failed": "Upload failed",
     "networkError": "Network error",
-    "timeout": "Upload timeout"
+    "timeout": "Upload timeout",
+    "viewExisting": "View",
+    "batchSkipped": "{uploaded} uploaded, {skipped} duplicates skipped"
   },
   "album": {
     "newAlbum": "+ New Album",
@@ -138,6 +140,21 @@
     "failed": "Processing failed",
     "retry": "Retry",
     "retrying": "Retrying..."
+  },
+  "exif": {
+    "title": "EXIF Info",
+    "empty": "No EXIF data",
+    "cameraGroup": "Camera",
+    "shootGroup": "Capture",
+    "locationGroup": "Time & Location",
+    "cameraModel": "Body",
+    "lensModel": "Lens",
+    "focalLength": "Focal Length",
+    "aperture": "Aperture",
+    "shutterSpeed": "Shutter",
+    "iso": "ISO",
+    "dateTaken": "Date Taken",
+    "gps": "GPS"
   },
   "general": {
     "undo": "Undo",

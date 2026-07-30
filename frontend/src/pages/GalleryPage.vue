@@ -158,6 +158,7 @@ onUnmounted(() => {
 
 function onUploaded(): void {
   photo.resetAndReload()
+  photo.startProcessingPoll()
 }
 
 const sortOptions: SortOption[] = [

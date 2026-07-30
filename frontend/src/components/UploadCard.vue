@@ -5,12 +5,16 @@ import { useI18n } from 'vue-i18n'
 import gsap from 'gsap'
 import { useDataStore } from '../stores/data'
 import { useToastStore } from '../stores/toast'
+import { useUiStore } from '../stores/ui'
+import { AuthError } from '../api'
 import { compressImages, uploadWithProgress } from '../upload'
 import ImageEditor from './ImageEditor.vue'
+import type { Photo } from '../types/photo'
 import type { ImageEditResult } from '../types/transform'
 
 const { t } = useI18n()
 const toast = useToastStore()
+const ui = useUiStore()
 
 const MAX_BATCH = 50
 
@@ -211,12 +215,28 @@ async function onSubmit(): Promise<void> {
   uploadProgress.value = 0
   try {
     const url = isBatch ? '/api/photos/batch' : '/api/photos'
-    const { ok, data } = await uploadWithProgress(url, fd, (pct) => {
+    const { ok, status, data } = await uploadWithProgress(url, fd, (pct) => {
       uploadProgress.value = pct
     })
     if (!ok) {
+      if (status === 409) {
+        const resp = data as { code: number; message: string; data: Photo }
+        toast.add(resp.message, 'info', 5000, {
+          label: t('upload.viewExisting'),
+          onClick: () => { ui.viewPhoto = resp.data },
+        })
+        clearSelection()
+        return
+      }
       const msg = (data as Record<string, unknown>)?.message || '请求失败'
       throw new Error(String(msg))
+    }
+    if (isBatch) {
+      const resp = data as { code: number; data: Photo[] }
+      const uploadedCount = resp.data?.length ?? 0
+      if (uploadedCount < selectedCount.value) {
+        toast.info(t('upload.batchSkipped', { uploaded: uploadedCount, skipped: selectedCount.value - uploadedCount }))
+      }
     }
     uploadName.value = ''
     uploadDesc.value = ''
@@ -239,6 +259,13 @@ async function onSubmit(): Promise<void> {
     })
     emit('uploaded')
   } catch (err) {
+    if (err instanceof AuthError) {
+      toast.error(err.message)
+      localStorage.removeItem('jwt_token')
+      localStorage.removeItem('konami_unlocked')
+      setTimeout(() => window.location.reload(), 1500)
+      return
+    }
     toast.error(t('upload.failed') + ': ' + (err instanceof Error ? err.message : t('general.unknownError')))
     clearSelection()
   } finally {

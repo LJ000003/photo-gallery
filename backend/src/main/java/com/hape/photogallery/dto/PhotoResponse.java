@@ -2,6 +2,7 @@ package com.hape.photogallery.dto;
 
 import com.hape.photogallery.entity.Album;
 import com.hape.photogallery.entity.Category;
+import com.hape.photogallery.entity.ExifData;
 import com.hape.photogallery.entity.Photo;
 import com.hape.photogallery.entity.Tag;
 
@@ -21,6 +22,7 @@ public class PhotoResponse {
     private LocalDateTime deletedAt;
     private String processingStatus;
     private String errorMessage;
+    private ExifData exifData;
 
     public static PhotoResponse from(Photo photo) {
         PhotoResponse r = new PhotoResponse();
@@ -35,6 +37,7 @@ public class PhotoResponse {
         r.deletedAt = photo.getDeletedAt();
         r.processingStatus = photo.getProcessingStatus();
         r.errorMessage = photo.getErrorMessage();
+        r.exifData = photo.getExifData();
         return r;
     }
 
@@ -49,4 +52,5 @@ public class PhotoResponse {
     public LocalDateTime getDeletedAt() { return deletedAt; }
     public String getProcessingStatus() { return processingStatus; }
     public String getErrorMessage() { return errorMessage; }
+    public ExifData getExifData() { return exifData; }
 }

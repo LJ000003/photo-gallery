@@ -45,10 +45,14 @@ public class Photo {
     @ManyToMany(mappedBy = "photos")
     private Set<Album> albums = new HashSet<>();
 
+    @OneToOne(mappedBy = "photo", fetch = FetchType.LAZY)
+    private ExifData exifData;
+
     private LocalDateTime deletedAt;
 
     private String processingStatus = "DONE";
     private String errorMessage;
+    private String fileHash;
 
     public Photo() {}
 
@@ -87,4 +91,8 @@ public class Photo {
     public void setProcessingStatus(String processingStatus) { this.processingStatus = processingStatus; }
     public String getErrorMessage() { return errorMessage; }
     public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
+    public String getFileHash() { return fileHash; }
+    public void setFileHash(String fileHash) { this.fileHash = fileHash; }
+    public ExifData getExifData() { return exifData; }
+    public void setExifData(ExifData exifData) { this.exifData = exifData; }
 }

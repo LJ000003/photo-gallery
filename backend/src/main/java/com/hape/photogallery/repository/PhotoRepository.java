@@ -51,4 +51,6 @@ public interface PhotoRepository extends JpaRepository<Photo, Long> {
 
     @Query("SELECT p FROM Photo p WHERE p.processingStatus = :status")
     List<Photo> findByProcessingStatus(@Param("status") String status);
+
+    Optional<Photo> findByFileHash(String fileHash);
 }

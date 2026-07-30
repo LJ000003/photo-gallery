@@ -50,6 +50,159 @@ public class ImageProcessingService {
         throw new InvalidFileTypeException("文件格式不支持，请上传常见的图片文件");
     }
 
+    @Value("${photo.watermark.font:SansSerif}")
+    private String watermarkFont;
+
+    @Value("${photo.watermark.font-size-ratio:40}")
+    private float watermarkFontSizeRatio;
+
+    @Value("${photo.watermark.color-alpha:180}")
+    private int watermarkColorAlpha;
+
+    // === 降采样（用于 WebP 和缩略图加速） ===
+
+    private static final int DISPLAY_MAX = 2048;
+
+    public BufferedImage downscaleToDisplay(BufferedImage img) {
+        int w = img.getWidth();
+        int h = img.getHeight();
+        if (w <= DISPLAY_MAX && h <= DISPLAY_MAX) return img;
+        double ratio = (double) DISPLAY_MAX / Math.max(w, h);
+        int nw = (int) (w * ratio);
+        int nh = (int) (h * ratio);
+        BufferedImage scaled = new BufferedImage(nw, nh, img.getType() == BufferedImage.TYPE_CUSTOM
+                ? BufferedImage.TYPE_INT_RGB : img.getType());
+        Graphics2D g = scaled.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+        g.drawImage(img, 0, 0, nw, nh, null);
+        g.dispose();
+        return scaled;
+    }
+
+    // === 基于 BufferedImage 的处理（避免重复解码） ===
+
+    /**
+     * 返回旋转后的 BufferedImage，不写磁盘
+     */
+    public BufferedImage autoRotateIfNeeded(BufferedImage img, Path path) throws IOException {
+        int orientation = exifService.getOrientation(path);
+        int degrees = switch (orientation) {
+            case 3 -> 180;
+            case 6 -> 90;
+            case 8 -> 270;
+            default -> 0;
+        };
+        if (degrees > 0) {
+            return rotateImage(img, degrees);
+        }
+        return img;
+    }
+
+    /**
+     * 在原图上绘制水印，返回原图引用
+     */
+    public BufferedImage applyWatermark(BufferedImage img, String text) {
+        Graphics2D g = img.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        float fontSize = Math.max(14f, img.getWidth() / watermarkFontSizeRatio);
+        Font font = new Font(watermarkFont, Font.PLAIN, (int) fontSize);
+        g.setFont(font);
+
+        FontMetrics fm = g.getFontMetrics();
+        int textWidth = fm.stringWidth(text);
+        int padding = (int) (fontSize * 0.6);
+        int x = img.getWidth() - textWidth - padding;
+        int y = fm.getAscent() + padding;
+
+        g.setColor(new Color(255, 255, 255, watermarkColorAlpha));
+        g.drawString(text, x, y);
+        g.dispose();
+        return img;
+    }
+
+    public void generateThumbnail(BufferedImage image, String dateDir, String baseName) throws IOException {
+        generateThumbnail(image, dateDir, baseName, THUMBNAIL_WIDTH);
+    }
+
+    public void generateThumbnail(BufferedImage image, String dateDir, String baseName, int width) throws IOException {
+        int h = (int) ((double) image.getHeight() / image.getWidth() * width);
+        boolean hasAlpha = image.getColorModel().hasAlpha();
+        int type = hasAlpha ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB;
+        BufferedImage thumb = new BufferedImage(width, h, type);
+        Graphics2D g = thumb.createGraphics();
+        if (hasAlpha) {
+            g.setComposite(java.awt.AlphaComposite.Clear);
+            g.fillRect(0, 0, width, h);
+            g.setComposite(java.awt.AlphaComposite.SrcOver);
+        }
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g.drawImage(image, 0, 0, width, h, null);
+        g.dispose();
+        writeJpeg(thumb, thumbPath(dateDir, baseName, width));
+    }
+
+    public void generateWebp(BufferedImage img, String dateDir, String baseName) {
+        Path webpDir = uploadDir.resolve(dateDir).resolve("webp");
+        try { Files.createDirectories(webpDir); } catch (IOException e) { return; }
+        Path webpPath = webpDir.resolve(baseName + ".webp");
+        try {
+            java.util.Iterator<ImageWriter> writers = ImageIO.getImageWritersByMIMEType("image/webp");
+            if (!writers.hasNext()) return;
+            ImageWriter writer = writers.next();
+            try {
+                ImageWriteParam param = writer.getDefaultWriteParam();
+                param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+                if (param.canWriteCompressed()) {
+                    param.setCompressionType("Lossy");
+                    param.setCompressionQuality(0.8f);
+                }
+                writer.setOutput(new FileImageOutputStream(webpPath.toFile()));
+                writer.write(null, new IIOImage(img, null, null), param);
+            } finally {
+                writer.dispose();
+            }
+        } catch (IOException e) {
+            // WebP 生成失败不阻塞主流程
+        }
+    }
+
+    private Path thumbPath(String dateDir, String baseName, int width) throws IOException {
+        Path dir = width == THUMBNAIL_WIDTH
+                ? uploadDir.resolve(dateDir).resolve("thumbnails")
+                : uploadDir.resolve(dateDir).resolve("thumbnails").resolve(String.valueOf(width));
+        Files.createDirectories(dir);
+        return dir.resolve(baseName);
+    }
+
+    private void writeJpeg(BufferedImage image, Path path) throws IOException {
+        writeJpeg(image, path, 0.75f);
+    }
+
+    private void writeJpeg(BufferedImage image, Path path, float quality) throws IOException {
+        java.util.Iterator<ImageWriter> writers = ImageIO.getImageWritersByFormatName("jpeg");
+        if (writers.hasNext()) {
+            ImageWriter writer = writers.next();
+            try {
+                ImageWriteParam param = writer.getDefaultWriteParam();
+                param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+                param.setCompressionQuality(quality);
+                writer.setOutput(new FileImageOutputStream(path.toFile()));
+                writer.write(null, new IIOImage(image, null, null), param);
+            } finally {
+                writer.dispose();
+            }
+        } else {
+            ImageIO.write(image, "jpeg", path.toFile());
+        }
+    }
+
+    /** 高质量写回原文件 */
+    public void writeOriginalJpeg(BufferedImage image, Path path) throws IOException {
+        writeJpeg(image, path, 0.92f);
+    }
+
+    // === 原 Path 版重载（供外部调用） ===
+
     public void autoRotateIfNeeded(Path path) throws IOException {
         int orientation = exifService.getOrientation(path);
         int degrees = switch (orientation) {
@@ -67,35 +220,10 @@ public class ImageProcessingService {
         }
     }
 
-    @Value("${photo.watermark.font:SansSerif}")
-    private String watermarkFont;
-
-    @Value("${photo.watermark.font-size-ratio:40}")
-    private float watermarkFontSizeRatio;
-
-    @Value("${photo.watermark.color-alpha:180}")
-    private int watermarkColorAlpha;
-
     public void applyWatermark(Path filePath, String text) throws IOException {
         BufferedImage img = ImageIO.read(filePath.toFile());
         if (img == null) return;
-
-        Graphics2D g = img.createGraphics();
-        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        float fontSize = Math.max(14f, img.getWidth() / watermarkFontSizeRatio);
-        Font font = new Font(watermarkFont, Font.PLAIN, (int) fontSize);
-        g.setFont(font);
-
-        FontMetrics fm = g.getFontMetrics();
-        int textWidth = fm.stringWidth(text);
-        int padding = (int) (fontSize * 0.6);
-        int x = img.getWidth() - textWidth - padding;
-        int y = fm.getAscent() + padding;
-
-        g.setColor(new Color(255, 255, 255, watermarkColorAlpha));
-        g.drawString(text, x, y);
-        g.dispose();
-
+        applyWatermark(img, text);
         String format = getFormat(filePath);
         ImageIO.write(img, format, filePath.toFile());
     }
@@ -107,42 +235,7 @@ public class ImageProcessingService {
     public void generateThumbnail(Path original, String dateDir, String baseName, int width) throws IOException {
         BufferedImage image = ImageIO.read(original.toFile());
         if (image == null) return;
-
-        int h = (int) ((double) image.getHeight() / image.getWidth() * width);
-        boolean hasAlpha = image.getColorModel().hasAlpha();
-        int type = hasAlpha ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB;
-        BufferedImage thumb = new BufferedImage(width, h, type);
-        Graphics2D g = thumb.createGraphics();
-        if (hasAlpha) {
-            g.setComposite(java.awt.AlphaComposite.Clear);
-            g.fillRect(0, 0, width, h);
-            g.setComposite(java.awt.AlphaComposite.SrcOver);
-        }
-        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        g.drawImage(image, 0, 0, width, h, null);
-        g.dispose();
-
-        Path thumbDir = width == THUMBNAIL_WIDTH
-                ? uploadDir.resolve(dateDir).resolve("thumbnails")
-                : uploadDir.resolve(dateDir).resolve("thumbnails").resolve(String.valueOf(width));
-        Files.createDirectories(thumbDir);
-        Path thumbPath = thumbDir.resolve(baseName);
-
-        java.util.Iterator<ImageWriter> writers = ImageIO.getImageWritersByFormatName("jpeg");
-        if (writers.hasNext()) {
-            ImageWriter writer = writers.next();
-            try {
-                ImageWriteParam param = writer.getDefaultWriteParam();
-                param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
-                param.setCompressionQuality(0.75f);
-                writer.setOutput(new FileImageOutputStream(thumbPath.toFile()));
-                writer.write(null, new IIOImage(thumb, null, null), param);
-            } finally {
-                writer.dispose();
-            }
-        } else {
-            ImageIO.write(thumb, "jpeg", thumbPath.toFile());
-        }
+        generateThumbnail(image, dateDir, baseName, width);
     }
 
     public void generateWebp(Path original, String dateDir, String baseName) {

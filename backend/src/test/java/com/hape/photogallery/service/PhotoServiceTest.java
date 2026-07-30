@@ -188,7 +188,7 @@ class PhotoServiceTest {
         verify(photoRepo).save(any());
         verify(imageService).validateImageMagicBytes(any());
         // 图片处理已移至异步执行
-        verify(asyncProcessor).process(any(Photo.class), any(Path.class), any(), any(), eq("watermark"));
+        verify(asyncProcessor).process(any(Long.class), any(Path.class), any(), any(), eq("watermark"));
     }
 
     @Test

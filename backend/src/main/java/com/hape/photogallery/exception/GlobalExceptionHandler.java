@@ -20,6 +20,12 @@ public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    @ExceptionHandler(DuplicateException.class)
+    public ResponseEntity<ApiResponse<?>> handleDuplicate(DuplicateException ex) {
+        return ResponseEntity.status(409)
+                .body(ApiResponse.error(409, ex.getMessage(), ex.getExisting()));
+    }
+
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusiness(BusinessException ex) {
         return ResponseEntity.status(ex.getStatus())

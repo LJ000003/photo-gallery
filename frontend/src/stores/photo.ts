@@ -112,6 +112,48 @@ export const usePhotoStore = defineStore('photo', () => {
     totalCount.value -= ids.length
   }
 
+  let processingTimer: ReturnType<typeof setTimeout> | null = null
+
+  function startProcessingPoll(): void {
+    stopProcessingPoll()
+    let attempts = 0
+    const maxAttempts = 20
+    function poll(): void {
+      const processingIds = photos.value
+        .filter((p) => p.processingStatus === 'PROCESSING')
+        .map((p) => p.id)
+      if (processingIds.length === 0 || attempts >= maxAttempts) {
+        stopProcessingPoll()
+        return
+      }
+      attempts++
+      processingTimer = setTimeout(async () => {
+        try {
+          for (const id of processingIds) {
+            const res = await api(`/api/photos/${id}`)
+            const json = await res.json()
+            if (json.code === 200 && json.data) {
+              const updated: Photo = json.data
+              const idx = photos.value.findIndex((p) => p.id === id)
+              if (idx !== -1) photos.value[idx] = updated
+            }
+          }
+        } catch {
+          /* 轮询静默失败 */
+        }
+        poll()
+      }, 3000)
+    }
+    poll()
+  }
+
+  function stopProcessingPoll(): void {
+    if (processingTimer) {
+      clearTimeout(processingTimer)
+      processingTimer = null
+    }
+  }
+
   syncUrlState()
 
   return {
@@ -132,6 +174,8 @@ export const usePhotoStore = defineStore('photo', () => {
     setSearch,
     removePhoto,
     removePhotos,
+    startProcessingPoll,
+    stopProcessingPoll,
     syncUrlState,
   }
 })
