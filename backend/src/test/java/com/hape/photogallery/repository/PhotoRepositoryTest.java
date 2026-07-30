@@ -69,4 +69,70 @@ class PhotoRepositoryTest {
                 List.of(cat1.getId()), List.of(tag2.getId()), PageRequest.of(0, 10));
         assertThat(page.getTotalElements()).isEqualTo(1);
     }
+
+    // ==================== search ====================
+
+    @Test
+    void search_shouldFindByName() {
+        Page<Photo> page = photoRepo.search("a", PageRequest.of(0, 10));
+        assertThat(page.getTotalElements()).isEqualTo(1);
+    }
+
+    @Test
+    void search_shouldBeCaseInsensitive() {
+        Page<Photo> page = photoRepo.search("A", PageRequest.of(0, 10));
+        assertThat(page.getTotalElements()).isEqualTo(1);
+    }
+
+    @Test
+    void search_noMatch_shouldReturnEmpty() {
+        Page<Photo> page = photoRepo.search("nonexistent", PageRequest.of(0, 10));
+        assertThat(page.getTotalElements()).isEqualTo(0);
+    }
+
+    // ==================== soft delete ====================
+
+    @Test
+    void softDelete_shouldExcludeFromFindAll() {
+        Photo toDelete = photoRepo.findAll(PageRequest.of(0, 10))
+                .getContent().get(0);
+        toDelete.setDeletedAt(java.time.LocalDateTime.now());
+        photoRepo.save(toDelete);
+
+        Page<Photo> page = photoRepo.findAll(PageRequest.of(0, 10));
+        assertThat(page.getTotalElements()).isEqualTo(2);
+    }
+
+    @Test
+    void findDeletedById_shouldFindSoftDeleted() {
+        Photo toDelete = photoRepo.findAll(PageRequest.of(0, 10))
+                .getContent().get(0);
+        toDelete.setDeletedAt(java.time.LocalDateTime.now());
+        photoRepo.save(toDelete);
+
+        assertThat(photoRepo.findDeletedById(toDelete.getId())).isPresent();
+    }
+
+    @Test
+    void findDeleted_shouldListDeleted() {
+        Photo toDelete = photoRepo.findAll(PageRequest.of(0, 10))
+                .getContent().get(0);
+        toDelete.setDeletedAt(java.time.LocalDateTime.now());
+        photoRepo.save(toDelete);
+
+        Page<Photo> page = photoRepo.findDeleted(PageRequest.of(0, 10));
+        assertThat(page.getTotalElements()).isEqualTo(1);
+    }
+
+    @Test
+    void findDeletedBefore_shouldFilterByDate() {
+        Photo toDelete = photoRepo.findAll(PageRequest.of(0, 10))
+                .getContent().get(0);
+        toDelete.setDeletedAt(java.time.LocalDateTime.now().minusDays(31));
+        photoRepo.save(toDelete);
+
+        List<Photo> expired = photoRepo.findDeletedBefore(
+                java.time.LocalDateTime.now().minusDays(30));
+        assertThat(expired).hasSize(1);
+    }
 }
