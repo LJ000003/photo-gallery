@@ -19,9 +19,9 @@ vi.mock('gsap', () => ({
   },
 }))
 
-// Mock store
-vi.mock('../../store', () => ({
-  useStore: () => ({
+// Mock stores used by UploadCard
+vi.mock('../stores/data', () => ({
+  useDataStore: () => ({
     tags: { value: [{ id: 1, name: 'nature', color: '#00ff00' }] },
     categories: { value: [{ id: 1, name: 'landscape' }] },
     albums: { value: [] },
@@ -32,15 +32,25 @@ vi.mock('../../store', () => ({
   }),
 }))
 
+vi.mock('../stores/toast', () => ({
+  useToastStore: () => ({
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    add: vi.fn(),
+  }),
+}))
+
+vi.mock('../stores/ui', () => ({
+  useUiStore: () => ({
+    viewPhoto: null,
+  }),
+}))
+
 // Mock api
 vi.mock('../../api', () => ({
   api: vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) }),
   requestToken: vi.fn(),
-}))
-
-// Mock LottieLoader async component
-vi.mock('../../composables/usePhotoActions', () => ({
-  usePhotoActions: () => ({}),
 }))
 
 beforeEach(() => {

@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test'
 
-const KONAMI_KEYS = ['UP','UP','DOWN','DOWN','LEFT','RIGHT','LEFT','RIGHT','B','A','B','A']
+const KONAMI_KEYS = ['up','up','down','down','left','right','left','right','B','A','B','A']
 
 export async function unlock(page: Page): Promise<void> {
   await page.goto('/')

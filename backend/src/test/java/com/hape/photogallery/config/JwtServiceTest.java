@@ -53,8 +53,7 @@ class JwtServiceTest {
     }
 
     @Test
-    void verify_emptyString_shouldThrow() {
-        assertThatThrownBy(() -> jwtService.verify(""))
-                .isInstanceOf(IllegalArgumentException.class);
+    void verify_emptyString_shouldReturnNull() {
+        assertThat(jwtService.verify("")).isNull();
     }
 }

@@ -12,7 +12,10 @@ test.describe('Photo Gallery', () => {
     // 1. Verify gallery is visible
     await expect(page.locator('.gallery-section')).toBeVisible({ timeout: 5000 });
 
-    // 4. Upload a test photo via the page's fetch (goes through Vite proxy to backend)
+    // 2. Retrieve JWT token for upload API call
+    const token = await page.evaluate(() => localStorage.getItem('jwt_token'));
+
+    // 3. Upload a test photo via the page's fetch
     const uploadedId = await page.evaluate(async (t) => {
       const bytes = new Uint8Array([
         0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01,
