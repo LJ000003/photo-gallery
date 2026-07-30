@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { unlock } from './helpers';
 
 const JPEG_BYTES = [
   0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01,
@@ -6,23 +7,9 @@ const JPEG_BYTES = [
 
 test.describe('Photo Gallery', () => {
   test('full flow: unlock → upload → list → delete', async ({ page }) => {
-    // 1. Go to app and bypass Konami with API-obtained JWT
-    await page.goto('/');
-    const token = await page.evaluate(async () => {
-      const res = await fetch('/api/v1/auth/unlock', { method: 'POST' });
-      const json = await res.json();
-      return json.data.token as string;
-    });
-    await page.evaluate((t) => {
-      localStorage.setItem('konami_unlocked', 'true');
-      localStorage.setItem('jwt_token', t);
-    }, token);
+    await unlock(page);
 
-    // 2. Reload — now unlocked
-    await page.reload();
-    await page.waitForSelector('.gallery-section', { timeout: 10000 });
-
-    // 3. Verify gallery is visible
+    // 1. Verify gallery is visible
     await expect(page.locator('.gallery-section')).toBeVisible({ timeout: 5000 });
 
     // 4. Upload a test photo via the page's fetch (goes through Vite proxy to backend)

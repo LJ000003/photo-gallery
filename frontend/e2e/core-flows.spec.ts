@@ -1,25 +1,10 @@
 import { test, expect, type Page } from '@playwright/test'
 import path from 'node:path'
-import fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { unlock } from './helpers'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const TEST_JPEG = path.resolve(__dirname, 'fixtures', 'test-photo.jpg')
-
-async function unlock(page: Page): Promise<void> {
-  await page.goto('/')
-  const token = await page.evaluate(async () => {
-    const res = await fetch('/api/v1/auth/unlock', { method: 'POST' })
-    const json = await res.json()
-    return json.data.token as string
-  })
-  await page.evaluate((t) => {
-    localStorage.setItem('konami_unlocked', 'true')
-    localStorage.setItem('jwt_token', t)
-  }, token)
-  await page.reload()
-  await page.waitForSelector('.header', { timeout: 8000 })
-}
 
 async function seedPhoto(page: Page): Promise<void> {
   const fileInput = page.locator('.upload-card input[type="file"]')
