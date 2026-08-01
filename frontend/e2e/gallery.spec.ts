@@ -32,7 +32,7 @@ test.describe('Photo Gallery', () => {
         body: form,
       });
       const json = await res.json();
-      return json.id as number;
+      return json.data?.id as number;
     }, token);
     expect(uploadedId).toBeGreaterThan(0);
 

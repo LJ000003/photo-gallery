@@ -7,6 +7,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   use: {
     baseURL: 'http://localhost:5173',
+    locale: 'zh-CN',
     headless: true,
     screenshot: 'only-on-failure',
   },
