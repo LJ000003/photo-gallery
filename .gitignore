@@ -7,6 +7,22 @@ frontend/playwright-report/
 .DS_Store
 Thumbs.db
 *.log
+hs_err_pid*
+*.jar
+*.war
+*.ear
+CLAUDE.md
+# OS & editors
+*~
+*.swp
+*.swo
+*.bak
+*.orig
+desktop.ini
+
+# TypeScript
+*.tsbuildinfo
+
 .env
 .env.local
 .env.*.local
@@ -15,5 +31,7 @@ doc
 .idea/
 *.iml
 .vscode/settings.json
+serena-mcp.bat
+.serena
 # 本地开发配置（含真实密码，不提交）
 backend/src/main/resources/application-local.yml
