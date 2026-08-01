@@ -7,6 +7,7 @@ import com.hape.photogallery.entity.Photo;
 import com.hape.photogallery.entity.Tag;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.Set;
 
 public class PhotoResponse {
@@ -31,8 +32,8 @@ public class PhotoResponse {
         r.description = photo.getDescription();
         r.fileSize = photo.getFileSize();
         r.category = photo.getCategory();
-        r.tags = photo.getTags();
-        r.albums = photo.getAlbums();
+        r.tags = photo.getTags() != null ? new HashSet<>(photo.getTags()) : new HashSet<>();
+        r.albums = photo.getAlbums() != null ? new HashSet<>(photo.getAlbums()) : new HashSet<>();
         r.createdAt = photo.getCreatedAt();
         r.deletedAt = photo.getDeletedAt();
         r.processingStatus = photo.getProcessingStatus();

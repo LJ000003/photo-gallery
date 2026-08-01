@@ -89,7 +89,6 @@ public class PhotoService {
         this.processingSender = processingSender;
     }
 
-    @Cacheable(value = "photos", key = "{#tagIds, #categoryIds, #pageable}")
     public Page<Photo> listAll(List<Long> tagIds, List<Long> categoryIds, Pageable pageable) {
         boolean hasTags = tagIds != null && !tagIds.isEmpty();
         boolean hasCats = categoryIds != null && !categoryIds.isEmpty();
@@ -101,6 +100,12 @@ public class PhotoService {
             return repo.findByCategoryIds(categoryIds, pageable);
         }
         return repo.findAll(pageable);
+    }
+
+    /** 缓存照片列表（DTO 形式，避免 Hibernate 懒加载代理被序列化到 Redis） */
+    @Cacheable(value = "photos", key = "{#tagIds, #categoryIds, #pageable}")
+    public Page<PhotoResponse> listAllResponses(List<Long> tagIds, List<Long> categoryIds, Pageable pageable) {
+        return listAll(tagIds, categoryIds, pageable).map(this::toResponse);
     }
 
     public Page<Photo> search(String q, Pageable pageable) {

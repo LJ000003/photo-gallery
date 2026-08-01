@@ -62,6 +62,7 @@ export const usePhotoStore = defineStore('photo', () => {
       const res = await api(url)
       if (myId !== requestId) return
       const json: ApiResponse<PageResponse<Photo>> = await res.json()
+      if (!json.data) return
       const { content, totalPages, totalElements } = json.data
       if (content && content.length) photos.value.push(...content)
       page.value++

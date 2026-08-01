@@ -61,7 +61,7 @@ public class PhotoController {
                     : albumService.listPhotos(albumId, pageable);
             return ApiResponse.success(page.map(service::toResponse));
         }
-        return ApiResponse.success(service.listAll(tagIds, categoryIds, pageable).map(service::toResponse));
+        return ApiResponse.success(service.listAllResponses(tagIds, categoryIds, pageable));
     }
 
     @GetMapping("/photos/{id}")

@@ -20,26 +20,32 @@ export const useDataStore = defineStore('data', () => {
         api('/api/categories'),
         api('/api/albums'),
       ])
-      tags.value = ((await tRes.json()) as ApiResponse<Tag[]>).data
-      categories.value = ((await cRes.json()) as ApiResponse<Category[]>).data
-      albums.value = ((await aRes.json()) as ApiResponse<Album[]>).data
+      const tJson: ApiResponse<Tag[]> = await tRes.json()
+      const cJson: ApiResponse<Category[]> = await cRes.json()
+      const aJson: ApiResponse<Album[]> = await aRes.json()
+      tags.value = tJson.data || []
+      categories.value = cJson.data || []
+      albums.value = aJson.data || []
     })()
     return loadPromise
   }
 
   async function refreshTags(): Promise<void> {
     const res = await api('/api/tags')
-    tags.value = ((await res.json()) as ApiResponse<Tag[]>).data
+    const json: ApiResponse<Tag[]> = await res.json()
+    tags.value = json.data || []
   }
 
   async function refreshCategories(): Promise<void> {
     const res = await api('/api/categories')
-    categories.value = ((await res.json()) as ApiResponse<Category[]>).data
+    const json: ApiResponse<Category[]> = await res.json()
+    categories.value = json.data || []
   }
 
   async function refreshAlbums(): Promise<void> {
     const res = await api('/api/albums')
-    albums.value = ((await res.json()) as ApiResponse<Album[]>).data
+    const json: ApiResponse<Album[]> = await res.json()
+    albums.value = json.data || []
   }
 
   return { tags, categories, albums, loadAll, refreshTags, refreshCategories, refreshAlbums }
