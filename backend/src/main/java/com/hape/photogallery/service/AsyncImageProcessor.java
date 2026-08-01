@@ -26,13 +26,9 @@ public class AsyncImageProcessor implements ProcessingMessageSender {
         this.processor = processor;
     }
 
+    @Async("imageTaskExecutor")
     @Override
     public void send(Long photoId, Path target, String dateDir, String baseName, String watermark) {
-        asyncProcess(photoId, target, dateDir, baseName, watermark);
-    }
-
-    @Async("imageTaskExecutor")
-    public void asyncProcess(Long photoId, Path target, String dateDir, String baseName, String watermark) {
         processor.process(photoId, target, dateDir, baseName, watermark);
     }
 }
