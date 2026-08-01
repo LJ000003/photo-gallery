@@ -28,6 +28,8 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -130,7 +132,7 @@ public class PhotoController {
     @GetMapping("/photos/{id}/file")
     public ResponseEntity<Resource> getFile(@PathVariable Long id) {
         Photo photo = service.getByIdIncludeDeleted(id);
-        if (photo.getDeletedAt() != null) {
+        if (photo.getDeletedAt() != null && !isAdmin()) {
             throw new BusinessException(404, "该照片已被删除");
         }
         Resource resource = new FileSystemResource(service.getFilePath(id));
@@ -145,7 +147,7 @@ public class PhotoController {
     @GetMapping("/photos/{id}/webp")
     public ResponseEntity<Resource> getWebp(@PathVariable Long id) {
         Photo photo = service.getByIdIncludeDeleted(id);
-        if (photo.getDeletedAt() != null) {
+        if (photo.getDeletedAt() != null && !isAdmin()) {
             throw new BusinessException(404, "该照片已被删除");
         }
         Resource resource = new FileSystemResource(service.getWebpPath(id));
@@ -161,7 +163,7 @@ public class PhotoController {
     public ResponseEntity<Resource> getThumbnail(@PathVariable Long id,
                                                  @RequestParam(defaultValue = "400") int w) {
         Photo photo = service.getByIdIncludeDeleted(id);
-        if (photo.getDeletedAt() != null) {
+        if (photo.getDeletedAt() != null && !isAdmin()) {
             throw new BusinessException(404, "该照片已被删除");
         }
         Resource resource = new FileSystemResource(service.getThumbnailPath(id, w));
@@ -225,5 +227,14 @@ public class PhotoController {
     public ApiResponse<String> retryProcessing(@PathVariable Long id) {
         service.retryProcessing(id);
         return ApiResponse.success("已重新提交处理");
+    }
+
+    /**
+     * 已删除（回收站）照片的图片只允许 admin 查看，viewer 仍返回 404。
+     */
+    private boolean isAdmin() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth != null && auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_admin".equals(a.getAuthority()));
     }
 }

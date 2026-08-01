@@ -134,6 +134,7 @@ export function useKeyboardShortcuts(): void {
         e.preventDefault()
         ui.viewPhoto = null
         ui.editPhoto = null
+        ui.helpOpen = false
       },
     },
 

@@ -172,5 +172,35 @@
     "serverError": "Internal server error",
     "requestFailed": "Request failed",
     "unknownError": "Unknown error"
+  },
+  "help": {
+    "button": "Help",
+    "title": "User Guide",
+    "shortcutsTitle": "Keyboard Shortcuts",
+    "usageTitle": "Basics",
+    "note": "Shortcuts take effect after unlocking; while typing in an input field, most shortcuts are disabled (except Ctrl+Enter).",
+    "shortcuts": [
+      { "keys": "g", "desc": "Go to gallery" },
+      { "keys": "a", "desc": "Go to albums" },
+      { "keys": "t", "desc": "Go to timeline" },
+      { "keys": "m", "desc": "Go to map" },
+      { "keys": "Esc", "desc": "Close dialogs" },
+      { "keys": "/", "desc": "Focus the search box" },
+      { "keys": "Ctrl+Shift+U", "desc": "Focus the upload area" },
+      { "keys": "Ctrl+A", "desc": "Select all photos in gallery" },
+      { "keys": "Delete", "desc": "Delete selected photos in gallery" },
+      { "keys": "Enter", "desc": "View selected photos in gallery" },
+      { "keys": "← / →", "desc": "Previous / next photo in viewer" },
+      { "keys": "e", "desc": "Edit the photo from the viewer" },
+      { "keys": "Ctrl+Enter", "desc": "Submit the edit form" },
+      { "keys": "Shift+R", "desc": "Restore selected photos in trash" }
+    ],
+    "usage": [
+      { "title": "Upload photos", "desc": "Click the upload area, drag & drop, or paste with Ctrl+V. Batch upload with auto-compression; duplicate photos are skipped automatically." },
+      { "title": "Edit photos", "desc": "Press e in the viewer or click the edit button to change name, description, category, tags and albums." },
+      { "title": "Albums", "desc": "Create albums on the Albums page and assign photos while editing. Deleted albums can be restored from the trash." },
+      { "title": "Share links", "desc": "Select photos and generate a share link. Links are valid for 7 days; anyone with the link can view but not modify or delete." },
+      { "title": "Trash", "desc": "Deleted photos stay in the trash for 30 days, then are permanently removed. Restore or purge them at any time." }
+    ]
   }
 }

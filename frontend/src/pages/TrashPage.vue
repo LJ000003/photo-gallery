@@ -2,7 +2,8 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../api'
-import { tokenParam } from '../utils/token'
+import { thumbUrl } from '../webp'
+import { tokenQS } from '../utils/token'
 import { useToastStore } from '../stores/toast'
 import { useUiStore } from '../stores/ui'
 import { useDataStore } from '../stores/data'
@@ -138,7 +139,7 @@ onUnmounted(() => {
       <div v-else class="trash-grid">
         <div v-for="p in photos" :key="p.id" class="trash-card">
           <img
-            :src="`/api/v1/photos/${p.id}/thumbnail${tokenParam() || '?'}w=200`"
+            :src="thumbUrl(p.id, 200) + tokenQS()"
             loading="lazy"
             class="trash-thumb"
             @click="ui.viewPhoto = p"

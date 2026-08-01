@@ -14,6 +14,7 @@ import KonamiGate from '../components/KonamiGate.vue'
 import ToastProvider from '../components/ToastProvider.vue'
 import ViewModal from '../components/ViewModal.vue'
 import EditModal from '../components/EditModal.vue'
+import HelpModal from '../components/HelpModal.vue'
 
 import { usePhotoStore } from '../stores/photo'
 import { useUiStore } from '../stores/ui'
@@ -26,6 +27,12 @@ const router = useRouter()
 const photo = usePhotoStore()
 const ui = useUiStore()
 const toast = useToastStore()
+
+// 必须在 setup 顶层调用，不能放进 onMounted：
+// 组件挂载时 Vue 会把 mounted 钩子数组展开快照进 post-flush 队列，
+// 在 onMounted 回调里再注册的钩子（如 useKeyboardShortcuts 内部的 onMounted）
+// 永远不会被队列执行，导致监听器静默失效。
+useKeyboardShortcuts()
 
 const konamiReset = ref(0)
 const konamiSuccess = ref(0)
@@ -80,7 +87,6 @@ onMounted(() => {
     ui.reLock()
   }
   if (ui.unlocked) useAppEffects()
-  useKeyboardShortcuts()
   window.addEventListener('scroll', () => {
     ui.showBackTop = window.scrollY > 400
   })
@@ -119,6 +125,7 @@ onMounted(() => {
     </main>
     <button v-show="ui.showBackTop" class="back-top" @click="scrollToTop">↑</button>
     <ViewModal v-if="ui.viewPhoto" :photo="ui.viewPhoto" @close="ui.viewPhoto = null" />
+    <HelpModal />
     <EditModal
       v-if="ui.editPhoto"
       :photo="ui.editPhoto"

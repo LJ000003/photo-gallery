@@ -7,6 +7,7 @@ export const useUiStore = defineStore('ui', () => {
   const editPhoto: Ref<Photo | null> = ref(null)
   const showBackTop = ref(false)
   const sidebarOpen = ref(false)
+  const helpOpen = ref(false)
   const unlocked = ref(localStorage.getItem('konami_unlocked') === 'true')
   const token: Ref<string | null> = ref(localStorage.getItem('jwt_token'))
 
@@ -32,6 +33,7 @@ export const useUiStore = defineStore('ui', () => {
     editPhoto,
     showBackTop,
     sidebarOpen,
+    helpOpen,
     unlocked,
     token,
     reLock,
