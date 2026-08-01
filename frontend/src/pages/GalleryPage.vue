@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onUnmounted, defineAsyncComponent } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useWindowVirtualizer } from '@tanstack/vue-virtual'
 import PhotoCard from '../components/PhotoCard.vue'
@@ -152,8 +152,35 @@ watch(
   { immediate: true },
 )
 
+// --- 键盘快捷键事件监听 ---
+function onKbSelectAll(): void {
+  toggleAll()
+}
+
+function onKbDeleteSelected(): void {
+  if (selectedIds.value.size === 0) return
+  deletePhotos([...selectedIds.value])
+  selectedIds.value = new Set()
+}
+
+function onKbViewSelected(): void {
+  const ids = [...selectedIds.value]
+  if (ids.length === 0) return
+  const p = photo.photos.find((ph) => ph.id === ids[0])
+  if (p) ui.viewPhoto = p
+}
+
+onMounted(() => {
+  document.addEventListener('kb:selectAll', onKbSelectAll)
+  document.addEventListener('kb:deleteSelected', onKbDeleteSelected)
+  document.addEventListener('kb:viewSelected', onKbViewSelected)
+})
+
 onUnmounted(() => {
   resizeObs?.disconnect()
+  document.removeEventListener('kb:selectAll', onKbSelectAll)
+  document.removeEventListener('kb:deleteSelected', onKbDeleteSelected)
+  document.removeEventListener('kb:viewSelected', onKbViewSelected)
 })
 
 function onUploaded(): void {

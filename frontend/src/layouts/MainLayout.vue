@@ -5,6 +5,7 @@ import { RouterView, useRouter } from 'vue-router'
 import gsap from 'gsap'
 import { ScrollToPlugin } from 'gsap/ScrollToPlugin'
 import { useAppEffects } from '../composables/useAppEffects'
+import { useKeyboardShortcuts } from '../composables/useKeyboardShortcuts'
 gsap.registerPlugin(ScrollToPlugin)
 
 import AppHeader from '../components/AppHeader.vue'
@@ -79,12 +80,7 @@ onMounted(() => {
     ui.reLock()
   }
   if (ui.unlocked) useAppEffects()
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      ui.viewPhoto = null
-      ui.editPhoto = null
-    }
-  })
+  useKeyboardShortcuts()
   window.addEventListener('scroll', () => {
     ui.showBackTop = window.scrollY > 400
   })

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../api'
 import { tokenParam } from '../utils/token'
@@ -103,9 +103,27 @@ async function permanentlyDeleteAlbum(id: number): Promise<void> {
   }
 }
 
+// --- 键盘快捷键事件监听 ---
+function onKbTrashDelete(): void {
+  const p = ui.viewPhoto
+  if (p) permanentlyDeletePhoto(p.id)
+}
+
+function onKbTrashRestore(): void {
+  const p = ui.viewPhoto
+  if (p) restorePhoto(p.id)
+}
+
 onMounted(() => {
   loadPhotos()
   loadAlbums()
+  document.addEventListener('kb:trashDelete', onKbTrashDelete)
+  document.addEventListener('kb:trashRestore', onKbTrashRestore)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('kb:trashDelete', onKbTrashDelete)
+  document.removeEventListener('kb:trashRestore', onKbTrashRestore)
 })
 </script>
 

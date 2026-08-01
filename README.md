@@ -2,7 +2,7 @@
 
 > 暗黑玻璃态全栈照片管理应用 — 朋友间的私人图库
 
-前后端分离，Konami 密码门禁联动 JWT 双角色鉴权，支持 EXIF 时间线/地图浏览、相册分组、图片编辑、水印、WebP 转换、限时分享链接、PWA 离线安装和一键 Docker 部署。
+前后端分离，Konami Challenge-Response 门禁 + JWT 双角色鉴权（viewer 白名单校验），支持 EXIF 时间线/地图浏览、相册分组、图片编辑、水印、WebP 转换、MySQL FULLTEXT 全文搜索、Redis 分布式缓存、RabbitMQ 异步图片处理、Micrometer + Prometheus 监控、限时分享链接、PWA 离线安装和一键 Docker 部署。
 
 ---
 
@@ -14,10 +14,13 @@
 | 后端框架 | Spring Boot | 3.3.0 |
 | 安全 | Spring Security + JWT (jjwt) | 0.12.6 |
 | ORM | Spring Data JPA + Hibernate | — |
-| 数据库 | MySQL + Flyway 迁移 | 8.0+ |
-| 缓存 | Spring Cache + Caffeine | — |
+| 数据库 | MySQL + Flyway 迁移（含 FULLTEXT 全文索引） | 8.0+ |
+| 缓存 | Spring Cache + Caffeine（dev）/ Redis（prod） | — |
+| 消息队列 | RabbitMQ（prod，持久队列 + DLQ） | 3.x |
+| 搜索 | MySQL FULLTEXT + ngram 中文分词 | — |
 | EXIF | metadata-extractor | 2.19.0 |
 | 图片编码 | webp-imageio | 0.1.6 |
+| 监控 | Micrometer + Prometheus | — |
 | 健康检查 | Spring Boot Actuator | — |
 | API 文档 | SpringDoc OpenAPI | 2.5.0 |
 | 前端框架 | Vue 3 (Composition API) + Pinia | 3.5 |
@@ -39,11 +42,11 @@
 - **浏览** — 虚拟滚动（DOM 节点数恒定，万张照片不卡）、3D 倾斜卡片、骨架屏加载
 - **编辑** — 名称/描述修改、分类/标签/相册分配
 - **批量操作** — 多选、全选、批量删除、批量生成分享链接
-- **搜索** — 即时模糊搜索名称和描述
+- **搜索** — MySQL FULLTEXT 全文索引 + ngram 中文分词，`MATCH ... AGAINST` 布尔模式搜索名称和描述
 - **排序** — 时间/名称/大小，正序倒序自由切换
 
 ### 图片处理
-- **异步处理** — 上传后立即返回，EXIF 提取、水印、缩略图、WebP 由线程池后台完成。单次解码 + 展示级降采样优化，处理时间 ~3-5s。照片卡片自动轮询状态更新，无需手动刷新。失败可一键重试
+- **异步处理管线** — 上传后立即返回，EXIF 提取 → 自动旋转 → 水印 → 缩略图（200px + 400px）→ WebP 由后台完成。dev 环境使用 `@Async` 线程池，prod 环境切换 RabbitMQ 消息队列（持久队列 + 3 次退避重试 + 死信队列兜底）。单次解码 + 展示级降采样优化，处理时间 ~3-5s。照片卡片自动轮询状态更新，无需手动刷新。失败可一键重试，启动时自动恢复卡在 PROCESSING 状态的照片
 - **响应式缩略图** — 上传自动生成 200 px + 400 px 双档，前端 `srcset` + `sizes` 按视口和 DPR 自动选择
 - **编辑器** — Canvas 全分辨率旋转（任意角度）/镜像（水平/垂直）/裁剪
 - **水印** — 右下角半透明白色文字，字号自适应图片宽度，字体/大小/透明度可配置
@@ -65,9 +68,9 @@
 - **Konami 门禁** — Challenge-Response 架构：前端按键只记录不验证 → GET /api/v1/auth/challenge 获取一次性 nonce（60s TTL）→ POST /api/v1/auth/unlock 提交 nonce+序列给后端验证，序列仅存后端配置文件。键盘 + 触摸双模式
 - **暴力破解防护** — IP 失败计数（Caffeine），5 次错误封禁 15 分钟
 - **JWT 双角色** — admin（24h，管理）/ viewer（7 天，分享查看）
-- **限时分享链接** — 选中照片生成分享链接，朋友无需密码即可查看
+- **限时分享链接** — 选中照片生成分享链接，朋友无需密码即可查看。viewer JWT 编码照片白名单（`photoIds`）+ 权限范围（`permission`），服务端双重校验：SecurityConfig 限制 viewer 仅能访问 `/api/v1/share/view` + 图片文件端点，JwtAuthFilter 对每个图片请求校验 `photoId ∈ sharePhotoIds`，防止越权访问
 - **SHA-256 去重** — 上传时计算文件哈希，检测重复上传，单张返回 409 + 已有照片数据，批量静默跳过
-- **缓存一致性** — 所有写操作（照片/相册/标签/分类）自动驱逐列表缓存
+- **缓存策略** — dev 使用 Caffeine 本地缓存（30s TTL），prod 切换 Redis 分布式缓存（JSON 序列化 + PageImpl mixin 反序列化），所有写操作自动驱逐列表缓存
 - **软删除 + 回收站** — 删除标记 `deleted_at`（Hibernate @SQLRestriction 全局过滤），删除时清空哈希允许重新上传。5 秒 Toast 撤销 + 回收站可恢复/彻底删除，每天凌晨 3 点自动清理 30 天前记录
 - **前端错误边界** — 组件异常自动捕获，显示降级页面（重试 / 刷新 / 复制错误信息），切换路由自动恢复
 
@@ -82,7 +85,8 @@
 
 ### 其他
 - 前端组件样式分量管理：组件独有样式使用 Vue `<style scoped>`，跨组件共享样式（弹窗骨架/按钮/移动端适配）保留全局 CSS
-- 健康检查端点 `/actuator/health`（DB + 磁盘空间）
+- 健康检查端点 `/actuator/health`（DB + 磁盘空间）+ Prometheus 指标端点 `/actuator/prometheus`
+- Micrometer 自定义指标：`photo.upload.total`、`photo.upload.bytes`、`photo.processing.total`、`photo.processing.failures`、`@Timed("photo.processing.time")` 处理耗时
 - Toast 通知、自定义确认弹窗、Lottie 加载动画
 - 回到顶部、光标拖尾、波纹效果
 - 移动端响应式（侧边抽屉、工具栏居中、hover 降级、地图适配）
@@ -108,15 +112,21 @@ photo-gallery/
 │   │   │   ├── TrashController.java            # 回收站 API
 │   │   │   └── HelloController.java            # 根端点
 │   │   ├── service/
-│   │   │   ├── PhotoService.java               # 核心业务逻辑（异步图片处理）
+│   │   │   ├── PhotoService.java               # 核心业务逻辑（上传/搜索/软删除/EXIF/变换/定时清理）
+│   │   │   ├── PhotoProcessor.java             # 图片处理管线（EXIF→旋转→水印→缩略图→WebP），无框架依赖
 │   │   │   ├── TagService.java                 # 标签服务
 │   │   │   ├── CategoryService.java            # 分类服务
 │   │   │   ├── AlbumService.java               # 相册服务
-│   │   │   ├── AsyncImageProcessor.java        # @Async 异步图片处理（EXIF/水印/缩略图/WebP）
+│   │   │   ├── AsyncImageProcessor.java        # dev 环境 @Async 图片处理发送者（委托 PhotoProcessor）
 │   │   │   ├── ImageProcessingService.java     # 缩略图(多档)/WebP/水印/旋转/镜像
 │   │   │   ├── ExifService.java                # metadata-extractor 集成
 │   │   │   ├── StorageService.java             # 存储接口（可扩展不同后端）
-│   │   │   └── LocalStorageService.java        # 本地文件系统存储实现
+│   │   │   └── LocalStorageService.java        # 本地文件系统存储实现（路径穿越防护）
+│   │   ├── messaging/
+│   │   │   ├── ProcessingMessageSender.java    # 处理消息发送者接口
+│   │   │   ├── ProcessingMessage.java          # 消息体 POJO（photoId/路径/水印）
+│   │   │   ├── RabbitProcessingSender.java     # prod 环境 RabbitMQ 发送者实现
+│   │   │   └── PhotoProcessingConsumer.java    # RabbitMQ 消费者（3 次重试 → DLQ）
 │   │   ├── repository/
 │   │   │   ├── PhotoRepository.java            # JPQL 分页 + 筛选 + 搜索
 │   │   │   ├── TagRepository.java
@@ -138,11 +148,13 @@ photo-gallery/
 │   │   │   ├── TransformRequest.java           # 图片变换参数
 │   │   │   └── AlbumRequest.java               # 相册创建/更新请求
 │   │   ├── config/
-│   │   │   ├── AsyncConfig.java                # @EnableAsync + 图片处理线程池
-│   │   │   ├── SecurityConfig.java             # SecurityFilterChain + CORS
-│   │   │   ├── JwtService.java                 # HS256 JWT 签发与验签
-│   │   │   ├── JwtAuthFilter.java              # OncePerRequestFilter
-│   │   │   ├── RateLimitFilter.java            # IP 固定窗口限流（Caffeine）
+│   │   │   ├── AsyncConfig.java                # @EnableAsync + 图片处理线程池 + MDC 传播
+│   │   │   ├── RedisConfig.java                # Redis 缓存配置（JSON 序列化 + PageImpl mixin）
+│   │   │   ├── RabbitMQConfig.java             # Queue/Exchange/DLQ 拓扑 + MANUAL ack
+│   │   │   ├── SecurityConfig.java             # SecurityFilterChain + CORS 白名单
+│   │   │   ├── JwtService.java                 # HS256 JWT 签发（admin/viewer）与验签
+│   │   │   ├── JwtAuthFilter.java              # OncePerRequestFilter + viewer 图片白名单校验
+│   │   │   ├── RateLimitFilter.java            # IP 固定窗口限流（Caffeine，10 req/s）
 │   │   │   ├── NonceStore.java                 # 一次性 nonce（Caffeine 60s TTL）
 │   │   │   ├── FailedAttemptStore.java         # IP 失败计数（5次封15分钟）
 │   │   │   ├── TraceIdFilter.java              # 全链路 traceId（MDC + 响应头）
@@ -164,7 +176,7 @@ photo-gallery/
 │   │   ├── i18n/
 │   │   │   ├── messages.properties             # 中文错误消息
 │   │   │   └── messages_en_US.properties       # 英文错误消息
-│   │   ├── db/migration/                       # Flyway 迁移脚本 V1–V8（含 file_hash 去重）
+│   │   ├── db/migration/                       # Flyway 迁移脚本 V1–V9（含 file_hash 去重 + FULLTEXT 索引）
 │   │   └── static/                             # 前端构建产物 (SPA)
 │   ├── Dockerfile                              # JRE 17 Alpine + 文泉驿字体 + curl
 │   └── pom.xml                                 # Maven 配置
@@ -228,8 +240,10 @@ photo-gallery/
 │           ├── LottieLoader.vue                # Lottie 动画
 │           └── ErrorFallback.vue               # 错误降级页面
 │
+├── prometheus/
+│   └── prometheus.yml                          # Prometheus 采集配置（15s scrape）
 ├── .env.example                                # Docker Compose 环境变量模板
-├── docker-compose.yml                          # MySQL + App + 健康检查 + 内存限制
+├── docker-compose.yml                          # App + MySQL + Redis + RabbitMQ + Prometheus
 ├── build-docker.ps1 / build-docker.sh          # Docker 一键构建
 └── build-traditional.ps1 / build-traditional.sh  # 传统 JAR 一键构建
 ```
@@ -280,7 +294,7 @@ cd backend
 mvn spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
-后端运行在 `http://localhost:8080`，Flyway 首次启动自动建表。
+后端运行在 `http://localhost:8080`，Flyway 首次启动自动建表。dev profile 默认使用 Caffeine 本地缓存 + `@Async` 线程池处理图片，无需 Redis/RabbitMQ。
 
 ### 4. 启动前端
 
@@ -352,11 +366,21 @@ JWT_SECRET=$(openssl rand -base64 32)
 docker compose up -d --build
 ```
 
+其中包含 5 个服务：`app`（Spring Boot）、`mysql`、`redis`、`rabbitmq`、`prometheus`。dev 环境只需 `app` + `mysql`，`redis` 和 `rabbitmq` 在 dev profile 下不启用（dev 使用 Caffeine + @Async 线程池）。
+
 访问 `http://localhost:8080`（端口仅绑定 127.0.0.1，推荐通过 Nginx 或 cloudflared 反向代理对外暴露）。
 
 #### 3. 容器资源配置
 
-应用容器限制 768M 内存（JVM 堆 448M + Metaspace 128M），MySQL 容器限制 512M（InnoDB buffer pool 128M）。两者均配置了 Docker healthcheck，异常时自动重启。适用于 2GB 内存服务器。
+| 容器 | 内存限制 | 说明 |
+|------|---------|------|
+| App | 768M | JVM 堆 448M + Metaspace 128M |
+| MySQL | 512M | InnoDB buffer pool 128M |
+| Redis | 256M | 7 Alpine，maxmemory 200M + allkeys-lru 淘汰 |
+| RabbitMQ | 256M | 3.x Alpine，vm_memory_high_watermark 0.4 |
+| Prometheus | 128M | 15 天保留，每 15s scrape |
+
+所有容器均配置了 Docker healthcheck，异常时自动重启。总计约 1.8GB，适用于 2GB 内存服务器。
 
 #### 4. 常用命令
 
@@ -432,8 +456,10 @@ certbot --nginx -d 你的域名   # 免费 SSL
 │                                                          │
 │  分享链接                                                  │
 │    → POST /api/v1/share/generate {photoIds}              │
-│    → 签发 7 天 viewer JWT (role: viewer + photos)        │
+│    → 签发 7 天 viewer JWT (role: viewer + photos 白名单)    │
 │    → /share/{token} → ShareViewer 落地面                 │
+│    → SecurityConfig 限制 viewer 仅访问指定端点              │
+│    → JwtAuthFilter 对每个图片请求校验 photoId 在白名单内     │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -444,23 +470,27 @@ certbot --nginx -d 你的域名   # 免费 SSL
 
 | 请求 | 权限 |
 |------|------|
-| `GET /api/v1/**` | `ROLE_admin` 或 `ROLE_viewer` |
+| `GET /api/v1/share/view` | `ROLE_admin` 或 `ROLE_viewer`（仅返回 JWT 中 `photoIds` 白名单内的照片） |
+| `GET /api/v1/photos/{id}/thumbnail\|webp\|file` | `ROLE_admin` 或 `ROLE_viewer`（viewer 需图片 ID 在 JWT 白名单内，否则 403） |
+| `GET /api/v1/**`（其他） | `ROLE_admin`（viewer 无权访问列表、时间线、地图等） |
 | `POST/PUT/DELETE /api/v1/**` | `ROLE_admin` |
-| `GET /api/v1/trash/**` | `ROLE_admin` 或 `ROLE_viewer`（仅浏览） |
-| `POST/DELETE /api/v1/trash/**` | `ROLE_admin`（恢复/彻底删除） |
-| `POST /api/v1/auth/unlock` | 公开（含限流） |
-| `GET /share/**` | 公开 |
-| `/actuator/health` | 公开 |
+| `POST /api/v1/auth/unlock` | 公开（含 IP 限流 + 5 次失败封禁 15 分钟） |
+| `GET /share/**` | 公开（转发到 SPA 落地面） |
+| `/actuator/health`、`/actuator/prometheus` | 公开 |
 | `/swagger-ui/**` | 公开（仅开发环境） |
 | 静态资源 | 公开 |
 
 ---
 
-## 健康检查
+## 健康检查与监控
 
 ```
 GET /actuator/health
 → {"status":"UP","components":{"db":{"status":"UP"},"diskSpace":{"status":"UP"}}}
+
+GET /actuator/prometheus
+→ # HELP photo_upload_total ...
+→ # HELP photo_processing_time_seconds ...
 ```
 
-Docker 容器通过 `curl http://localhost:8080/actuator/health` 每 15 秒探测一次，连续 3 次失败自动重启容器。
+Docker 容器通过 `curl http://localhost:8080/actuator/health` 每 15 秒探测一次，连续 3 次失败自动重启容器。Prometheus 每 15 秒 scrape `/actuator/prometheus`，Grafana 可本地运行连接服务器 Prometheus 查看仪表盘。

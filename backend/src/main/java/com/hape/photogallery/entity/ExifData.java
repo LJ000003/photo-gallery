@@ -1,12 +1,14 @@
 package com.hape.photogallery.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "exif_data")
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class ExifData {
 
     @Id

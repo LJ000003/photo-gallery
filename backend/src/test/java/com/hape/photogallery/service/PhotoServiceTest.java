@@ -9,6 +9,7 @@ import com.hape.photogallery.entity.ExifData;
 import com.hape.photogallery.entity.Photo;
 import com.hape.photogallery.entity.Tag;
 import com.hape.photogallery.exception.FileSizeExceededException;
+import com.hape.photogallery.messaging.ProcessingMessageSender;
 import com.hape.photogallery.repository.CategoryRepository;
 import com.hape.photogallery.repository.ExifDataRepository;
 import com.hape.photogallery.repository.PhotoRepository;
@@ -51,7 +52,7 @@ class PhotoServiceTest {
     @Mock private ImageProcessingService imageService;
     @Mock private AlbumService albumService;
     @Mock private StorageService storage;
-    @Mock private AsyncImageProcessor asyncProcessor;
+    @Mock private ProcessingMessageSender processingSender;
 
     @TempDir Path tempDir;
 
@@ -86,7 +87,7 @@ class PhotoServiceTest {
         }).when(storage).deleteFile(any());
 
         service = new PhotoService(photoRepo, tagRepo, catRepo, exifRepo, exifService,
-                imageService, albumService, storage, asyncProcessor);
+                imageService, albumService, storage, processingSender);
     }
 
     // ==================== listAll ====================
@@ -188,7 +189,7 @@ class PhotoServiceTest {
         verify(photoRepo).save(any());
         verify(imageService).validateImageMagicBytes(any());
         // 图片处理已移至异步执行
-        verify(asyncProcessor).process(any(Long.class), any(Path.class), any(), any(), eq("watermark"));
+        verify(processingSender).send(any(Long.class), any(Path.class), any(), any(), eq("watermark"));
     }
 
     @Test

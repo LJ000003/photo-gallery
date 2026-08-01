@@ -10,6 +10,15 @@ export class AuthError extends Error {
   }
 }
 
+export class ApiError extends Error {
+  status: number
+  constructor(status: number, message: string) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+  }
+}
+
 export async function api(
   url: string,
   options: RequestInit & { body?: unknown; token?: string; skipAuth?: boolean } = {},
@@ -40,6 +49,12 @@ export async function api(
   if (!res.ok) {
     const traceId = res.headers.get('X-Trace-Id') || headers['X-Trace-Id']
     console.error(`[${traceId}] ${fetchOptions.method || 'GET'} ${url} → ${res.status}`)
+    let message = `请求失败（${res.status}）`
+    try {
+      const body = await res.json()
+      if (body.message) message = body.message
+    } catch { /* 响应体不是 JSON，使用默认消息 */ }
+    throw new ApiError(res.status, message)
   }
 
   return res

@@ -43,9 +43,18 @@ public class SecurityConfig {
                 .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.POST, "/api/v1/auth/unlock")).permitAll()
                 .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/api/v1/auth/challenge")).permitAll()
                 .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/share/**")).permitAll()
-                .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/api/v1/**"))
+                .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/api/v1/share/view"))
                     .hasAnyAuthority("ROLE_admin", "ROLE_viewer")
-                .requestMatchers(AntPathRequestMatcher.antMatcher("/actuator/health")).permitAll()
+                .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/api/v1/photos/*/thumbnail"))
+                    .hasAnyAuthority("ROLE_admin", "ROLE_viewer")
+                .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/api/v1/photos/*/webp"))
+                    .hasAnyAuthority("ROLE_admin", "ROLE_viewer")
+                .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/api/v1/photos/*/file"))
+                    .hasAnyAuthority("ROLE_admin", "ROLE_viewer")
+                .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/api/v1/**"))
+                    .hasAuthority("ROLE_admin")
+                .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/actuator/health")).permitAll()
+                .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/actuator/prometheus")).permitAll()
                 .requestMatchers(AntPathRequestMatcher.antMatcher("/swagger-ui/**")).permitAll()
                 .requestMatchers(AntPathRequestMatcher.antMatcher("/v3/api-docs/**")).permitAll()
                 .requestMatchers(
@@ -75,7 +84,7 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOriginPatterns(Arrays.asList(corsOrigins.split(",")));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("*"));
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Trace-Id", "Accept"));
         config.setExposedHeaders(List.of("X-Trace-Id"));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);

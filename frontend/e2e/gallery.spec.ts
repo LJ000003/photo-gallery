@@ -1,10 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { unlock } from './helpers';
 
-const JPEG_BYTES = [
-  0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01,
-];
-
 test.describe('Photo Gallery', () => {
   test('full flow: unlock → upload → list → delete', async ({ page }) => {
     await unlock(page);
@@ -15,12 +11,17 @@ test.describe('Photo Gallery', () => {
     // 2. Retrieve JWT token for upload API call
     const token = await page.evaluate(() => localStorage.getItem('jwt_token'));
 
-    // 3. Upload a test photo via the page's fetch
+    // 3. Upload a test photo via the page's fetch (Canvas generates a valid JPEG)
     const uploadedId = await page.evaluate(async (t) => {
-      const bytes = new Uint8Array([
-        0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01,
-      ]);
-      const blob = new Blob([bytes], { type: 'image/jpeg' });
+      const canvas = document.createElement('canvas');
+      canvas.width = 1;
+      canvas.height = 1;
+      const ctx = canvas.getContext('2d')!;
+      ctx.fillStyle = '#336699';
+      ctx.fillRect(0, 0, 1, 1);
+      const blob = await new Promise<Blob>((resolve) =>
+        canvas.toBlob((b) => resolve(b!), 'image/jpeg', 0.95)
+      );
       const form = new FormData();
       form.append('file', blob, 'e2e-test.jpg');
       form.append('name', 'E2E Test Photo');

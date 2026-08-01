@@ -42,7 +42,7 @@ class PhotoControllerTest {
 
     @Test
     void list_shouldReturnPage() throws Exception {
-        when(service.listAll(any(), any(), any(PageRequest.class)))
+        when(service.listAllResponses(any(), any(), any(PageRequest.class)))
                 .thenReturn(new PageImpl<>(List.of()));
 
         mockMvc.perform(get("/api/v1/photos?page=0&size=20"))
@@ -53,7 +53,7 @@ class PhotoControllerTest {
 
     @Test
     void list_withFilter_shouldPassParams() throws Exception {
-        when(service.listAll(any(), any(), any(PageRequest.class)))
+        when(service.listAllResponses(any(), any(), any(PageRequest.class)))
                 .thenReturn(new PageImpl<>(List.of()));
 
         mockMvc.perform(get("/api/v1/photos?page=0&size=20&tagIds=1&tagIds=2&categoryIds=3"))

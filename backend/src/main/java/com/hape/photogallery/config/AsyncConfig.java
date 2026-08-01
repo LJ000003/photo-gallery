@@ -14,6 +14,8 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 public class AsyncConfig {
 
     @Bean("imageTaskExecutor")
+    @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
+        name = "photo.processing.type", havingValue = "async", matchIfMissing = true)
     public ThreadPoolTaskExecutor imageTaskExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(2);
