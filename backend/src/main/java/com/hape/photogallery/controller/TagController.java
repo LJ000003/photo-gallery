@@ -5,6 +5,7 @@ import java.util.Map;
 
 import com.hape.photogallery.ApiResponse;
 import com.hape.photogallery.entity.Tag;
+import com.hape.photogallery.exception.BusinessException;
 import com.hape.photogallery.service.TagService;
 
 import org.springframework.web.bind.annotation.*;
@@ -26,7 +27,11 @@ public class TagController {
 
     @PostMapping("/tags")
     public ApiResponse<Tag> createTag(@RequestBody Map<String, String> body) {
-        Tag tag = tagService.create(body.get("name"), body.get("color"));
+        String name = body.get("name");
+        if (name == null || name.isBlank()) {
+            throw new BusinessException(400, "标签名称不能为空");
+        }
+        Tag tag = tagService.create(name, body.get("color"));
         return ApiResponse.success(tag);
     }
 
@@ -38,6 +43,10 @@ public class TagController {
 
     @PutMapping("/tags/{id}")
     public ApiResponse<Tag> updateTag(@PathVariable Long id, @RequestBody Map<String, String> body) {
-        return ApiResponse.success(tagService.update(id, body.get("name"), body.get("color")));
+        String name = body.get("name");
+        if (name != null && name.isBlank()) {
+            throw new BusinessException(400, "标签名称不能为空字符串");
+        }
+        return ApiResponse.success(tagService.update(id, name, body.get("color")));
     }
 }

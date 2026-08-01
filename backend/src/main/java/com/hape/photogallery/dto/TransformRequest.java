@@ -1,12 +1,32 @@
 package com.hape.photogallery.dto;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Pattern;
+
 public class TransformRequest {
 
+    @Min(value = 0, message = "旋转角度不能为负数")
+    @Max(value = 360, message = "旋转角度不能超过 360 度")
     private int rotate;
+
+    @Pattern(regexp = "none|horizontal|vertical", message = "镜像类型只能为 none/horizontal/vertical")
     private String mirror = "none";
+
+    @Min(value = 0, message = "裁剪参数必须 >= 0")
+    @Max(value = 1, message = "裁剪参数必须 <= 1")
     private Double cx;
+
+    @Min(value = 0, message = "裁剪参数必须 >= 0")
+    @Max(value = 1, message = "裁剪参数必须 <= 1")
     private Double cy;
+
+    @Min(value = 0, message = "裁剪参数必须 >= 0")
+    @Max(value = 1, message = "裁剪参数必须 <= 1")
     private Double cw;
+
+    @Min(value = 0, message = "裁剪参数必须 >= 0")
+    @Max(value = 1, message = "裁剪参数必须 <= 1")
     private Double ch;
 
     public int getRotate() { return rotate; }

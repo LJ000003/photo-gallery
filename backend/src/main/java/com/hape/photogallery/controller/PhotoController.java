@@ -65,8 +65,8 @@ public class PhotoController {
     }
 
     @GetMapping("/photos/{id}")
-    public PhotoResponse get(@PathVariable Long id) {
-        return service.getPhotoResponse(id);
+    public ApiResponse<PhotoResponse> get(@PathVariable Long id) {
+        return ApiResponse.success(service.getPhotoResponse(id));
     }
 
     @PostMapping("/photos")
@@ -78,7 +78,7 @@ public class PhotoController {
                         @RequestParam(value = "watermark", required = false) String watermark)
             throws IOException {
         try {
-            return ResponseEntity.ok(service.toResponse(service.upload(file, name, description, tagIds, categoryId, watermark)));
+            return ResponseEntity.ok(ApiResponse.success(service.toResponse(service.upload(file, name, description, tagIds, categoryId, watermark))));
         } catch (DuplicateException e) {
             return ResponseEntity.status(409).body(ApiResponse.error(409, e.getMessage(), e.getExisting()));
         }
@@ -104,9 +104,9 @@ public class PhotoController {
     }
 
     @PutMapping("/photos/{id}")
-    public PhotoResponse update(@PathVariable Long id,
+    public ApiResponse<PhotoResponse> update(@PathVariable Long id,
                                  @Valid @RequestBody PhotoUpdateRequest body) {
-        return service.update(id, body);
+        return ApiResponse.success(service.update(id, body));
     }
 
     @DeleteMapping("/photos/{id}")
@@ -130,7 +130,13 @@ public class PhotoController {
     @GetMapping("/photos/{id}/file")
     public ResponseEntity<Resource> getFile(@PathVariable Long id) {
         Photo photo = service.getByIdIncludeDeleted(id);
+        if (photo.getDeletedAt() != null) {
+            throw new BusinessException(404, "该照片已被删除");
+        }
         Resource resource = new FileSystemResource(service.getFilePath(id));
+        if (!resource.exists()) {
+            throw new BusinessException(404, "文件不存在");
+        }
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(photo.getContentType()))
                 .body(resource);
@@ -138,7 +144,14 @@ public class PhotoController {
 
     @GetMapping("/photos/{id}/webp")
     public ResponseEntity<Resource> getWebp(@PathVariable Long id) {
+        Photo photo = service.getByIdIncludeDeleted(id);
+        if (photo.getDeletedAt() != null) {
+            throw new BusinessException(404, "该照片已被删除");
+        }
         Resource resource = new FileSystemResource(service.getWebpPath(id));
+        if (!resource.exists()) {
+            throw new BusinessException(404, "文件不存在");
+        }
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("image/webp"))
                 .body(resource);
@@ -148,7 +161,13 @@ public class PhotoController {
     public ResponseEntity<Resource> getThumbnail(@PathVariable Long id,
                                                  @RequestParam(defaultValue = "400") int w) {
         Photo photo = service.getByIdIncludeDeleted(id);
+        if (photo.getDeletedAt() != null) {
+            throw new BusinessException(404, "该照片已被删除");
+        }
         Resource resource = new FileSystemResource(service.getThumbnailPath(id, w));
+        if (!resource.exists()) {
+            throw new BusinessException(404, "文件不存在");
+        }
         return ResponseEntity.ok()
                 .contentType(MediaType.IMAGE_JPEG)
                 .cacheControl(CacheControl.maxAge(7, TimeUnit.DAYS))
@@ -196,7 +215,7 @@ public class PhotoController {
 
     @PostMapping("/photos/{id}/transform")
     public ApiResponse<String> transform(@PathVariable Long id,
-                                         @RequestBody TransformRequest body) throws IOException {
+                                         @Valid @RequestBody TransformRequest body) throws IOException {
         service.transformPhoto(id, body.getRotate(), body.getMirror(),
                 body.getCx(), body.getCy(), body.getCw(), body.getCh());
         return ApiResponse.success("ok");

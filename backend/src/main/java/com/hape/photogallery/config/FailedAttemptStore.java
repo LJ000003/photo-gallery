@@ -26,8 +26,8 @@ public class FailedAttemptStore {
     }
 
     public void recordFailure(String ip) {
-        int count = attempts.get(ip, k -> 0) + 1;
-        attempts.put(ip, count);
+        // 使用原子 compute 防止并发 read-modify-write 丢失计数
+        int count = attempts.asMap().compute(ip, (k, v) -> v == null ? 1 : v + 1);
         if (count >= MAX_ATTEMPTS) {
             blocked.put(ip, Boolean.TRUE);
         }

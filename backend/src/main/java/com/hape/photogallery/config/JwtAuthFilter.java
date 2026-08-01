@@ -33,12 +33,16 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                                     FilterChain filterChain)
             throws ServletException, IOException {
 
-        // 先从 Header 取，再从 query 参数取
+        // 优先从 Authorization header 取 token
         String token = null;
         String header = request.getHeader("Authorization");
         if (header != null && header.startsWith("Bearer ")) {
             token = header.substring(7);
-        } else {
+        }
+
+        // 仅图片文件端点允许 token 通过 query 参数传递（<img> 标签无法设置 HTTP header）
+        // 后续会校验 viewer token 的 photoId 权限范围，风险可控
+        if (token == null && isImageFileRequest(request.getRequestURI())) {
             token = request.getParameter("token");
         }
 
@@ -80,6 +84,10 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private static final Pattern PHOTO_IMAGE_PATH = Pattern.compile(
             "/api/v1/photos/(\\d+)/(?:thumbnail|webp|file)");
+
+    private boolean isImageFileRequest(String uri) {
+        return PHOTO_IMAGE_PATH.matcher(uri).find();
+    }
 
     private Long extractPhotoIdFromImagePath(String uri) {
         Matcher m = PHOTO_IMAGE_PATH.matcher(uri);

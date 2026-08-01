@@ -2,8 +2,6 @@ package com.hape.photogallery.messaging;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.List;
-import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,6 +16,7 @@ import com.hape.photogallery.config.RabbitMQConfig;
 import com.hape.photogallery.entity.Photo;
 import com.hape.photogallery.repository.PhotoRepository;
 import com.hape.photogallery.service.PhotoProcessor;
+import com.hape.photogallery.service.StorageService;
 import com.rabbitmq.client.Channel;
 
 @Component
@@ -29,10 +28,13 @@ public class PhotoProcessingConsumer {
 
     private final PhotoProcessor processor;
     private final PhotoRepository photoRepo;
+    private final StorageService storage;
 
-    public PhotoProcessingConsumer(PhotoProcessor processor, PhotoRepository photoRepo) {
+    public PhotoProcessingConsumer(PhotoProcessor processor, PhotoRepository photoRepo,
+                                   StorageService storage) {
         this.processor = processor;
         this.photoRepo = photoRepo;
+        this.storage = storage;
     }
 
     @RabbitListener(queues = RabbitMQConfig.QUEUE, containerFactory = "rabbitListenerContainerFactory")
@@ -53,8 +55,8 @@ public class PhotoProcessingConsumer {
                 return;
             }
 
-            // 解析文件路径
-            Path target = Path.of(msg.getTargetPath());
+            // 通过 StorageService 拼接路径（避免依赖 Producer 的绝对路径，支持跨节点消费）
+            Path target = storage.getUploadDir().resolve(photo.getFileName());
             processor.process(photoId, target, msg.getDateDir(), msg.getBaseName(), msg.getWatermark());
 
             // 成功 → ack
@@ -63,6 +65,8 @@ public class PhotoProcessingConsumer {
             int retryCount = getRetryCount(amqpMsg);
             if (retryCount < MAX_RETRIES) {
                 log.warn("处理失败（第 {} 次重试）photo={}: {}", retryCount + 1, photoId, e.getMessage());
+                // 递增自定义重试计数 header（x-death 在 requeue 路径下不会生成）
+                amqpMsg.getMessageProperties().setHeader("x-retry-count", retryCount + 1);
                 // requeue：消息回到队尾等待重试
                 channel.basicNack(deliveryTag, false, true);
             } else {
@@ -87,13 +91,10 @@ public class PhotoProcessingConsumer {
         }
     }
 
-    /** 从 x-death header 中读取当前重试次数 */
-    @SuppressWarnings("unchecked")
+    /** 从自定义 header 中读取当前重试次数（x-death 在 basicNack(requeue=true) 路径下不会生成） */
     private int getRetryCount(Message msg) {
-        List<Map<String, ?>> deaths = (List<Map<String, ?>>) msg.getMessageProperties()
-                .getHeaders().get("x-death");
-        if (deaths == null || deaths.isEmpty()) return 0;
-        // 每次 requeue/nack 会增加一个 x-death 条目
-        return deaths.size();
+        Object count = msg.getMessageProperties().getHeaders().get("x-retry-count");
+        if (count instanceof Number n) return n.intValue();
+        return 0;
     }
 }

@@ -102,7 +102,11 @@
     "hint": "链接 7 天内有效，拿到链接的人可直接查看",
     "generating": "生成中...",
     "copyLink": "复制链接",
-    "invalid": "分享链接无效或已过期"
+    "invalid": "分享链接无效或已过期",
+    "viewerTitle": "分享的照片",
+    "viewerHint": "此链接仅可查看，无法编辑或删除",
+    "viewerNoMore": "没有更多了",
+    "viewerEmpty": "链接无效或已过期"
   },
   "editor": {
     "rotate": "旋转",

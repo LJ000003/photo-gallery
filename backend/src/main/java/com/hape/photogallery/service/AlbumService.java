@@ -42,13 +42,16 @@ public class AlbumService {
         a = albumRepo.save(a);
         if (photoIds != null && !photoIds.isEmpty()) {
             Set<Photo> photos = new HashSet<>(photoRepo.findAllById(photoIds));
-            a.setPhotos(photos);
-            for (Photo p : photos) {
-                p.getAlbums().add(a);
-                photoRepo.save(p);
+            if (!photos.isEmpty()) {
+                a.setPhotos(photos);
+                for (Photo p : photos) {
+                    p.getAlbums().add(a);
+                    photoRepo.save(p);
+                }
+                // 使用实际加载到的第一张照片作为封面
+                a.setCoverPhotoId(photos.iterator().next().getId());
+                albumRepo.save(a);
             }
-            a.setCoverPhotoId(photoIds.get(0));
-            albumRepo.save(a);
         }
         return a;
     }
@@ -60,12 +63,17 @@ public class AlbumService {
         if (name != null) a.setName(name);
         if (description != null) a.setDescription(description);
         if (photoIds != null) {
+            // 先加载新关联的照片，校验有效性后再清理旧关联（保证原子性）
+            Set<Photo> photos = photoIds.isEmpty()
+                    ? new HashSet<>()
+                    : new HashSet<>(photoRepo.findAllById(photoIds));
+
             for (Photo p : new HashSet<>(a.getPhotos())) {
                 p.getAlbums().remove(a);
                 photoRepo.save(p);
             }
             a.getPhotos().clear();
-            Set<Photo> photos = new HashSet<>(photoRepo.findAllById(photoIds));
+
             for (Photo p : photos) {
                 p.getAlbums().add(a);
                 photoRepo.save(p);
@@ -152,7 +160,9 @@ public class AlbumService {
             }
         }
         if (a.getCoverPhotoId() != null && photoIds.contains(a.getCoverPhotoId())) {
-            a.setCoverPhotoId(a.getPhotos().isEmpty() ? null : a.getPhotos().iterator().next().getId());
+            // 封面被移除时，选择剩余第一张作为新封面（使用有序集合保证确定性）
+            a.setCoverPhotoId(a.getPhotos().isEmpty() ? null
+                    : new java.util.ArrayList<>(a.getPhotos()).get(0).getId());
         }
         albumRepo.save(a);
     }

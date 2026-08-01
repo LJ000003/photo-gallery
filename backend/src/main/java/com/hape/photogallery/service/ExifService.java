@@ -13,6 +13,7 @@ import com.hape.photogallery.repository.ExifDataRepository;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -78,7 +79,13 @@ public class ExifService {
         }
 
         if (hasAnyData(exif)) {
-            return exifRepo.save(exif);
+            try {
+                return exifRepo.saveAndFlush(exif);
+            } catch (DataIntegrityViolationException e) {
+                // 并发场景下另一个线程已插入，重新查询返回已有记录
+                log.warn("EXIF 并发插入冲突 photo={}，返回已有记录", photo.getId());
+                return exifRepo.findByPhoto_Id(photo.getId()).orElse(null);
+            }
         }
         return null;
     }
@@ -101,7 +108,9 @@ public class ExifService {
             if (val != null && !val.isBlank()) {
                 try {
                     return LocalDateTime.parse(val, DateTimeFormatter.ofPattern("yyyy:MM:dd HH:mm:ss"));
-                } catch (DateTimeParseException ignored) {}
+                } catch (DateTimeParseException e) {
+                    log.debug("EXIF 日期解析失败: {}", val);
+                }
             }
         }
         return null;
@@ -111,7 +120,9 @@ public class ExifService {
         try {
             var desc = dir.getDescription(ExifSubIFDDirectory.TAG_FOCAL_LENGTH);
             if (desc != null) return desc;
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            log.debug("EXIF 焦距解析失败");
+        }
         return null;
     }
 
@@ -119,7 +130,9 @@ public class ExifService {
         try {
             var desc = dir.getDescription(ExifSubIFDDirectory.TAG_FNUMBER);
             if (desc != null) return desc;
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            log.debug("EXIF 光圈解析失败");
+        }
         return null;
     }
 
@@ -127,7 +140,9 @@ public class ExifService {
         try {
             var desc = dir.getDescription(ExifSubIFDDirectory.TAG_EXPOSURE_TIME);
             if (desc != null) return desc;
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            log.debug("EXIF 快门速度解析失败");
+        }
         return null;
     }
 
@@ -135,7 +150,9 @@ public class ExifService {
         try {
             String val = dir.getString(ExifSubIFDDirectory.TAG_ISO_EQUIVALENT);
             if (val != null && !val.isBlank()) return Integer.parseInt(val);
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            log.debug("EXIF ISO 解析失败");
+        }
         return null;
     }
 
@@ -146,7 +163,9 @@ public class ExifService {
             if (ifd0 != null && ifd0.containsTag(ExifIFD0Directory.TAG_ORIENTATION)) {
                 return ifd0.getInt(ExifIFD0Directory.TAG_ORIENTATION);
             }
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            log.debug("EXIF 方向读取失败: {}", filePath, e);
+        }
         return 1;
     }
 

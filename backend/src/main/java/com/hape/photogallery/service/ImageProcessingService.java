@@ -20,11 +20,15 @@ import javax.imageio.stream.FileImageOutputStream;
 
 import com.hape.photogallery.exception.InvalidFileTypeException;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
 public class ImageProcessingService {
+
+    private static final Logger log = LoggerFactory.getLogger(ImageProcessingService.class);
 
     private static final int THUMBNAIL_WIDTH = 400;
 
@@ -125,6 +129,9 @@ public class ImageProcessingService {
     }
 
     public void generateThumbnail(BufferedImage image, String dateDir, String baseName, int width) throws IOException {
+        if (image.getWidth() <= 0 || image.getHeight() <= 0) {
+            throw new IOException("图片尺寸无效: " + image.getWidth() + "x" + image.getHeight());
+        }
         int h = (int) ((double) image.getHeight() / image.getWidth() * width);
         boolean hasAlpha = image.getColorModel().hasAlpha();
         int type = hasAlpha ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB;
@@ -143,7 +150,12 @@ public class ImageProcessingService {
 
     public void generateWebp(BufferedImage img, String dateDir, String baseName) {
         Path webpDir = uploadDir.resolve(dateDir).resolve("webp");
-        try { Files.createDirectories(webpDir); } catch (IOException e) { return; }
+        try {
+            Files.createDirectories(webpDir);
+        } catch (IOException e) {
+            log.warn("无法创建 WebP 目录: {}", webpDir, e);
+            return;
+        }
         Path webpPath = webpDir.resolve(baseName + ".webp");
         try {
             java.util.Iterator<ImageWriter> writers = ImageIO.getImageWritersByMIMEType("image/webp");
@@ -156,13 +168,15 @@ public class ImageProcessingService {
                     param.setCompressionType("Lossy");
                     param.setCompressionQuality(0.8f);
                 }
-                writer.setOutput(new FileImageOutputStream(webpPath.toFile()));
-                writer.write(null, new IIOImage(img, null, null), param);
+                try (FileImageOutputStream ios = new FileImageOutputStream(webpPath.toFile())) {
+                    writer.setOutput(ios);
+                    writer.write(null, new IIOImage(img, null, null), param);
+                }
             } finally {
                 writer.dispose();
             }
         } catch (IOException e) {
-            // WebP 生成失败不阻塞主流程
+            log.warn("WebP 生成失败: {}", webpPath, e);
         }
     }
 
@@ -186,8 +200,10 @@ public class ImageProcessingService {
                 ImageWriteParam param = writer.getDefaultWriteParam();
                 param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
                 param.setCompressionQuality(quality);
-                writer.setOutput(new FileImageOutputStream(path.toFile()));
-                writer.write(null, new IIOImage(image, null, null), param);
+                try (FileImageOutputStream ios = new FileImageOutputStream(path.toFile())) {
+                    writer.setOutput(ios);
+                    writer.write(null, new IIOImage(image, null, null), param);
+                }
             } finally {
                 writer.dispose();
             }
@@ -247,7 +263,11 @@ public class ImageProcessingService {
         Path webpPath = webpDir.resolve(baseName + ".webp");
 
         if (lower.endsWith(".webp")) {
-            try { Files.copy(original, webpPath, StandardCopyOption.REPLACE_EXISTING); } catch (IOException ignored) {}
+            try {
+                Files.copy(original, webpPath, StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException e) {
+                log.warn("WebP 文件复制失败: {} → {}", original, webpPath, e);
+            }
             return;
         }
 
@@ -264,13 +284,15 @@ public class ImageProcessingService {
                     param.setCompressionType("Lossy");
                     param.setCompressionQuality(0.8f);
                 }
-                writer.setOutput(new FileImageOutputStream(webpPath.toFile()));
-                writer.write(null, new IIOImage(img, null, null), param);
+                try (FileImageOutputStream ios = new FileImageOutputStream(webpPath.toFile())) {
+                    writer.setOutput(ios);
+                    writer.write(null, new IIOImage(img, null, null), param);
+                }
             } finally {
                 writer.dispose();
             }
         } catch (IOException e) {
-            // WebP generation failure is non-fatal
+            log.warn("WebP 生成失败: {}", webpPath, e);
         }
     }
 

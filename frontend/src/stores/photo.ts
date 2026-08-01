@@ -132,11 +132,10 @@ export const usePhotoStore = defineStore('photo', () => {
         try {
           for (const id of processingIds) {
             const res = await api(`/api/photos/${id}`)
-            const json = await res.json()
+            const json: ApiResponse<Photo> = await res.json()
             if (json.code === 200 && json.data) {
-              const updated: Photo = json.data
               const idx = photos.value.findIndex((p) => p.id === id)
-              if (idx !== -1) photos.value[idx] = updated
+              if (idx !== -1) photos.value[idx] = json.data
             }
           }
         } catch {

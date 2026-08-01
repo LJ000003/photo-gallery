@@ -1,5 +1,6 @@
 package com.hape.photogallery.dto;
 
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotEmpty;
 import java.util.List;
 
@@ -10,6 +11,7 @@ public class ShareGenerateRequest {
 
     private String permission = "view";
 
+    @Min(value = 1, message = "过期天数必须大于 0")
     private int expireDays = 7;
 
     public List<Long> getPhotoIds() { return photoIds; }
