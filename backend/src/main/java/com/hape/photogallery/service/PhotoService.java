@@ -41,6 +41,10 @@ import com.hape.photogallery.entity.Photo;
 import com.hape.photogallery.exception.BusinessException;
 import com.hape.photogallery.exception.DuplicateException;
 import com.hape.photogallery.exception.FileSizeExceededException;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Metrics;
+
+import com.hape.photogallery.messaging.ProcessingMessageSender;
 import com.hape.photogallery.repository.CategoryRepository;
 import com.hape.photogallery.repository.ExifDataRepository;
 import com.hape.photogallery.repository.PhotoRepository;
@@ -53,6 +57,10 @@ public class PhotoService {
     private static final Logger log = LoggerFactory.getLogger(PhotoService.class);
     private static final long MAX_FILE_SIZE = 10 * 1024 * 1024;
 
+    // Prometheus metrics
+    private final Counter uploadCounter = Metrics.counter("photo.upload.total");
+    private final Counter uploadBytesCounter = Metrics.counter("photo.upload.bytes");
+
     private final PhotoRepository repo;
     private final TagRepository tagRepo;
     private final CategoryRepository catRepo;
@@ -61,7 +69,7 @@ public class PhotoService {
     private final ImageProcessingService imageService;
     private final AlbumService albumService;
     private final StorageService storage;
-    private final AsyncImageProcessor asyncProcessor;
+    private final ProcessingMessageSender processingSender;
 
     public PhotoService(PhotoRepository repo, TagRepository tagRepo, CategoryRepository catRepo,
                         ExifDataRepository exifRepo,
@@ -69,7 +77,7 @@ public class PhotoService {
                         ImageProcessingService imageService,
                         AlbumService albumService,
                         StorageService storage,
-                        AsyncImageProcessor asyncProcessor) {
+                        ProcessingMessageSender processingSender) {
         this.repo = repo;
         this.tagRepo = tagRepo;
         this.catRepo = catRepo;
@@ -78,7 +86,7 @@ public class PhotoService {
         this.imageService = imageService;
         this.albumService = albumService;
         this.storage = storage;
-        this.asyncProcessor = asyncProcessor;
+        this.processingSender = processingSender;
     }
 
     @Cacheable(value = "photos", key = "{#tagIds, #categoryIds, #pageable}")
@@ -168,16 +176,20 @@ public class PhotoService {
 
         // 异步处理：确保主事务提交后再执行，避免异步线程读不到数据
         final Long photoId = saved.getId();
+        final String wm = watermark;
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    asyncProcessor.process(photoId, target, dateDir, baseName, watermark);
+                    processingSender.send(photoId, target, dateDir, baseName, wm);
                 }
             });
         } else {
-            asyncProcessor.process(photoId, target, dateDir, baseName, watermark);
+            processingSender.send(photoId, target, dateDir, baseName, wm);
         }
+
+        uploadCounter.increment();
+        uploadBytesCounter.increment(file.getSize());
 
         return saved;
     }
@@ -334,7 +346,7 @@ public class PhotoService {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                asyncProcessor.process(photoId, target, dateDir, baseName, null);
+                processingSender.send(photoId, target, dateDir, baseName, null);
             }
         });
     }
@@ -343,13 +355,26 @@ public class PhotoService {
     @Transactional
     public void recoverStuckOnStartup() {
         List<Photo> stuck = repo.findByProcessingStatus("PROCESSING");
-        if (!stuck.isEmpty()) {
-            for (Photo p : stuck) {
+        if (stuck.isEmpty()) return;
+        int sent = 0;
+        for (Photo p : stuck) {
+            try {
+                Path target = storage.getUploadDir().resolve(p.getFileName());
+                String fn = p.getFileName();
+                int lastSlash = fn.lastIndexOf('/');
+                String dateDir = fn.substring(0, lastSlash);
+                String baseName = fn.substring(lastSlash + 1);
+                processingSender.send(p.getId(), target, dateDir, baseName, null);
+                sent++;
+            } catch (Exception e) {
+                log.error("启动恢复失败 photo={}: {}", p.getId(), e.getMessage());
                 p.setProcessingStatus("FAILED");
-                p.setErrorMessage("服务重启，处理中断");
+                p.setErrorMessage("启动恢复失败: " + e.getMessage());
+                repo.save(p);
             }
-            repo.saveAll(stuck);
-            log.info("已将 {} 张处理中的照片标记为失败（服务重启）", stuck.size());
+        }
+        if (sent > 0) {
+            log.info("已重新发送 {} 张处理中的照片", sent);
         }
     }
 

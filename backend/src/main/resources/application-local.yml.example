@@ -23,3 +23,20 @@ JWT_SECRET: dev-secret-do-not-use-in-production
 #       port: 6379
 #       password:
 # 覆盖后本地 dev 将使用 Redis 替代 Caffeine 缓存
+
+# === 如需本地测试 RabbitMQ 消息队列，取消以下注释 ===
+# spring:
+#   rabbitmq:
+#     host: localhost
+#     port: 5672
+#     username: admin
+#     password:
+# photo:
+#   processing:
+#     type: rabbitmq
+# 覆盖后本地 dev 将使用 RabbitMQ 替代 @Async 线程池
+
+# === 本地开发即可访问 Prometheus metrics ===
+# dev profile 默认暴露 /actuator/prometheus（无需额外配置）
+# 访问: curl http://localhost:8080/actuator/prometheus
+# 输出: jvm_memory_used_bytes, http_server_requests_seconds_count, photo.upload.total 等

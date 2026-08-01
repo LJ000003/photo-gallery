@@ -29,7 +29,9 @@ public interface PhotoRepository extends JpaRepository<Photo, Long> {
 
     Page<Photo> findByIdIn(List<Long> ids, Pageable pageable);
 
-    @Query("SELECT p FROM Photo p WHERE LOWER(p.name) LIKE LOWER(CONCAT('%', :q, '%')) OR LOWER(p.description) LIKE LOWER(CONCAT('%', :q, '%'))")
+    @Query(nativeQuery = true,
+           value = "SELECT * FROM photos WHERE MATCH(name, description) AGAINST(:q IN BOOLEAN MODE) AND deleted_at IS NULL",
+           countQuery = "SELECT COUNT(*) FROM photos WHERE MATCH(name, description) AGAINST(:q IN BOOLEAN MODE) AND deleted_at IS NULL")
     Page<Photo> search(@Param("q") String q, Pageable pageable);
 
     @Query("SELECT p FROM Photo p JOIN p.albums a WHERE a.id = :albumId")

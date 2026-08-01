@@ -19,9 +19,20 @@ spring:
           max-active: 8
           max-idle: 8
           min-idle: 2
+  rabbitmq:
+    host: ${RABBIT_HOST:localhost}
+    port: ${RABBIT_PORT:5672}
+    username: ${RABBIT_USER:admin}
+    password: ${RABBIT_PASS:}
+    listener:
+      simple:
+        retry:
+          enabled: false  # 由 consumer 自行处理重试逻辑
 
 photo:
   upload-dir: /data/photo-uploads
+  processing:
+    type: rabbitmq
   watermark:
     font: SansSerif
     font-size-ratio: 40
@@ -37,9 +48,13 @@ springdoc:
   swagger-ui:
     enabled: false
 
-# 仅暴露 health 端点
+# 暴露 health（Docker healthcheck）+ prometheus（监控）
 management:
   endpoints:
     web:
       exposure:
-        include: health
+        include: health,prometheus
+  metrics:
+    export:
+      prometheus:
+        enabled: true
