@@ -99,7 +99,7 @@ class PhotoControllerTest {
 
         mockMvc.perform(get("/api/v1/photos/1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.name").value("照片"));
+                .andExpect(jsonPath("$.data.name").value("照片"));
     }
 
     // ==================== update ====================
@@ -114,7 +114,7 @@ class PhotoControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"更新\",\"description\":\"\",\"tagIds\":[],\"categoryId\":null,\"albumIds\":[]}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.name").value("更新"));
+                .andExpect(jsonPath("$.data.name").value("更新"));
     }
 
     @Test

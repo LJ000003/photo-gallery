@@ -19,6 +19,11 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
+import com.fasterxml.jackson.databind.jsontype.PolymorphicTypeValidator;
+import com.hape.photogallery.messaging.ProcessingMessage;
+
 @Configuration
 @ConditionalOnProperty(name = "photo.processing.type", havingValue = "rabbitmq")
 public class RabbitMQConfig {
@@ -67,11 +72,18 @@ public class RabbitMQConfig {
         return BindingBuilder.bind(deadLetterQueue()).to(deadLetterExchange()).with(DLQ_ROUTING_KEY);
     }
 
-    /** JSON 序列化 RabbitTemplate */
+    /** JSON 序列化 RabbitTemplate，仅允许白名单类型反序列化 */
     @Bean
     RabbitTemplate rabbitTemplate(ConnectionFactory factory) {
+        PolymorphicTypeValidator ptv = BasicPolymorphicTypeValidator.builder()
+                .allowIfBaseType(ProcessingMessage.class)
+                .build();
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.activateDefaultTyping(ptv, ObjectMapper.DefaultTyping.NON_FINAL,
+                com.fasterxml.jackson.annotation.JsonTypeInfo.As.PROPERTY);
+
         RabbitTemplate template = new RabbitTemplate(factory);
-        template.setMessageConverter(new Jackson2JsonMessageConverter());
+        template.setMessageConverter(new Jackson2JsonMessageConverter(mapper));
         return template;
     }
 

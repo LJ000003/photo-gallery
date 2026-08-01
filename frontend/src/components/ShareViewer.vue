@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, defineAsyncComponent, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, defineAsyncComponent, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import gsap from 'gsap'
 import { webpUrl } from '../webp'
 import { formatSize } from '../utils/format'
@@ -7,6 +8,7 @@ import { api } from '../api'
 import type { Photo } from '../types/photo'
 import type { PageResponse } from '../types/api'
 
+const { t } = useI18n()
 const LottieLoader = defineAsyncComponent(() => import('./LottieLoader.vue'))
 
 const token = window.location.pathname.replace('/share/', '')
@@ -25,7 +27,7 @@ async function load(): Promise<void> {
     })
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
-      throw new Error(err.message || '分享链接无效或已过期')
+      throw new Error(err.message || t('share.invalid'))
     }
     const json = await res.json()
     const data: PageResponse<Photo> = json.data
@@ -58,12 +60,16 @@ onMounted(() => {
   window.addEventListener('scroll', onScroll, { passive: true })
   load()
 })
+
+onUnmounted(() => {
+  window.removeEventListener('scroll', onScroll)
+})
 </script>
 
 <template>
   <div class="share-page">
-    <header class="header"><h1>分享的照片</h1></header>
-    <p class="share-sub">此链接仅可查看，无法编辑或删除</p>
+    <header class="header"><h1>{{ $t('share.viewerTitle') }}</h1></header>
+    <p class="share-sub">{{ $t('share.viewerHint') }}</p>
 
     <div class="gallery">
       <div
@@ -83,7 +89,7 @@ onMounted(() => {
         <div class="photo-thumb">
           <img :src="`/api/v1/photos/${p.id}/thumbnail?token=${token}`" :alt="p.name" loading="lazy" />
         </div>
-        <div class="photo-overlay"><button class="btn-primary mini">查看</button></div>
+        <div class="photo-overlay"><button class="btn-primary mini">{{ $t('photo.view') }}</button></div>
         <div class="photo-info">
           <span class="photo-name">{{ p.name }}</span>
           <span class="photo-size">{{ formatSize(p.fileSize) }}</span>
@@ -94,10 +100,10 @@ onMounted(() => {
     <div v-if="loading && photos.length > 0" class="sentinel">
       <LottieLoader name="loading" :size="60" />
     </div>
-    <div v-else-if="!hasMore && photos.length > 0" class="end-hint">没有更多了</div>
+    <div v-else-if="!hasMore && photos.length > 0" class="end-hint">{{ $t('share.viewerNoMore') }}</div>
     <div v-if="!loading && photos.length === 0" class="empty-state">
       <LottieLoader name="empty" :size="160" />
-      <p class="empty-hint">链接无效或已过期</p>
+      <p class="empty-hint">{{ $t('share.viewerEmpty') }}</p>
     </div>
 
     <div v-if="viewPhoto" class="modal" @click.self="viewPhoto = null">
@@ -110,7 +116,7 @@ onMounted(() => {
         />
         <h3>{{ viewPhoto.name }}</h3>
         <p v-if="viewPhoto.description" class="view-desc">{{ viewPhoto.description }}</p>
-        <button class="modal-close" @click="viewPhoto = null">✕</button>
+        <button class="modal-close" @click="viewPhoto = null">{{ $t('general.close') }}</button>
       </div>
     </div>
   </div>

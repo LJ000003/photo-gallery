@@ -102,7 +102,11 @@
     "hint": "Link valid for 7 days. Anyone with the link can view.",
     "generating": "Generating...",
     "copyLink": "Copy Link",
-    "invalid": "Share link is invalid or expired"
+    "invalid": "Share link is invalid or expired",
+    "viewerTitle": "Shared Photos",
+    "viewerHint": "View only. Editing and deletion are disabled.",
+    "viewerNoMore": "No more photos",
+    "viewerEmpty": "Link is invalid or expired"
   },
   "editor": {
     "rotate": "Rotate",

@@ -54,11 +54,21 @@ export function usePhotoActions() {
       toast.add(`已删除 ${ids.length} 张照片`, 'success', 5000, {
         label: '撤销',
         onClick: async () => {
+          const failed: number[] = []
           for (const id of ids) {
-            await api(`/api/photos/${id}/restore`, { method: 'POST' })
+            try {
+              const res = await api(`/api/photos/${id}/restore`, { method: 'POST' })
+              if (!res.ok) failed.push(id)
+            } catch {
+              failed.push(id)
+            }
           }
           await photo.resetAndReload()
-          toast.success('已恢复')
+          if (failed.length > 0) {
+            toast.error(`${failed.length}/${ids.length} 张照片恢复失败`)
+          } else {
+            toast.success('已恢复')
+          }
         },
       })
     } catch (err) {

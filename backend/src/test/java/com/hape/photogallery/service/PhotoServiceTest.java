@@ -23,6 +23,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.mock.web.MockMultipartFile;
@@ -53,6 +54,7 @@ class PhotoServiceTest {
     @Mock private AlbumService albumService;
     @Mock private StorageService storage;
     @Mock private ProcessingMessageSender processingSender;
+    @Mock private TransactionTemplate transactionTemplate;
 
     @TempDir Path tempDir;
 
@@ -87,7 +89,7 @@ class PhotoServiceTest {
         }).when(storage).deleteFile(any());
 
         service = new PhotoService(photoRepo, tagRepo, catRepo, exifRepo, exifService,
-                imageService, albumService, storage, processingSender);
+                imageService, albumService, storage, processingSender, transactionTemplate);
     }
 
     // ==================== listAll ====================

@@ -21,12 +21,8 @@ public class NonceStore {
         return nonce;
     }
 
-    /** 一次性消费：存在则删除并返回 true，不存在返回 false */
+    /** 一次性消费：原子地检查并删除，防止 TOCTOU 竞态导致 nonce 重放 */
     public boolean consume(String nonce) {
-        if (cache.getIfPresent(nonce) != null) {
-            cache.invalidate(nonce);
-            return true;
-        }
-        return false;
+        return cache.asMap().remove(nonce) != null;
     }
 }

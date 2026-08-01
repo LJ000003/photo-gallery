@@ -6,6 +6,7 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -49,13 +50,13 @@ public class AuthController {
     /** Konami 解锁 —— 前端传来 nonce + 按键序列，后端验证 */
     @SuppressWarnings("unchecked")
     @PostMapping("/api/v1/auth/unlock")
-    public ApiResponse<Map<String, Object>> unlock(@RequestBody Map<String, Object> body,
+    public ResponseEntity<ApiResponse<Map<String, Object>>> unlock(@RequestBody Map<String, Object> body,
                                                     HttpServletRequest request) {
         String ip = resolveIp(request);
 
         // 封禁检查
         if (failedAttemptStore.isBlocked(ip)) {
-            return ApiResponse.error(403, "尝试次数过多，请 15 分钟后再试");
+            return ResponseEntity.status(403).body(ApiResponse.error(403, "尝试次数过多，请 15 分钟后再试"));
         }
 
         // nonce 校验（一次性消费）
@@ -64,7 +65,7 @@ public class AuthController {
             failedAttemptStore.recordFailure(ip);
             int remaining = failedAttemptStore.remainingAttempts(ip);
             log.warn("Invalid/expired nonce from IP: {}, remaining attempts: {}", ip, remaining);
-            return ApiResponse.error(400, "请求无效或已过期，请重试（剩余 " + remaining + " 次）");
+            return ResponseEntity.status(400).body(ApiResponse.error(400, "请求无效或已过期，请重试（剩余 " + remaining + " 次）"));
         }
 
         // 按键序列校验
@@ -72,7 +73,7 @@ public class AuthController {
         if (keys == null || keys.size() != 12) {
             failedAttemptStore.recordFailure(ip);
             int remaining = failedAttemptStore.remainingAttempts(ip);
-            return ApiResponse.error(400, "输入不完整（剩余 " + remaining + " 次）");
+            return ResponseEntity.status(400).body(ApiResponse.error(400, "输入不完整（剩余 " + remaining + " 次）"));
         }
 
         String actual = String.join(",", keys);
@@ -80,17 +81,17 @@ public class AuthController {
             failedAttemptStore.recordFailure(ip);
             int remaining = failedAttemptStore.remainingAttempts(ip);
             log.warn("Wrong Konami sequence from IP: {}, remaining: {}", ip, remaining);
-            return ApiResponse.error(401, "序列不正确（剩余 " + remaining + " 次）");
+            return ResponseEntity.status(401).body(ApiResponse.error(401, "序列不正确（剩余 " + remaining + " 次）"));
         }
 
         // 验证通过
         failedAttemptStore.reset(ip);
         String token = jwtService.issueAdmin(24 * 60 * 60 * 1000);
         log.info("Admin JWT issued for IP: {}", ip);
-        return ApiResponse.success(Map.of(
+        return ResponseEntity.ok(ApiResponse.success(Map.of(
                 "token", token,
                 "expiresIn", 86400
-        ));
+        )));
     }
 
     /** 管理员生成分享链接 */
@@ -108,13 +109,14 @@ public class AuthController {
     }
 
     private String resolveIp(HttpServletRequest request) {
-        String xff = request.getHeader("X-Forwarded-For");
-        if (xff != null && !xff.isBlank()) {
-            return xff.split(",")[0].trim();
-        }
+        // 优先 X-Real-IP（反向代理设置，客户端不可伪造），X-Forwarded-For 仅作 fallback
         String realIp = request.getHeader("X-Real-IP");
         if (realIp != null && !realIp.isBlank()) {
             return realIp.trim();
+        }
+        String xff = request.getHeader("X-Forwarded-For");
+        if (xff != null && !xff.isBlank()) {
+            return xff.split(",")[0].trim();
         }
         return request.getRemoteAddr();
     }

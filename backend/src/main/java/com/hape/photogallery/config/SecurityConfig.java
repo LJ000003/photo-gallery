@@ -34,6 +34,12 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
             .cors(cors -> cors.configurationSource(corsSource()))
+            .headers(headers -> headers
+                .httpStrictTransportSecurity(hsts -> hsts
+                    .includeSubDomains(true).maxAgeInSeconds(31536000))
+                .contentTypeOptions(cto -> {})  // X-Content-Type-Options: nosniff
+                .frameOptions(frame -> frame.deny())  // X-Frame-Options: DENY
+            )
             .csrf(csrf -> csrf.disable())
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .addFilterBefore(new TraceIdFilter(), SecurityContextHolderFilter.class)

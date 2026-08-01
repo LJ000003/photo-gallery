@@ -9,6 +9,7 @@ import com.hape.photogallery.repository.CategoryRepository;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class CategoryService {
@@ -24,16 +25,19 @@ public class CategoryService {
         return catRepo.findAll();
     }
 
+    @Transactional
     @CacheEvict(value = "categories", allEntries = true)
     public Category create(String name) {
         return catRepo.findByName(name).orElseGet(() -> catRepo.save(new Category(name)));
     }
 
+    @Transactional
     @CacheEvict(value = "categories", allEntries = true)
     public void delete(Long id) {
         catRepo.deleteById(id);
     }
 
+    @Transactional
     @CacheEvict(value = "categories", allEntries = true)
     public Category update(Long id, String name) {
         Category cat = catRepo.findById(id).orElseThrow(() -> new BusinessException(404, "分类不存在"));

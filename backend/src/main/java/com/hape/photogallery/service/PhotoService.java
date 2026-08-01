@@ -28,6 +28,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.annotation.PostConstruct;
@@ -70,6 +71,7 @@ public class PhotoService {
     private final AlbumService albumService;
     private final StorageService storage;
     private final ProcessingMessageSender processingSender;
+    private final TransactionTemplate transactionTemplate;
 
     public PhotoService(PhotoRepository repo, TagRepository tagRepo, CategoryRepository catRepo,
                         ExifDataRepository exifRepo,
@@ -77,7 +79,8 @@ public class PhotoService {
                         ImageProcessingService imageService,
                         AlbumService albumService,
                         StorageService storage,
-                        ProcessingMessageSender processingSender) {
+                        ProcessingMessageSender processingSender,
+                        TransactionTemplate transactionTemplate) {
         this.repo = repo;
         this.tagRepo = tagRepo;
         this.catRepo = catRepo;
@@ -87,6 +90,7 @@ public class PhotoService {
         this.albumService = albumService;
         this.storage = storage;
         this.processingSender = processingSender;
+        this.transactionTemplate = transactionTemplate;
     }
 
     public Page<Photo> listAll(List<Long> tagIds, List<Long> categoryIds, Pageable pageable) {
@@ -103,6 +107,7 @@ public class PhotoService {
     }
 
     /** 缓存照片列表（DTO 形式，避免 Hibernate 懒加载代理被序列化到 Redis） */
+    @Transactional(readOnly = true)
     @Cacheable(value = "photos", key = "{#tagIds, #categoryIds, #pageable}")
     public Page<PhotoResponse> listAllResponses(List<Long> tagIds, List<Long> categoryIds, Pageable pageable) {
         return listAll(tagIds, categoryIds, pageable).map(this::toResponse);
@@ -141,7 +146,9 @@ public class PhotoService {
         if (file.getSize() > MAX_FILE_SIZE) {
             throw new FileSizeExceededException("文件过大，请上传小于 10MB 的图片");
         }
-        imageService.validateImageMagicBytes(file.getInputStream());
+        try (var magicIn = file.getInputStream()) {
+            imageService.validateImageMagicBytes(magicIn);
+        }
 
         String hash = computeSha256(file);
         repo.findByFileHash(hash).ifPresent(existing -> {
@@ -218,6 +225,19 @@ public class PhotoService {
 
     // === 文件路径 ===
 
+    /**
+     * 将存储路径（如 "2024/01/uuid_file.jpg"）解析为 {dateDir, baseName}。
+     * 对不含 '/' 的文件名安全降级，防止 StringIndexOutOfBoundsException。
+     */
+    private record FilePathParts(String dateDir, String baseName) {}
+    private FilePathParts parseFilePath(String fn) {
+        int lastSlash = fn.lastIndexOf('/');
+        if (lastSlash < 0) {
+            return new FilePathParts("", fn);
+        }
+        return new FilePathParts(fn.substring(0, lastSlash), fn.substring(lastSlash + 1));
+    }
+
     public Path getFilePath(Long id) {
         Photo photo = getByIdIncludeDeleted(id);
         return storage.resolveSafe(photo.getFileName());
@@ -230,19 +250,17 @@ public class PhotoService {
     public Path getThumbnailPath(Long id, int width) {
         Photo photo = getByIdIncludeDeleted(id);
         String fn = photo.getFileName();
-        int lastSlash = fn.lastIndexOf('/');
-        String dateDir = fn.substring(0, lastSlash);
-        String baseName = fn.substring(lastSlash + 1);
+        FilePathParts parts = parseFilePath(fn);
 
         Path uploadDir = storage.getUploadDir();
         Path thumbDir = width == 400
-                ? uploadDir.resolve(dateDir).resolve("thumbnails")
-                : uploadDir.resolve(dateDir).resolve("thumbnails").resolve(String.valueOf(width));
-        Path thumb = storage.resolveSafe(uploadDir.relativize(thumbDir.resolve(baseName)).toString());
+                ? uploadDir.resolve(parts.dateDir).resolve("thumbnails")
+                : uploadDir.resolve(parts.dateDir).resolve("thumbnails").resolve(String.valueOf(width));
+        Path thumb = storage.resolveSafe(uploadDir.relativize(thumbDir.resolve(parts.baseName)).toString());
         if (Files.exists(thumb)) return thumb;
 
         if (width != 400) {
-            Path fallback = storage.resolveSafe(dateDir + "/thumbnails/" + baseName);
+            Path fallback = storage.resolveSafe(parts.dateDir + "/thumbnails/" + parts.baseName);
             if (Files.exists(fallback)) return fallback;
         }
 
@@ -252,10 +270,8 @@ public class PhotoService {
     public Path getWebpPath(Long id) {
         Photo photo = getByIdIncludeDeleted(id);
         String fn = photo.getFileName();
-        int lastSlash = fn.lastIndexOf('/');
-        String dateDir = fn.substring(0, lastSlash);
-        String baseName = fn.substring(lastSlash + 1);
-        Path webp = storage.resolveSafe(dateDir + "/webp/" + baseName + ".webp");
+        FilePathParts parts = parseFilePath(fn);
+        Path webp = storage.resolveSafe(parts.dateDir + "/webp/" + parts.baseName + ".webp");
         if (Files.exists(webp)) return webp;
         return getFilePath(id);
     }
@@ -322,13 +338,10 @@ public class PhotoService {
 
     private void deletePhotoFiles(Photo photo) {
         storage.deleteFile(photo.getFileName());
-        String fn = photo.getFileName();
-        int lastSlash = fn.lastIndexOf('/');
-        String dateDir = fn.substring(0, lastSlash);
-        String baseName = fn.substring(lastSlash + 1);
-        storage.deleteFile(dateDir + "/thumbnails/" + baseName);
-        storage.deleteFile(dateDir + "/thumbnails/200/" + baseName);
-        storage.deleteFile(dateDir + "/webp/" + baseName + ".webp");
+        FilePathParts parts = parseFilePath(photo.getFileName());
+        storage.deleteFile(parts.dateDir + "/thumbnails/" + parts.baseName);
+        storage.deleteFile(parts.dateDir + "/thumbnails/200/" + parts.baseName);
+        storage.deleteFile(parts.dateDir + "/webp/" + parts.baseName + ".webp");
     }
 
     // === 异步处理重试与恢复 ===
@@ -342,40 +355,48 @@ public class PhotoService {
         repo.save(photo);
 
         Path target = storage.getUploadDir().resolve(photo.getFileName());
-        String fn = photo.getFileName();
-        int lastSlash = fn.lastIndexOf('/');
-        String dateDir = fn.substring(0, lastSlash);
-        String baseName = fn.substring(lastSlash + 1);
+        FilePathParts parts = parseFilePath(photo.getFileName());
 
         final Long photoId = id;
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                processingSender.send(photoId, target, dateDir, baseName, null);
+                processingSender.send(photoId, target, parts.dateDir, parts.baseName, null);
             }
         });
     }
 
     @PostConstruct
-    @Transactional
     public void recoverStuckOnStartup() {
-        List<Photo> stuck = repo.findByProcessingStatus("PROCESSING");
-        if (stuck.isEmpty()) return;
+        List<Photo> stuck = transactionTemplate.execute(status -> {
+            List<Photo> result = repo.findByProcessingStatus("PROCESSING");
+            // 预先初始化懒加载属性，避免事务外访问
+            for (Photo p : result) {
+                p.getFileName(); // 触发懒加载
+            }
+            return result;
+        });
+        if (stuck == null || stuck.isEmpty()) return;
         int sent = 0;
         for (Photo p : stuck) {
             try {
                 Path target = storage.getUploadDir().resolve(p.getFileName());
-                String fn = p.getFileName();
-                int lastSlash = fn.lastIndexOf('/');
-                String dateDir = fn.substring(0, lastSlash);
-                String baseName = fn.substring(lastSlash + 1);
-                processingSender.send(p.getId(), target, dateDir, baseName, null);
+                FilePathParts parts = parseFilePath(p.getFileName());
+                processingSender.send(p.getId(), target, parts.dateDir, parts.baseName, null);
                 sent++;
             } catch (Exception e) {
                 log.error("启动恢复失败 photo={}: {}", p.getId(), e.getMessage());
-                p.setProcessingStatus("FAILED");
-                p.setErrorMessage("启动恢复失败: " + e.getMessage());
-                repo.save(p);
+                final Long photoId = p.getId();
+                final String errMsg = e.getMessage();
+                transactionTemplate.execute(status -> {
+                    Photo photo = repo.findById(photoId).orElse(null);
+                    if (photo != null) {
+                        photo.setProcessingStatus("FAILED");
+                        photo.setErrorMessage("启动恢复失败: " + errMsg);
+                        repo.save(photo);
+                    }
+                    return null;
+                });
             }
         }
         if (sent > 0) {
@@ -417,17 +438,17 @@ public class PhotoService {
             page = repo.findAll(pageable);
             for (Photo p : page.getContent()) {
                 String fn = p.getFileName();
-                int lastSlash = fn.lastIndexOf('/');
-                String dateDir = fn.substring(0, lastSlash);
-                String baseName = fn.substring(lastSlash + 1);
-                Path thumb = uploadDir.resolve(dateDir).resolve("thumbnails").resolve(baseName);
+                FilePathParts parts = parseFilePath(fn);
+                Path thumb = uploadDir.resolve(parts.dateDir).resolve("thumbnails").resolve(parts.baseName);
                 if (Files.exists(thumb)) continue;
                 Path original = uploadDir.resolve(fn);
                 if (!Files.exists(original)) continue;
                 try {
-                    imageService.generateThumbnail(original, dateDir, baseName);
+                    imageService.generateThumbnail(original, parts.dateDir, parts.baseName);
                     if (Files.exists(thumb)) count++;
-                } catch (IOException ignored) {}
+                } catch (IOException e) {
+                    log.warn("迁移缩略图失败 photo={}: {}", p.getId(), e.getMessage());
+                }
             }
             pageable = pageable.next();
         } while (page.hasNext());
@@ -443,14 +464,12 @@ public class PhotoService {
             page = repo.findAll(pageable);
             for (Photo p : page.getContent()) {
                 String fn = p.getFileName();
-                int lastSlash = fn.lastIndexOf('/');
-                String dateDir = fn.substring(0, lastSlash);
-                String baseName = fn.substring(lastSlash + 1);
-                Path webp = uploadDir.resolve(dateDir).resolve("webp").resolve(baseName + ".webp");
+                FilePathParts parts = parseFilePath(fn);
+                Path webp = uploadDir.resolve(parts.dateDir).resolve("webp").resolve(parts.baseName + ".webp");
                 if (Files.exists(webp)) continue;
                 Path original = uploadDir.resolve(fn);
                 if (!Files.exists(original)) continue;
-                imageService.generateWebp(original, dateDir, baseName);
+                imageService.generateWebp(original, parts.dateDir, parts.baseName);
                 if (Files.exists(webp)) count++;
             }
             pageable = pageable.next();
@@ -460,6 +479,7 @@ public class PhotoService {
 
     // === EXIF ===
 
+    @Transactional(readOnly = true)
     @Cacheable(value = "timeline", key = "{#sortOrder, #pageable}")
     public Page<TimelineItem> getTimeline(String sortOrder, Pageable pageable) {
         Page<ExifData> page = "asc".equalsIgnoreCase(sortOrder)
@@ -468,6 +488,7 @@ public class PhotoService {
         return page.map(this::toTimelineItem);
     }
 
+    @Transactional(readOnly = true)
     @Cacheable(value = "map", key = "{#swLat, #swLng, #neLat, #neLng}")
     public List<MapItem> getMapPhotos(double swLat, double swLng, double neLat, double neLng) {
         List<ExifData> list = exifRepo.findWithGpsInBounds(swLat, swLng, neLat, neLng,
@@ -540,17 +561,17 @@ public class PhotoService {
         photo.setFileSize(Files.size(filePath));
 
         String fn = photo.getFileName();
-        int lastSlash = fn.lastIndexOf('/');
-        String dateDir = fn.substring(0, lastSlash);
-        String baseName = fn.substring(lastSlash + 1);
-        imageService.generateThumbnail(filePath, dateDir, baseName);
-        imageService.generateThumbnail(filePath, dateDir, baseName, 200);
-        imageService.generateWebp(filePath, dateDir, baseName);
+        FilePathParts parts = parseFilePath(fn);
+        imageService.generateThumbnail(filePath, parts.dateDir, parts.baseName);
+        imageService.generateThumbnail(filePath, parts.dateDir, parts.baseName, 200);
+        imageService.generateWebp(filePath, parts.dateDir, parts.baseName);
         repo.save(photo);
 
         try {
             exifService.extractAndSave(photo, filePath);
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            log.warn("变换后 EXIF 提取失败 photo={}: {}", id, e.getMessage());
+        }
     }
 
     // === 哈希 ===

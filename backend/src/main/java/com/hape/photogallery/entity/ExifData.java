@@ -74,5 +74,5 @@ public class ExifData {
     public String getPhotoName() { return photo != null ? photo.getName() : null; }
 
     @com.fasterxml.jackson.annotation.JsonProperty
-    public String getPhotoThumbnail() { return photo != null ? "/api/photos/" + photo.getId() + "/thumbnail" : null; }
+    public String getPhotoThumbnail() { return photo != null ? "/api/v1/photos/" + photo.getId() + "/thumbnail" : null; }
 }
