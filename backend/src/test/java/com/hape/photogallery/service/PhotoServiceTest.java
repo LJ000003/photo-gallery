@@ -267,7 +267,7 @@ class PhotoServiceTest {
     }
 
     @Test
-    void update_nullCategory_shouldClearCategory() {
+    void update_nullCategory_shouldKeepCategory() {
         Photo p = new Photo(); p.setId(1L); p.setName("p");
         Category c = new Category("cat"); c.setId(5L);
         p.setCategory(c);
@@ -276,10 +276,61 @@ class PhotoServiceTest {
 
         PhotoUpdateRequest req = new PhotoUpdateRequest();
         req.setName("p");
-        req.setCategoryId(null);
+        req.setCategoryId(null); // null = 不修改分类（防部分更新静默清空）
+
+        PhotoResponse result = service.update(1L, req);
+        assertThat(result.getCategory()).isNotNull();
+        assertThat(result.getCategory().getId()).isEqualTo(5L);
+    }
+
+    @Test
+    void update_zeroCategory_shouldClearCategory() {
+        Photo p = new Photo(); p.setId(1L); p.setName("p");
+        Category c = new Category("cat"); c.setId(5L);
+        p.setCategory(c);
+        when(photoRepo.findById(1L)).thenReturn(Optional.of(p));
+        when(photoRepo.save(any())).thenReturn(p);
+
+        PhotoUpdateRequest req = new PhotoUpdateRequest();
+        req.setName("p");
+        req.setCategoryId(0L); // 0 = 清除分类（与 albumId=0 的"未分配"约定一致）
 
         PhotoResponse result = service.update(1L, req);
         assertThat(result.getCategory()).isNull();
+    }
+
+    @Test
+    void update_nonexistentCategory_shouldThrow404() {
+        Photo p = new Photo(); p.setId(1L); p.setName("p");
+        when(photoRepo.findById(1L)).thenReturn(Optional.of(p));
+        when(catRepo.findById(99L)).thenReturn(Optional.empty());
+
+        PhotoUpdateRequest req = new PhotoUpdateRequest();
+        req.setName("p");
+        req.setCategoryId(99L);
+
+        assertThatThrownBy(() -> service.update(1L, req))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("分类不存在");
+        verify(photoRepo, never()).save(any());
+    }
+
+    // ==================== transform ====================
+
+    @Test
+    void transform_corruptImage_shouldThrow400() throws IOException {
+        Path filePath = tempDir.resolve("2026/07/bad.jpg");
+        Files.createDirectories(filePath.getParent());
+        Files.write(filePath, "not an image at all".getBytes());
+
+        Photo p = new Photo(); p.setId(1L); p.setName("bad");
+        p.setFileName("2026/07/bad.jpg");
+        when(photoRepo.findById(1L)).thenReturn(Optional.of(p));
+
+        assertThatThrownBy(() -> service.transformPhoto(1L, 90, "none", null, null, null, null))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("无法处理");
+        verify(photoRepo, never()).save(any());
     }
 
     // ==================== delete ====================

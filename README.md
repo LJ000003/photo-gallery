@@ -40,7 +40,7 @@
 ### 照片管理
 - **上传** — 拖拽/粘贴/批量（单次最多 50 张），魔数校验（JPEG/PNG/GIF/BMP/WebP），客户端 Canvas 压缩大图（最大 1920px，JPEG 质量 0.85），XHR 实时进度条，SHA-256 去重检测
 - **浏览** — 虚拟滚动（DOM 节点数恒定，万张照片不卡）、3D 倾斜卡片、骨架屏加载
-- **编辑** — 名称/描述修改、分类/标签/相册分配
+- **编辑** — 名称/描述修改、分类/标签/相册分配。`PUT /photos/{id}` 的 `categoryId` 语义与 `albumId=0`「未分配」约定一致：`null`=不修改分类、`0`=清除分类、`>0`=设为指定分类（不存在返回 404）
 - **批量操作** — 多选、全选、批量删除、批量生成分享链接
 - **搜索** — MySQL FULLTEXT 全文索引 + ngram 中文分词，`MATCH ... AGAINST` 布尔模式搜索名称和描述
 - **排序** — 时间/名称/大小，正序倒序自由切换
@@ -68,10 +68,12 @@
 - **Konami 门禁** — Challenge-Response 架构：前端按键只记录不验证 → GET /api/v1/auth/challenge 获取一次性 nonce（60s TTL）→ POST /api/v1/auth/unlock 提交 nonce+序列给后端验证，序列仅存后端配置文件。键盘 + 触摸双模式
 - **暴力破解防护** — IP 失败计数（Caffeine），5 次错误封禁 15 分钟
 - **JWT 双角色** — admin（24h，管理）/ viewer（7 天，分享查看）
-- **限时分享链接** — 选中照片生成分享链接，朋友无需密码即可查看。viewer JWT 编码照片白名单（`photoIds`）+ 权限范围（`permission`），服务端双重校验：SecurityConfig 限制 viewer 仅能访问 `/api/v1/share/view` + 图片文件端点，JwtAuthFilter 对每个图片请求校验 `photoId ∈ sharePhotoIds`，防止越权访问
+- **限时分享链接** — 选中照片生成分享链接，朋友无需密码即可查看。viewer JWT 编码照片白名单（`photoIds`）+ 权限范围（`permission`，仅 `view`/`download`，非法值 400），服务端双重校验：SecurityConfig 限制 viewer 仅能访问 `/api/v1/share/view` + 图片文件端点，JwtAuthFilter 对每个图片请求校验 `photoId ∈ sharePhotoIds`，防止越权访问
 - **SHA-256 去重** — 上传时计算文件哈希，检测重复上传，单张返回 409 + 已有照片数据，批量静默跳过
+- **统一参数校验** — 缺必填参数、参数类型错误、非法枚举统一返回 400 + 参数名（`GlobalExceptionHandler` 兜底，不落 500）
 - **缓存策略** — dev 使用 Caffeine 本地缓存（30s TTL），prod 切换 Redis 分布式缓存（JSON 序列化 + PageImpl mixin 反序列化），所有写操作自动驱逐列表缓存
 - **软删除 + 回收站** — 删除标记 `deleted_at`（Hibernate @SQLRestriction 全局过滤），删除时清空哈希允许重新上传。5 秒 Toast 撤销 + 回收站可恢复/彻底删除，每天凌晨 3 点自动清理 30 天前记录
+- **备份导出** — 标题栏一键下载 `photo-gallery-backup-YYYY-MM-DD.tar.gz`：全部原始照片 + 数据库元数据（photos/exif/tags/categories/albums JSON，关联内嵌），Commons Compress 流式打包不占服务器内存，可选按相册/分类/日期筛选，响应禁止缓存（仅 admin）
 - **前端错误边界** — 组件异常自动捕获，显示降级页面（重试 / 刷新 / 复制错误信息），切换路由自动恢复
 
 ### PWA（渐进式 Web 应用）
@@ -85,7 +87,7 @@
 
 ### 其他
 - 前端组件样式分量管理：组件独有样式使用 Vue `<style scoped>`，跨组件共享样式（弹窗骨架/按钮/移动端适配）保留全局 CSS
-- 健康检查端点 `/actuator/health`（DB + 磁盘空间）+ Prometheus 指标端点 `/actuator/prometheus`
+- 健康检查端点 `/actuator/health`（dev：DB + 磁盘空间，禁用 Rabbit/Redis 指示器避免误报 DOWN；prod：含 RabbitMQ/Redis）+ Prometheus 指标端点 `/actuator/prometheus`
 - Micrometer 自定义指标：`photo.upload.total`、`photo.upload.bytes`、`photo.processing.total`、`photo.processing.failures`、`@Timed("photo.processing.time")` 处理耗时
 - Toast 通知、自定义确认弹窗、Lottie 加载动画
 - 回到顶部、光标拖尾、波纹效果
@@ -110,6 +112,7 @@ photo-gallery/
 │   │   │   ├── CategoryController.java         # 分类 CRUD
 │   │   │   ├── AlbumController.java            # 相册 CRUD
 │   │   │   ├── TrashController.java            # 回收站 API
+│   │   │   ├── BackupController.java           # 备份导出（POST /api/v1/backup/export）
 │   │   │   └── HelloController.java            # 根端点
 │   │   ├── service/
 │   │   │   ├── PhotoService.java               # 核心业务逻辑（上传/搜索/软删除/EXIF/变换/定时清理）
@@ -121,7 +124,8 @@ photo-gallery/
 │   │   │   ├── ImageProcessingService.java     # 缩略图(多档)/WebP/水印/旋转/镜像
 │   │   │   ├── ExifService.java                # metadata-extractor 集成
 │   │   │   ├── StorageService.java             # 存储接口（可扩展不同后端）
-│   │   │   └── LocalStorageService.java        # 本地文件系统存储实现（路径穿越防护）
+│   │   │   ├── LocalStorageService.java        # 本地文件系统存储实现（路径穿越防护）
+│   │   │   └── BackupService.java              # 备份导出（事务内收集元数据 + 流式 tar.gz 打包）
 │   │   ├── messaging/
 │   │   │   ├── ProcessingMessageSender.java    # 处理消息发送者接口
 │   │   │   ├── ProcessingMessage.java          # 消息体 POJO（photoId/路径/水印）
@@ -146,6 +150,7 @@ photo-gallery/
 │   │   │   ├── MapItem.java                    # 地图项（含 GCJ-02 坐标）
 │   │   │   ├── ShareGenerateRequest.java       # 分享链接生成请求
 │   │   │   ├── TransformRequest.java           # 图片变换参数
+│   │   │   ├── BackupExportRequest.java        # 备份导出筛选参数
 │   │   │   └── AlbumRequest.java               # 相册创建/更新请求
 │   │   ├── config/
 │   │   │   ├── AsyncConfig.java                # @EnableAsync + 图片处理线程池 + MDC 传播
@@ -451,7 +456,7 @@ certbot --nginx -d 你的域名   # 免费 SSL
 │    → GET /api/v1/auth/challenge → 获取一次性 nonce (60s)  │
 │    → POST /api/v1/auth/unlock {nonce, keys}               │
 │    → 后端比对序列 + nonce 验证（一次性消费）                 │
-│    → IP 限流（10次/s）+ 失败计数（5次封 15min）             │
+│    → 认证端点限流（challenge+unlock，10次/s/IP）+ 失败计数   │
 │    → 签发 24h admin JWT (role: admin)                     │
 │                                                          │
 │  分享链接                                                  │
@@ -473,8 +478,9 @@ certbot --nginx -d 你的域名   # 免费 SSL
 | `GET /api/v1/share/view` | `ROLE_admin` 或 `ROLE_viewer`（仅返回 JWT 中 `photoIds` 白名单内的照片） |
 | `GET /api/v1/photos/{id}/thumbnail\|webp\|file` | `ROLE_admin` 或 `ROLE_viewer`（viewer 需图片 ID 在 JWT 白名单内，否则 403） |
 | `GET /api/v1/**`（其他） | `ROLE_admin`（viewer 无权访问列表、时间线、地图等） |
-| `POST/PUT/DELETE /api/v1/**` | `ROLE_admin` |
-| `POST /api/v1/auth/unlock` | 公开（含 IP 限流 + 5 次失败封禁 15 分钟） |
+| `POST /api/v1/backup/export` | `ROLE_admin`（流式下载 tar.gz 备份，禁止缓存） |
+| `POST/PUT/DELETE /api/v1/**`（其他） | `ROLE_admin` |
+| `GET /api/v1/auth/challenge`、`POST /api/v1/auth/unlock` | 公开（认证端点 10 次/s/IP 限流；unlock 另有 5 次失败封禁 15 分钟） |
 | `GET /share/**` | 公开（转发到 SPA 落地面） |
 | `/actuator/health`、`/actuator/prometheus` | 公开 |
 | `/swagger-ui/**` | 公开（仅开发环境） |
@@ -494,3 +500,56 @@ GET /actuator/prometheus
 ```
 
 Docker 容器通过 `curl http://localhost:8080/actuator/health` 每 15 秒探测一次，连续 3 次失败自动重启容器。Prometheus 每 15 秒 scrape `/actuator/prometheus`，Grafana 可本地运行连接服务器 Prometheus 查看仪表盘。
+
+---
+
+## 备份与恢复
+
+### 应用内备份导出（推荐）
+
+解锁后点击标题栏右侧 **⤓** 按钮，一键下载 `photo-gallery-backup-YYYY-MM-DD.tar.gz`，包含全部原始照片和数据库元数据：
+
+```
+photo-gallery-backup-2026-08-02.tar.gz
+├── database/                 # 数据库元数据（JSON，可离线查看/恢复）
+│   ├── metadata.json         #   导出版本、时间、照片数、筛选参数
+│   ├── photos.json           #   照片 + 分类/标签/相册关联
+│   ├── exif.json             #   EXIF 拍摄信息
+│   ├── tags.json / categories.json / albums.json
+└── photos/                   # 原始照片文件，保持服务器目录结构
+    └── 2024/01/uuid_xxx.jpg
+```
+
+API：`POST /api/v1/backup/export`（仅 admin），可选 JSON 参数按需筛选：
+
+```bash
+curl -X POST http://localhost:8080/api/v1/backup/export \
+  -H "Authorization: Bearer $JWT" -H "Content-Type: application/json" \
+  -d '{"albumId":3,"categoryId":5,"dateFrom":"2026-01-01","dateTo":"2026-07-31"}'
+```
+
+- `albumId=0` 表示「未分配任何相册」的照片；字段省略即不限
+- 流式打包不占服务器内存；`Cache-Control: no-store` 禁止缓存
+
+### 手动备份脚本
+
+数据库层面建议定期 `mysqldump`（应用导出不含数据库原始表结构）：
+
+```bash
+#!/bin/bash
+# 手动备份脚本（Docker Compose 部署）
+BACKUP_DIR="/tmp/photo-backup-$(date +%Y%m%d)"
+mkdir -p "$BACKUP_DIR"
+docker exec photo-gallery-mysql mysqldump -u root -p"$MYSQL_ROOT_PASSWORD" photodb \
+  | gzip > "$BACKUP_DIR/database.sql.gz"
+cp -r /data/photo-uploads "$BACKUP_DIR/photos"
+tar -czf "photo-backup-$(date +%Y%m%d).tar.gz" -C "$BACKUP_DIR" .
+rm -rf "$BACKUP_DIR"
+echo "备份完成: photo-backup-$(date +%Y%m%d).tar.gz"
+```
+
+恢复时：解包后先还原照片文件到 `photo.upload-dir`，再导入数据库 dump：
+
+```bash
+docker exec -i photo-gallery-mysql mysql -u root -p"$MYSQL_ROOT_PASSWORD" photodb < database.sql
+```

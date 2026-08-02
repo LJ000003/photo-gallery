@@ -32,8 +32,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
         String path = request.getServletPath();
         String method = request.getMethod();
-        boolean isAuthEndpoint = "POST".equalsIgnoreCase(method)
-                && ("/api/v1/auth/unlock".equals(path) || "/api/v1/auth/challenge".equals(path));
+        // 认证端点全量限流：unlock 是 POST，challenge 是 GET（原实现漏掉 GET 导致 challenge 永不受限）
+        boolean isAuthEndpoint = ("/api/v1/auth/unlock".equals(path) && "POST".equalsIgnoreCase(method))
+                || ("/api/v1/auth/challenge".equals(path) && "GET".equalsIgnoreCase(method));
 
         if (!isAuthEndpoint) {
             chain.doFilter(request, response);
