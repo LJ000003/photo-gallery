@@ -20,7 +20,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  view: [p: object]
+  view: [p: Photo, list: Photo[]]
   'update:sortBy': [key: string]
   'update:sortOrder': [order: string]
 }>()
@@ -269,7 +269,7 @@ watch(albumPhotos, () => {
         />
       </div>
       <div class="gallery">
-        <div v-for="p in albumPhotos" :key="p.id" class="photo-card" @click="emit('view', p)">
+        <div v-for="p in albumPhotos" :key="p.id" class="photo-card" @click="emit('view', p, albumPhotos)">
           <div class="photo-thumb">
             <img
               :src="`/api/v1/photos/${p.id}/thumbnail${tokenParam()}`"

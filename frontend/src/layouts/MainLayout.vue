@@ -14,9 +14,12 @@ import KonamiGate from '../components/KonamiGate.vue'
 import ToastProvider from '../components/ToastProvider.vue'
 import ViewModal from '../components/ViewModal.vue'
 import EditModal from '../components/EditModal.vue'
+import BatchEditModal from '../components/BatchEditModal.vue'
+import HelpModal from '../components/HelpModal.vue'
 
 import { usePhotoStore } from '../stores/photo'
 import { useUiStore } from '../stores/ui'
+import { useDataStore } from '../stores/data'
 import { useToastStore } from '../stores/toast'
 import { requestToken } from '../api'
 import type { Photo } from '../types/photo'
@@ -26,6 +29,12 @@ const router = useRouter()
 const photo = usePhotoStore()
 const ui = useUiStore()
 const toast = useToastStore()
+
+// 必须在 setup 顶层调用，不能放进 onMounted：
+// 组件挂载时 Vue 会把 mounted 钩子数组展开快照进 post-flush 队列，
+// 在 onMounted 回调里再注册的钩子（如 useKeyboardShortcuts 内部的 onMounted）
+// 永远不会被队列执行，导致监听器静默失效。
+useKeyboardShortcuts()
 
 const konamiReset = ref(0)
 const konamiSuccess = ref(0)
@@ -41,6 +50,22 @@ function scrollToTop(): void {
 function onSaved(): void {
   ui.editPhoto = null
   photo.resetAndReload()
+}
+
+function onBatchSaved(updated: Photo[]): void {
+  ui.batchEditPhotos = null
+  // 有过滤条件时整体重载（避免不再匹配过滤条件的照片残留）；否则原地替换，保持虚拟滚动位置
+  if (
+    photo.selectedTagIds.length > 0 ||
+    photo.selectedCategoryIds.length > 0 ||
+    photo.searchQuery
+  ) {
+    photo.resetAndReload()
+  } else {
+    photo.applyBatchEdit(updated)
+  }
+  useDataStore().refreshAlbums()
+  toast.success(t('batchEdit.success', { count: updated.length }))
 }
 
 function onTagFilterChange(ids: number[]): void {
@@ -80,7 +105,6 @@ onMounted(() => {
     ui.reLock()
   }
   if (ui.unlocked) useAppEffects()
-  useKeyboardShortcuts()
   window.addEventListener('scroll', () => {
     ui.showBackTop = window.scrollY > 400
   })
@@ -118,12 +142,19 @@ onMounted(() => {
       </div>
     </main>
     <button v-show="ui.showBackTop" class="back-top" @click="scrollToTop">↑</button>
-    <ViewModal v-if="ui.viewPhoto" :photo="ui.viewPhoto" @close="ui.viewPhoto = null" />
+    <ViewModal v-if="ui.viewPhoto" :photo="ui.viewPhoto" @close="ui.closeViewer()" />
+    <HelpModal />
     <EditModal
       v-if="ui.editPhoto"
       :photo="ui.editPhoto"
       @close="ui.editPhoto = null"
       @saved="onSaved"
+    />
+    <BatchEditModal
+      v-if="ui.batchEditPhotos"
+      :photos="ui.batchEditPhotos"
+      @close="ui.batchEditPhotos = null"
+      @saved="onBatchSaved"
     />
     <ToastProvider />
   </template>

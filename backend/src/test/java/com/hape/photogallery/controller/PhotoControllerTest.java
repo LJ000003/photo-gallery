@@ -1,5 +1,6 @@
 package com.hape.photogallery.controller;
 
+import com.hape.photogallery.dto.BatchPhotoUpdateRequest;
 import com.hape.photogallery.dto.MapItem;
 import com.hape.photogallery.dto.PhotoResponse;
 import com.hape.photogallery.dto.PhotoUpdateRequest;
@@ -144,6 +145,56 @@ class PhotoControllerTest {
                         .content("[1,2]"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.deleted").value(2));
+    }
+
+    // ==================== batchUpdate ====================
+
+    @Test
+    void batchUpdate_shouldReturnUpdatedPhotos() throws Exception {
+        Photo p = new Photo(); p.setId(1L); p.setName("更新");
+        when(service.batchUpdate(any(BatchPhotoUpdateRequest.class)))
+                .thenReturn(List.of(PhotoResponse.from(p)));
+
+        mockMvc.perform(put("/api/v1/photos/batch")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"photoIds\":[1],\"addTagIds\":[],\"removeTagIds\":[]," +
+                                "\"addAlbumIds\":[],\"removeAlbumIds\":[],\"categoryOp\":\"NONE\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].name").value("更新"));
+    }
+
+    @Test
+    void batchUpdate_emptyPhotoIds_shouldReturn400() throws Exception {
+        mockMvc.perform(put("/api/v1/photos/batch")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"photoIds\":[]}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void batchUpdate_over50PhotoIds_shouldReturn400() throws Exception {
+        String ids = "[" + String.join(",", java.util.stream.IntStream.rangeClosed(1, 51)
+                .mapToObj(String::valueOf).toList()) + "]";
+        mockMvc.perform(put("/api/v1/photos/batch")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"photoIds\":" + ids + "}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void batchUpdate_setWithoutCategory_shouldReturn400() throws Exception {
+        mockMvc.perform(put("/api/v1/photos/batch")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"photoIds\":[1],\"categoryOp\":\"SET\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void batchUpdate_invalidCategoryOp_shouldReturn400() throws Exception {
+        mockMvc.perform(put("/api/v1/photos/batch")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"photoIds\":[1],\"categoryOp\":\"BOGUS\"}"))
+                .andExpect(status().isBadRequest());
     }
 
     // ==================== timeline & map ====================

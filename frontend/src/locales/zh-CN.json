@@ -24,6 +24,7 @@
     "searchPlaceholder": "搜索照片名称或描述...",
     "selectAll": "全选",
     "generateShare": "生成分享链接",
+    "batchEdit": "批量编辑",
     "batchDelete": "批量删除",
     "sortBy": "排序方式",
     "sortTime": "时间",
@@ -96,6 +97,28 @@
     "fileSize": "文件大小",
     "noCategory": "无分类",
     "save": "保存"
+  },
+  "batchEdit": {
+    "title": "批量编辑照片",
+    "category": "分类",
+    "noChange": "不修改",
+    "clearCategory": "清除分类",
+    "addTags": "添加标签",
+    "removeTags": "移除标签",
+    "addAlbums": "加入相册",
+    "removeAlbums": "移出相册",
+    "newTag": "新建标签",
+    "newCategory": "新建分类",
+    "newAlbum": "新建相册",
+    "save": "保存修改",
+    "success": "已更新 {count} 张照片",
+    "tooMany": "单次最多处理 50 张照片"
+  },
+  "slideshow": {
+    "play": "播放幻灯片",
+    "pause": "暂停幻灯片",
+    "prev": "上一张",
+    "next": "下一张"
   },
   "share": {
     "title": "分享 {count} 张照片",
@@ -172,5 +195,51 @@
     "serverError": "服务器内部错误",
     "requestFailed": "请求失败",
     "unknownError": "未知错误"
+  },
+  "help": {
+    "button": "帮助",
+    "title": "操作手册",
+    "shortcutsTitle": "键盘快捷键",
+    "usageTitle": "基本操作",
+    "note": "提示：快捷键需解锁后生效；在输入框中输入文字时，除 Ctrl+Enter 外的大部分快捷键不会触发。",
+    "shortcuts": [
+      { "keys": "g", "desc": "回到图库" },
+      { "keys": "a", "desc": "前往相册" },
+      { "keys": "t", "desc": "前往时间线" },
+      { "keys": "m", "desc": "前往地图" },
+      { "keys": "Esc", "desc": "关闭弹窗" },
+      { "keys": "/", "desc": "聚焦搜索框" },
+      { "keys": "Ctrl+Shift+U", "desc": "聚焦上传区域" },
+      { "keys": "Ctrl+A", "desc": "图库中全选照片" },
+      { "keys": "Delete", "desc": "图库中删除选中照片" },
+      { "keys": "Enter", "desc": "图库中查看选中照片" },
+      { "keys": "← / →", "desc": "查看器中切换上一张 / 下一张" },
+      { "keys": "空格", "desc": "查看器中播放 / 暂停幻灯片" },
+      { "keys": "e", "desc": "查看器中直接编辑照片" },
+      { "keys": "Ctrl+Enter", "desc": "编辑弹窗中提交表单" },
+      { "keys": "Shift+R", "desc": "回收站中恢复选中照片" }
+    ],
+    "usage": [
+      {
+        "title": "上传照片",
+        "desc": "点击上传区域选择文件，或拖拽、Ctrl+V 粘贴；支持批量上传并自动压缩，重复照片会自动跳过。"
+      },
+      {
+        "title": "编辑照片",
+        "desc": "查看器中按 e 或点击编辑按钮，可修改名称、描述、分类、标签与所属相册。"
+      },
+      {
+        "title": "相册管理",
+        "desc": "在相册页新建相册，编辑照片时可分配归属；删除的相册可在回收站恢复。"
+      },
+      {
+        "title": "分享链接",
+        "desc": "选中照片后生成分享链接，7 天内有效，任何拿到链接的人都可以查看，但无法修改或删除。"
+      },
+      {
+        "title": "回收站",
+        "desc": "删除的照片进入回收站，30 天后自动彻底清除；期间可恢复或直接彻底删除。"
+      }
+    ]
   }
 }

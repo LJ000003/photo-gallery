@@ -64,6 +64,14 @@ function batchDelete(): void {
   selectedIds.value = new Set()
 }
 
+function batchEdit(): void {
+  if (selectedIds.value.size === 0) return
+  const selected = photo.photos.filter((p) => selectedIds.value.has(p.id))
+  if (selected.length === 0) return
+  // 保留选择：取消弹窗不丢多选状态
+  ui.batchEditPhotos = selected
+}
+
 function onGenerateShare(): void {
   if (selectedIds.value.size === 0) return
   generateShare([...selectedIds.value])
@@ -167,7 +175,7 @@ function onKbViewSelected(): void {
   const ids = [...selectedIds.value]
   if (ids.length === 0) return
   const p = photo.photos.find((ph) => ph.id === ids[0])
-  if (p) ui.viewPhoto = p
+  if (p) ui.openViewer(p, photo.photos)
 }
 
 onMounted(() => {
@@ -207,6 +215,9 @@ const sortOptions: SortOption[] = [
       </label>
       <button v-if="selectedIds.size > 0" class="btn-share" @click="onGenerateShare">
         {{ $t('gallery.generateShare') }}
+      </button>
+      <button v-if="selectedIds.size > 0" class="btn-edit" @click="batchEdit">
+        {{ $t('gallery.batchEdit') }} ({{ selectedIds.size }})
       </button>
       <button v-if="selectedIds.size > 0" class="btn-del" @click="batchDelete">
         {{ $t('gallery.batchDelete') }} ({{ selectedIds.size }})
@@ -284,7 +295,7 @@ const sortOptions: SortOption[] = [
             :photo="p"
             :search-query="photo.searchQuery"
             :selected="isSelected(p.id)"
-            @view="ui.viewPhoto = p"
+            @view="(p) => ui.openViewer(p, photo.photos)"
             @edit="ui.editPhoto = p"
             @delete="deletePhoto"
             @toggle-select="toggleSelect"

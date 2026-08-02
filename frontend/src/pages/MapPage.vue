@@ -17,6 +17,6 @@ const ui = useUiStore()
         <ViewSwitcher :current-path="route.path" />
       </div>
     </div>
-    <MapView @view="(p) => (ui.viewPhoto = p as Photo)" />
+    <MapView @view="(p) => ui.openViewer(p as Photo)" />
   </section>
 </template>

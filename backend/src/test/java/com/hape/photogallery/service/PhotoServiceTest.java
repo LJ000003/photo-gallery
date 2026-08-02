@@ -1,5 +1,6 @@
 package com.hape.photogallery.service;
 
+import com.hape.photogallery.dto.BatchPhotoUpdateRequest;
 import com.hape.photogallery.dto.MapItem;
 import com.hape.photogallery.dto.PhotoResponse;
 import com.hape.photogallery.dto.PhotoUpdateRequest;
@@ -8,6 +9,7 @@ import com.hape.photogallery.entity.Category;
 import com.hape.photogallery.entity.ExifData;
 import com.hape.photogallery.entity.Photo;
 import com.hape.photogallery.entity.Tag;
+import com.hape.photogallery.exception.BusinessException;
 import com.hape.photogallery.exception.FileSizeExceededException;
 import com.hape.photogallery.messaging.ProcessingMessageSender;
 import com.hape.photogallery.repository.CategoryRepository;
@@ -330,6 +332,160 @@ class PhotoServiceTest {
 
         int count = service.batchDelete(List.of(1L));
         assertThat(count).isEqualTo(0);
+    }
+
+    // ==================== batchUpdate ====================
+
+    private BatchPhotoUpdateRequest batchReq(List<Long> photoIds) {
+        BatchPhotoUpdateRequest req = new BatchPhotoUpdateRequest();
+        req.setPhotoIds(photoIds);
+        return req;
+    }
+
+    @Test
+    void batchUpdate_addTags_shouldAddToAllPhotos() {
+        Photo p1 = new Photo(); p1.setId(1L); p1.setName("a");
+        Photo p2 = new Photo(); p2.setId(2L); p2.setName("b");
+        Tag t = new Tag("旅行", "#00d4ff"); t.setId(10L);
+        when(photoRepo.findAllById(List.of(1L, 2L))).thenReturn(List.of(p1, p2));
+        when(tagRepo.findAllById(List.of(10L))).thenReturn(List.of(t));
+
+        BatchPhotoUpdateRequest req = batchReq(List.of(1L, 2L));
+        req.setAddTagIds(List.of(10L));
+
+        List<PhotoResponse> result = service.batchUpdate(req);
+        assertThat(result).hasSize(2);
+        assertThat(p1.getTags()).extracting(Tag::getId).contains(10L);
+        assertThat(p2.getTags()).extracting(Tag::getId).contains(10L);
+        verify(photoRepo).saveAll(any());
+    }
+
+    @Test
+    void batchUpdate_removeTags_shouldRemoveFromAllPhotos() {
+        Photo p1 = new Photo(); p1.setId(1L); p1.setName("a");
+        Tag t1 = new Tag("旅行", "#fff"); t1.setId(1L);
+        Tag t2 = new Tag("美食", "#fff"); t2.setId(2L);
+        p1.setTags(new HashSet<>(List.of(t1, t2)));
+        when(photoRepo.findAllById(List.of(1L))).thenReturn(List.of(p1));
+
+        BatchPhotoUpdateRequest req = batchReq(List.of(1L));
+        req.setRemoveTagIds(List.of(1L));
+
+        service.batchUpdate(req);
+        assertThat(p1.getTags()).extracting(Tag::getId).containsExactly(2L);
+    }
+
+    @Test
+    void batchUpdate_overlap_addWins() {
+        Photo p1 = new Photo(); p1.setId(1L); p1.setName("a");
+        Tag t = new Tag("旅行", "#fff"); t.setId(1L);
+        p1.setTags(new HashSet<>(List.of(t)));
+        when(photoRepo.findAllById(List.of(1L))).thenReturn(List.of(p1));
+        when(tagRepo.findAllById(List.of(1L))).thenReturn(List.of(t));
+
+        BatchPhotoUpdateRequest req = batchReq(List.of(1L));
+        req.setRemoveTagIds(List.of(1L));
+        req.setAddTagIds(List.of(1L));
+
+        service.batchUpdate(req);
+        assertThat(p1.getTags()).extracting(Tag::getId).containsExactly(1L);
+    }
+
+    @Test
+    void batchUpdate_categorySet_shouldSetCategory() {
+        Photo p1 = new Photo(); p1.setId(1L); p1.setName("a");
+        Category c = new Category("cat"); c.setId(5L);
+        when(photoRepo.findAllById(List.of(1L))).thenReturn(List.of(p1));
+        when(catRepo.findById(5L)).thenReturn(Optional.of(c));
+
+        BatchPhotoUpdateRequest req = batchReq(List.of(1L));
+        req.setCategoryOp(BatchPhotoUpdateRequest.CategoryOp.SET);
+        req.setCategoryId(5L);
+
+        service.batchUpdate(req);
+        assertThat(p1.getCategory()).isSameAs(c);
+    }
+
+    @Test
+    void batchUpdate_categoryClear_shouldClearCategory() {
+        Photo p1 = new Photo(); p1.setId(1L); p1.setName("a");
+        Category c = new Category("cat"); c.setId(5L);
+        p1.setCategory(c);
+        when(photoRepo.findAllById(List.of(1L))).thenReturn(List.of(p1));
+
+        BatchPhotoUpdateRequest req = batchReq(List.of(1L));
+        req.setCategoryOp(BatchPhotoUpdateRequest.CategoryOp.CLEAR);
+
+        service.batchUpdate(req);
+        assertThat(p1.getCategory()).isNull();
+    }
+
+    @Test
+    void batchUpdate_categoryNone_leavesCategoryUntouched() {
+        Photo p1 = new Photo(); p1.setId(1L); p1.setName("a");
+        Category c = new Category("cat"); c.setId(5L);
+        p1.setCategory(c);
+        when(photoRepo.findAllById(List.of(1L))).thenReturn(List.of(p1));
+
+        service.batchUpdate(batchReq(List.of(1L)));
+        assertThat(p1.getCategory()).isSameAs(c);
+    }
+
+    @Test
+    void batchUpdate_categorySet_missingCategory_shouldThrow404() {
+        Photo p1 = new Photo(); p1.setId(1L); p1.setName("a");
+        when(photoRepo.findAllById(List.of(1L))).thenReturn(List.of(p1));
+        when(catRepo.findById(99L)).thenReturn(Optional.empty());
+
+        BatchPhotoUpdateRequest req = batchReq(List.of(1L));
+        req.setCategoryOp(BatchPhotoUpdateRequest.CategoryOp.SET);
+        req.setCategoryId(99L);
+
+        assertThatThrownBy(() -> service.batchUpdate(req))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("分类不存在");
+    }
+
+    @Test
+    void batchUpdate_albumAdd_delegatesToAlbumService() {
+        Photo p1 = new Photo(); p1.setId(1L); p1.setName("a");
+        when(photoRepo.findAllById(List.of(1L))).thenReturn(List.of(p1));
+
+        BatchPhotoUpdateRequest req = batchReq(List.of(1L));
+        req.setAddAlbumIds(List.of(3L));
+
+        service.batchUpdate(req);
+        verify(albumService).addPhotos(3L, List.of(1L));
+    }
+
+    @Test
+    void batchUpdate_albumRemove_delegatesToAlbumService() {
+        Photo p1 = new Photo(); p1.setId(1L); p1.setName("a");
+        when(photoRepo.findAllById(List.of(1L))).thenReturn(List.of(p1));
+
+        BatchPhotoUpdateRequest req = batchReq(List.of(1L));
+        req.setRemoveAlbumIds(List.of(3L));
+
+        service.batchUpdate(req);
+        verify(albumService).removePhotos(3L, List.of(1L));
+    }
+
+    @Test
+    void batchUpdate_skipMissingPhotos() {
+        Photo p1 = new Photo(); p1.setId(1L); p1.setName("a");
+        when(photoRepo.findAllById(List.of(1L, 2L))).thenReturn(List.of(p1));
+
+        List<PhotoResponse> result = service.batchUpdate(batchReq(List.of(1L, 2L)));
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getId()).isEqualTo(1L);
+    }
+
+    @Test
+    void batchUpdate_emptyResult_returnsEmptyList() {
+        when(photoRepo.findAllById(List.of(99L))).thenReturn(List.of());
+
+        List<PhotoResponse> result = service.batchUpdate(batchReq(List.of(99L)));
+        assertThat(result).isEmpty();
     }
 
     // ==================== getTimeline ====================

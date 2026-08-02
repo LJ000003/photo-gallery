@@ -23,7 +23,7 @@ const props = defineProps<{
   searchQuery?: string
 }>()
 const emit = defineEmits<{
-  view: []
+  view: [p: Photo]
   edit: []
   delete: [id: number]
   toggleSelect: [id: number]
@@ -146,7 +146,7 @@ async function onDelete(): Promise<void> {
     <div class="card-check" @click.stop="emit('toggleSelect', photo.id)">
       <span v-if="selected" class="check-mark">✓</span>
     </div>
-    <div class="photo-thumb" @click="$emit('view')">
+    <div class="photo-thumb" @click="$emit('view', photo)">
       <img
         :src="thumbUrl(photo.id, 400) + tokenQS(photo.fileSize)"
         :srcset="thumbSrcset(photo.id)
@@ -158,7 +158,7 @@ async function onDelete(): Promise<void> {
         loading="lazy"
       />
       <div class="photo-overlay">
-        <button class="btn-view" @click.stop="$emit('view')">{{ $t('photo.view') }}</button>
+        <button class="btn-view" @click.stop="$emit('view', photo)">{{ $t('photo.view') }}</button>
       </div>
       <div v-if="photo.processingStatus === 'PROCESSING'" class="processing-overlay">
         <div class="processing-spinner"></div>

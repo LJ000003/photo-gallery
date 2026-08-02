@@ -38,7 +38,7 @@ function onViewClickActive(path: string): void {
         </ViewSwitcher>
       </div>
     </div>
-    <TimelineView :sort-order="timelineSortOrder" @view="(p) => (ui.viewPhoto = p as Photo)" />
+    <TimelineView :sort-order="timelineSortOrder" @view="(p) => ui.openViewer(p as Photo)" />
   </section>
 </template>
 

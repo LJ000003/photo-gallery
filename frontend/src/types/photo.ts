@@ -37,3 +37,16 @@ export interface PhotoPatch {
   categoryId?: number | null
   albumIds?: number[]
 }
+
+export type CategoryOp = 'NONE' | 'SET' | 'CLEAR'
+
+/** 批量编辑请求：标签/相册按添加/移除列表操作，分类按三态处理 */
+export interface BatchPhotoUpdateRequest {
+  photoIds: number[]
+  addTagIds: number[]
+  removeTagIds: number[]
+  addAlbumIds: number[]
+  removeAlbumIds: number[]
+  categoryOp: CategoryOp
+  categoryId?: number | null
+}

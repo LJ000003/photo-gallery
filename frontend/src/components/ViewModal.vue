@@ -1,15 +1,20 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import gsap from 'gsap'
 import { webpUrl } from '../webp'
 import { tokenParam } from '../utils/token'
 import { formatSize } from '../utils/format'
+import { useUiStore } from '../stores/ui'
 import type { Photo } from '../types/photo'
+
+const SLIDESHOW_INTERVAL = 5000
 
 const { t } = useI18n()
 const props = defineProps<{ photo: Photo }>()
 const emit = defineEmits<{ close: [] }>()
+
+const ui = useUiStore()
 
 const isMobile = 'ontouchstart' in window
 const fullLoaded = ref(false)
@@ -46,6 +51,41 @@ const exifGroups = computed(() => {
   return groups
 })
 
+// ---- 幻灯片状态 ----
+const currentIndex = computed(() => ui.viewPhotos.findIndex((p) => p.id === props.photo.id))
+const canSlideshow = computed(() => ui.viewPhotos.length >= 2 && currentIndex.value !== -1)
+
+let slideTimer: ReturnType<typeof setTimeout> | null = null
+
+function clearSlideTimer(): void {
+  if (slideTimer !== null) {
+    clearTimeout(slideTimer)
+    slideTimer = null
+  }
+}
+
+/** 唯一的定时器调度入口：清旧 → 条件满足则挂新（回调内不再自调度） */
+function syncSlideTimer(): void {
+  clearSlideTimer()
+  if (!ui.slideshowPlaying || !canSlideshow.value) return
+  slideTimer = setTimeout(() => {
+    ui.navigateViewer(1, true)
+  }, SLIDESHOW_INTERVAL)
+}
+
+// 照片切换（手动或自动）→ 重置淡入 + 重置倒计时
+watch(
+  () => props.photo.id,
+  () => {
+    fullLoaded.value = false
+    syncSlideTimer()
+  },
+)
+// 播放/暂停切换 → 重置倒计时
+watch(() => ui.slideshowPlaying, () => syncSlideTimer())
+// 列表退化（<2 或当前照片不在列表）→ 清定时器
+watch(canSlideshow, () => syncSlideTimer())
+
 onMounted(() => {
   const content = document.querySelector('#viewModal .modal-content')
   const backdrop = document.querySelector('#viewModal .modal-backdrop')
@@ -56,9 +96,15 @@ onMounted(() => {
     { scale: 1, opacity: 1, duration: dur, ease: 'expo.out' },
   )
   gsap.fromTo(backdrop, { opacity: 0 }, { opacity: 1, duration: dur, ease: 'none' })
+  syncSlideTimer()
+})
+
+onUnmounted(() => {
+  clearSlideTimer()
 })
 
 function onClose(): void {
+  clearSlideTimer() // 关闭动画期间不再推进
   const content = document.querySelector('#viewModal .modal-content')
   const backdrop = document.querySelector('#viewModal .modal-backdrop')
   const dur = isMobile ? 0.15 : 0.2
@@ -96,6 +142,26 @@ function onClose(): void {
             @load="fullLoaded = true"
           />
         </div>
+        <div v-if="canSlideshow" class="slideshow-bar">
+          <button
+            class="ss-btn"
+            :disabled="currentIndex <= 0"
+            :title="t('slideshow.prev')"
+            @click="ui.navigateViewer(-1)"
+          >&lsaquo;</button>
+          <button
+            class="ss-btn ss-play"
+            :title="ui.slideshowPlaying ? t('slideshow.pause') : t('slideshow.play')"
+            @click="ui.toggleSlideshow()"
+          >{{ ui.slideshowPlaying ? '❚❚' : '▶' }}</button>
+          <button
+            class="ss-btn"
+            :disabled="currentIndex >= ui.viewPhotos.length - 1"
+            :title="t('slideshow.next')"
+            @click="ui.navigateViewer(1)"
+          >&rsaquo;</button>
+          <span class="ss-counter">{{ currentIndex + 1 }}/{{ ui.viewPhotos.length }}</span>
+        </div>
         <div class="modal-info">
           <h3>{{ photo.name }}</h3>
           <p v-if="photo.description">{{ photo.description }}</p>
@@ -121,6 +187,58 @@ function onClose(): void {
 </template>
 
 <style scoped>
+.slideshow-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.ss-btn {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background 0.2s,
+    color 0.2s,
+    border-color 0.2s;
+}
+
+.ss-btn:hover:not(:disabled) {
+  color: #fff;
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.ss-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.ss-play {
+  width: 40px;
+  font-size: 13px;
+}
+
+.ss-counter {
+  margin-left: 6px;
+  font-size: 13px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
 .modal-filesize {
   color: var(--text-dim);
   font-size: 13px;

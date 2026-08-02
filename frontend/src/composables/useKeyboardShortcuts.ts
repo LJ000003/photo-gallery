@@ -1,6 +1,5 @@
 import { onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { usePhotoStore } from '../stores/photo'
 import { useUiStore } from '../stores/ui'
 
 type ShortcutScope = 'global' | 'gallery' | 'trash' | 'view-modal' | 'edit-modal'
@@ -50,28 +49,9 @@ function matchesKey(e: KeyboardEvent, defKey: string): boolean {
   return e.key === mainKey || e.key.toLowerCase() === mainKey.toLowerCase()
 }
 
-/**
- * 在照片列表中导航（查看器左右箭头用）
- */
-function navigateViewer(direction: -1 | 1): void {
-  const photoStore = usePhotoStore()
-  const ui = useUiStore()
-  const current = ui.viewPhoto
-  if (!current || photoStore.photos.length === 0) return
-
-  const idx = photoStore.photos.findIndex((p) => p.id === current.id)
-  if (idx === -1) return
-
-  const newIdx = idx + direction
-  if (newIdx < 0 || newIdx >= photoStore.photos.length) return
-
-  ui.viewPhoto = photoStore.photos[newIdx]
-}
-
 export function useKeyboardShortcuts(): void {
   const router = useRouter()
   const route = useRoute()
-  const photo = usePhotoStore()
   const ui = useUiStore()
 
   /**
@@ -132,8 +112,9 @@ export function useKeyboardShortcuts(): void {
       scope: 'global',
       handler: (e) => {
         e.preventDefault()
-        ui.viewPhoto = null
+        ui.closeViewer()
         ui.editPhoto = null
+        ui.helpOpen = false
       },
     },
 
@@ -189,7 +170,7 @@ export function useKeyboardShortcuts(): void {
       scope: 'view-modal',
       handler: (e) => {
         e.preventDefault()
-        navigateViewer(-1)
+        ui.navigateViewer(-1)
       },
     },
     {
@@ -197,7 +178,20 @@ export function useKeyboardShortcuts(): void {
       scope: 'view-modal',
       handler: (e) => {
         e.preventDefault()
-        navigateViewer(1)
+        ui.navigateViewer(1)
+      },
+    },
+    {
+      key: ' ',
+      scope: 'view-modal',
+      handler: (e) => {
+        // 焦点在可点击元素上时，Space 交还浏览器原生"激活按钮"，避免双重触发
+        const el = document.activeElement as HTMLElement | null
+        if (el && (el.tagName === 'BUTTON' || el.tagName === 'A' || el.getAttribute('role') === 'button')) {
+          return
+        }
+        e.preventDefault() // 阻止页面滚动
+        ui.toggleSlideshow()
       },
     },
     {
@@ -207,7 +201,7 @@ export function useKeyboardShortcuts(): void {
         e.preventDefault()
         const p = ui.viewPhoto
         if (p) {
-          ui.viewPhoto = null
+          ui.closeViewer()
           // 下一帧再打开编辑，避免两个 modal 同时渲染
           requestAnimationFrame(() => {
             ui.editPhoto = p

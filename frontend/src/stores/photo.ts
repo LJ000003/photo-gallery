@@ -113,6 +113,18 @@ export const usePhotoStore = defineStore('photo', () => {
     totalCount.value -= ids.length
   }
 
+  /**
+   * 批量编辑后按 id 原地替换（与 startProcessingPoll 的 patch 模式一致，保持滚动位置）。
+   * 列表顺序与总数不变；响应中缺失的照片（已被删除）静默跳过。
+   */
+  function applyBatchEdit(updated: Photo[]): void {
+    const map = new Map(updated.map((p) => [p.id, p]))
+    photos.value.forEach((p, i) => {
+      const u = map.get(p.id)
+      if (u) photos.value[i] = u
+    })
+  }
+
   let processingTimer: ReturnType<typeof setTimeout> | null = null
 
   function startProcessingPoll(): void {
@@ -174,6 +186,7 @@ export const usePhotoStore = defineStore('photo', () => {
     setSearch,
     removePhoto,
     removePhotos,
+    applyBatchEdit,
     startProcessingPoll,
     stopProcessingPoll,
     syncUrlState,

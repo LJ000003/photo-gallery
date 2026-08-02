@@ -1,7 +1,9 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createTestingPinia } from '@pinia/testing'
 import GalleryPage from '../GalleryPage.vue'
+import { useUiStore } from '../../stores/ui'
+import { usePhotoStore } from '../../stores/photo'
 import i18n from '../../i18n'
 
 const mockReplace = vi.fn()
@@ -134,4 +136,123 @@ describe('GalleryPage', () => {
 
     expect(wrapper.findAll('.photo-card-stub').length).toBe(2)
   })
+
+  it('kb:viewSelected opens the viewer with the gallery photo list', async () => {
+    vi.stubGlobal('fetch', vi.fn())
+    const testPhotos = [
+      { id: 1, name: 'p1', description: '', fileSize: 100 },
+      { id: 2, name: 'p2', description: '', fileSize: 200 },
+    ]
+
+    const wrapper = mount(GalleryPage, {
+      global: {
+        plugins: [
+          createTestingPinia({
+            createSpy: vi.fn,
+            stubActions: false, // openViewer must run for real
+            initialState: {
+              photo: {
+                photos: testPhotos,
+                page: 0,
+                hasMore: false,
+                loading: false,
+                totalCount: 2,
+                sortBy: 'time',
+                sortOrder: 'asc',
+                selectedTagIds: [],
+                selectedCategoryIds: [],
+                selectedPhotoIds: new Set(),
+                searchQuery: '',
+              },
+            },
+          }),
+          i18n,
+        ],
+        stubs: {
+          PhotoCard: {
+            template: `<div class="photo-card-stub" @click="$emit('toggleSelect', photo.id)">{{ photo.name }}</div>`,
+            props: ['photo', 'selected', 'searchQuery', 'dataInsert'],
+            emits: ['view', 'edit', 'delete', 'toggleSelect'],
+          },
+          UploadCard: true,
+          LottieLoader: true,
+        },
+      },
+    })
+
+    // select the first photo, then press Enter (kb:viewSelected)
+    await wrapper.findAll('.photo-card-stub')[0].trigger('click')
+    document.dispatchEvent(new CustomEvent('kb:viewSelected'))
+
+    const ui = useUiStore()
+    const photoStore = usePhotoStore()
+    expect(ui.viewPhoto?.id).toBe(1)
+    expect(ui.viewPhotos).toEqual(photoStore.photos)
+
+    wrapper.unmount()
+    vi.unstubAllGlobals()
+  })
+
+  it('hides batch edit button when nothing is selected', () => {
+    const wrapper = createWrapper()
+    expect(wrapper.find('.btn-edit').exists()).toBe(false)
+  })
+
+  it('shows batch edit button after selection and opens batch modal with selected photos', async () => {
+    const testPhotos = [
+      { id: 1, name: 'p1', description: '', fileSize: 100 },
+      { id: 2, name: 'p2', description: '', fileSize: 200 },
+    ]
+
+    const wrapper = mount(GalleryPage, {
+      global: {
+        plugins: [
+          createTestingPinia({
+            createSpy: vi.fn,
+            stubActions: false,
+            initialState: {
+              photo: {
+                photos: testPhotos,
+                page: 0,
+                hasMore: false,
+                loading: false,
+                totalCount: 2,
+                sortBy: 'time',
+                sortOrder: 'asc',
+                selectedTagIds: [],
+                selectedCategoryIds: [],
+                selectedPhotoIds: new Set(),
+                searchQuery: '',
+              },
+            },
+          }),
+          i18n,
+        ],
+        stubs: {
+          PhotoCard: {
+            template: `<div class="photo-card-stub" @click="$emit('toggleSelect', photo.id)">{{ photo.name }}</div>`,
+            props: ['photo', 'selected', 'searchQuery', 'dataInsert'],
+            emits: ['view', 'edit', 'delete', 'toggleSelect'],
+          },
+          UploadCard: true,
+          LottieLoader: true,
+        },
+      },
+    })
+
+    await wrapper.findAll('.photo-card-stub')[0].trigger('click')
+    await wrapper.vm.$nextTick()
+
+    const btnEdit = wrapper.find('.btn-edit')
+    expect(btnEdit.exists()).toBe(true)
+    expect(btnEdit.text()).toContain('Batch Edit')
+
+    await btnEdit.trigger('click')
+    const ui = useUiStore()
+    expect(ui.batchEditPhotos).toEqual([testPhotos[0]])
+  })
+})
+
+afterEach(() => {
+  document.body.innerHTML = ''
 })

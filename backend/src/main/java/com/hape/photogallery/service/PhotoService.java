@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
@@ -33,12 +34,15 @@ import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.annotation.PostConstruct;
 
+import com.hape.photogallery.dto.BatchPhotoUpdateRequest;
 import com.hape.photogallery.dto.MapItem;
 import com.hape.photogallery.dto.PhotoResponse;
 import com.hape.photogallery.dto.PhotoUpdateRequest;
 import com.hape.photogallery.dto.TimelineItem;
+import com.hape.photogallery.entity.Category;
 import com.hape.photogallery.entity.ExifData;
 import com.hape.photogallery.entity.Photo;
+import com.hape.photogallery.entity.Tag;
 import com.hape.photogallery.exception.BusinessException;
 import com.hape.photogallery.exception.DuplicateException;
 import com.hape.photogallery.exception.FileSizeExceededException;
@@ -298,6 +302,56 @@ public class PhotoService {
         }
         repo.saveAll(photos);
         return photos.size();
+    }
+
+    // === 批量编辑 ===
+
+    /**
+     * 批量编辑元数据：标签/相册按「添加/移除」列表操作（移除先于添加，重叠时添加胜出），
+     * 分类按 NONE/SET/CLEAR 三态处理。SET 时分类不存在则 404 并整体回滚，
+     * 绝不静默清空（单张 update 的旧行为不复制）。不存在的照片 ID 静默跳过。
+     */
+    @Transactional
+    @CacheEvict(value = {"photos", "timeline", "map", "albums"}, allEntries = true)
+    public List<PhotoResponse> batchUpdate(BatchPhotoUpdateRequest req) {
+        List<Photo> photos = repo.findAllById(req.getPhotoIds());
+        if (photos.isEmpty()) return List.of();
+
+        // 标签解析一次，所有照片共享
+        Set<Tag> tagsToAdd = new HashSet<>(tagRepo.findAllById(req.getAddTagIds()));
+        Set<Long> tagIdsToRemove = new HashSet<>(req.getRemoveTagIds());
+
+        // 分类解析一次；SET 时分类不存在则整个批次失败回滚
+        Category category = null;
+        if (req.getCategoryOp() == BatchPhotoUpdateRequest.CategoryOp.SET) {
+            category = catRepo.findById(req.getCategoryId())
+                    .orElseThrow(() -> new BusinessException(404, "分类不存在"));
+        }
+
+        for (Photo p : photos) {
+            if (!tagIdsToRemove.isEmpty()) {
+                p.getTags().removeIf(t -> tagIdsToRemove.contains(t.getId()));
+            }
+            if (!tagsToAdd.isEmpty()) {
+                p.getTags().addAll(tagsToAdd);
+            }
+            if (req.getCategoryOp() == BatchPhotoUpdateRequest.CategoryOp.SET) {
+                p.setCategory(category);
+            } else if (req.getCategoryOp() == BatchPhotoUpdateRequest.CategoryOp.CLEAR) {
+                p.setCategory(null);
+            }
+        }
+
+        // 相册复用现有 addPhotos/removePhotos（自带封面重选逻辑，REQUIRED 事务并入外层，原子性）
+        for (Long aid : req.getAddAlbumIds()) {
+            albumService.addPhotos(aid, req.getPhotoIds());
+        }
+        for (Long aid : req.getRemoveAlbumIds()) {
+            albumService.removePhotos(aid, req.getPhotoIds());
+        }
+
+        repo.saveAll(photos);
+        return photos.stream().map(this::toResponse).toList();
     }
 
     @Transactional

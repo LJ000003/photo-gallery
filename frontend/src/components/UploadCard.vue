@@ -223,7 +223,7 @@ async function onSubmit(): Promise<void> {
         const resp = data as { code: number; message: string; data: Photo }
         toast.add(resp.message, 'info', 5000, {
           label: t('upload.viewExisting'),
-          onClick: () => { ui.viewPhoto = resp.data },
+          onClick: () => ui.openViewer(resp.data, [resp.data]),
         })
         clearSelection()
         return
