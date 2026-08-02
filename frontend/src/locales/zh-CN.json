@@ -97,6 +97,12 @@
     "noCategory": "无分类",
     "save": "保存"
   },
+  "slideshow": {
+    "play": "播放幻灯片",
+    "pause": "暂停幻灯片",
+    "prev": "上一张",
+    "next": "下一张"
+  },
   "share": {
     "title": "分享 {count} 张照片",
     "hint": "链接 7 天内有效，拿到链接的人可直接查看",
@@ -191,6 +197,7 @@
       { "keys": "Delete", "desc": "图库中删除选中照片" },
       { "keys": "Enter", "desc": "图库中查看选中照片" },
       { "keys": "← / →", "desc": "查看器中切换上一张 / 下一张" },
+      { "keys": "空格", "desc": "查看器中播放 / 暂停幻灯片" },
       { "keys": "e", "desc": "查看器中直接编辑照片" },
       { "keys": "Ctrl+Enter", "desc": "编辑弹窗中提交表单" },
       { "keys": "Shift+R", "desc": "回收站中恢复选中照片" }

@@ -48,7 +48,7 @@ function onSortToggle(key: string): void {
       :sort-order="albumSortOrder"
       @update:sort-by="(k: string) => (albumSortBy = k)"
       @update:sort-order="(o: string) => (albumSortOrder = o)"
-      @view="(p: object) => (ui.viewPhoto = p as Photo)"
+      @view="(p, list) => ui.openViewer(p, list)"
     />
   </section>
 </template>

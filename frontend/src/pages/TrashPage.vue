@@ -142,7 +142,7 @@ onUnmounted(() => {
             :src="thumbUrl(p.id, 200) + tokenQS()"
             loading="lazy"
             class="trash-thumb"
-            @click="ui.viewPhoto = p"
+            @click="ui.openViewer(p, photos)"
           />
           <div class="trash-info">
             <span class="trash-name">{{ p.name }}</span>

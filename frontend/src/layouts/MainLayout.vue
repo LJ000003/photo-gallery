@@ -124,7 +124,7 @@ onMounted(() => {
       </div>
     </main>
     <button v-show="ui.showBackTop" class="back-top" @click="scrollToTop">↑</button>
-    <ViewModal v-if="ui.viewPhoto" :photo="ui.viewPhoto" @close="ui.viewPhoto = null" />
+    <ViewModal v-if="ui.viewPhoto" :photo="ui.viewPhoto" @close="ui.closeViewer()" />
     <HelpModal />
     <EditModal
       v-if="ui.editPhoto"

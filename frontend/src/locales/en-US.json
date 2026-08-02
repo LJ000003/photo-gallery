@@ -97,6 +97,12 @@
     "noCategory": "No Category",
     "save": "Save"
   },
+  "slideshow": {
+    "play": "Play slideshow",
+    "pause": "Pause slideshow",
+    "prev": "Previous",
+    "next": "Next"
+  },
   "share": {
     "title": "Share {count} photo(s)",
     "hint": "Link valid for 7 days. Anyone with the link can view.",
@@ -191,6 +197,7 @@
       { "keys": "Delete", "desc": "Delete selected photos in gallery" },
       { "keys": "Enter", "desc": "View selected photos in gallery" },
       { "keys": "← / →", "desc": "Previous / next photo in viewer" },
+      { "keys": "Space", "desc": "Play / pause slideshow in the viewer" },
       { "keys": "e", "desc": "Edit the photo from the viewer" },
       { "keys": "Ctrl+Enter", "desc": "Submit the edit form" },
       { "keys": "Shift+R", "desc": "Restore selected photos in trash" }

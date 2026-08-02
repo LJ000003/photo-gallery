@@ -167,7 +167,7 @@ function onKbViewSelected(): void {
   const ids = [...selectedIds.value]
   if (ids.length === 0) return
   const p = photo.photos.find((ph) => ph.id === ids[0])
-  if (p) ui.viewPhoto = p
+  if (p) ui.openViewer(p, photo.photos)
 }
 
 onMounted(() => {
@@ -284,7 +284,7 @@ const sortOptions: SortOption[] = [
             :photo="p"
             :search-query="photo.searchQuery"
             :selected="isSelected(p.id)"
-            @view="ui.viewPhoto = p"
+            @view="(p) => ui.openViewer(p, photo.photos)"
             @edit="ui.editPhoto = p"
             @delete="deletePhoto"
             @toggle-select="toggleSelect"
