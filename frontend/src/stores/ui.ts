@@ -7,6 +7,8 @@ export const useUiStore = defineStore('ui', () => {
   const viewPhotos: Ref<Photo[]> = ref([])
   const slideshowPlaying = ref(false)
   const editPhoto: Ref<Photo | null> = ref(null)
+  /** 批量编辑弹窗：非 null 即打开，持有选中的照片列表 */
+  const batchEditPhotos: Ref<Photo[] | null> = ref(null)
   const showBackTop = ref(false)
   const sidebarOpen = ref(false)
   const helpOpen = ref(false)
@@ -69,6 +71,7 @@ export const useUiStore = defineStore('ui', () => {
     viewPhotos,
     slideshowPlaying,
     editPhoto,
+    batchEditPhotos,
     showBackTop,
     sidebarOpen,
     helpOpen,

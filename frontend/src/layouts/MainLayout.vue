@@ -14,10 +14,12 @@ import KonamiGate from '../components/KonamiGate.vue'
 import ToastProvider from '../components/ToastProvider.vue'
 import ViewModal from '../components/ViewModal.vue'
 import EditModal from '../components/EditModal.vue'
+import BatchEditModal from '../components/BatchEditModal.vue'
 import HelpModal from '../components/HelpModal.vue'
 
 import { usePhotoStore } from '../stores/photo'
 import { useUiStore } from '../stores/ui'
+import { useDataStore } from '../stores/data'
 import { useToastStore } from '../stores/toast'
 import { requestToken } from '../api'
 import type { Photo } from '../types/photo'
@@ -48,6 +50,22 @@ function scrollToTop(): void {
 function onSaved(): void {
   ui.editPhoto = null
   photo.resetAndReload()
+}
+
+function onBatchSaved(updated: Photo[]): void {
+  ui.batchEditPhotos = null
+  // 有过滤条件时整体重载（避免不再匹配过滤条件的照片残留）；否则原地替换，保持虚拟滚动位置
+  if (
+    photo.selectedTagIds.length > 0 ||
+    photo.selectedCategoryIds.length > 0 ||
+    photo.searchQuery
+  ) {
+    photo.resetAndReload()
+  } else {
+    photo.applyBatchEdit(updated)
+  }
+  useDataStore().refreshAlbums()
+  toast.success(t('batchEdit.success', { count: updated.length }))
 }
 
 function onTagFilterChange(ids: number[]): void {
@@ -131,6 +149,12 @@ onMounted(() => {
       :photo="ui.editPhoto"
       @close="ui.editPhoto = null"
       @saved="onSaved"
+    />
+    <BatchEditModal
+      v-if="ui.batchEditPhotos"
+      :photos="ui.batchEditPhotos"
+      @close="ui.batchEditPhotos = null"
+      @saved="onBatchSaved"
     />
     <ToastProvider />
   </template>

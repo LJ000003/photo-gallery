@@ -1,6 +1,7 @@
 package com.hape.photogallery.controller;
 
 import com.hape.photogallery.ApiResponse;
+import com.hape.photogallery.dto.BatchPhotoUpdateRequest;
 import com.hape.photogallery.dto.MapItem;
 import com.hape.photogallery.dto.PhotoResponse;
 import com.hape.photogallery.dto.PhotoUpdateRequest;
@@ -121,6 +122,11 @@ public class PhotoController {
     public ApiResponse<Map<String, Integer>> batchDelete(@RequestBody List<Long> ids) {
         int count = service.batchDelete(ids);
         return ApiResponse.success(Map.of("deleted", count));
+    }
+
+    @PutMapping("/photos/batch")
+    public ApiResponse<List<PhotoResponse>> batchUpdate(@Valid @RequestBody BatchPhotoUpdateRequest body) {
+        return ApiResponse.success(service.batchUpdate(body));
     }
 
     @PostMapping("/photos/{id}/restore")

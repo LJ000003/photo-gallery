@@ -24,6 +24,7 @@
     "searchPlaceholder": "Search photos...",
     "selectAll": "Select All",
     "generateShare": "Generate Share Link",
+    "batchEdit": "Batch Edit",
     "batchDelete": "Batch Delete",
     "sortBy": "Sort by",
     "sortTime": "Time",
@@ -96,6 +97,22 @@
     "fileSize": "File Size",
     "noCategory": "No Category",
     "save": "Save"
+  },
+  "batchEdit": {
+    "title": "Batch Edit Photos",
+    "category": "Category",
+    "noChange": "Don't change",
+    "clearCategory": "Clear category",
+    "addTags": "Add tags",
+    "removeTags": "Remove tags",
+    "addAlbums": "Add to albums",
+    "removeAlbums": "Remove from albums",
+    "newTag": "New tag",
+    "newCategory": "New category",
+    "newAlbum": "New album",
+    "save": "Apply",
+    "success": "Updated {count} photos",
+    "tooMany": "Maximum 50 photos per operation"
   },
   "slideshow": {
     "play": "Play slideshow",
@@ -203,11 +220,26 @@
       { "keys": "Shift+R", "desc": "Restore selected photos in trash" }
     ],
     "usage": [
-      { "title": "Upload photos", "desc": "Click the upload area, drag & drop, or paste with Ctrl+V. Batch upload with auto-compression; duplicate photos are skipped automatically." },
-      { "title": "Edit photos", "desc": "Press e in the viewer or click the edit button to change name, description, category, tags and albums." },
-      { "title": "Albums", "desc": "Create albums on the Albums page and assign photos while editing. Deleted albums can be restored from the trash." },
-      { "title": "Share links", "desc": "Select photos and generate a share link. Links are valid for 7 days; anyone with the link can view but not modify or delete." },
-      { "title": "Trash", "desc": "Deleted photos stay in the trash for 30 days, then are permanently removed. Restore or purge them at any time." }
+      {
+        "title": "Upload photos",
+        "desc": "Click the upload area, drag & drop, or paste with Ctrl+V. Batch upload with auto-compression; duplicate photos are skipped automatically."
+      },
+      {
+        "title": "Edit photos",
+        "desc": "Press e in the viewer or click the edit button to change name, description, category, tags and albums."
+      },
+      {
+        "title": "Albums",
+        "desc": "Create albums on the Albums page and assign photos while editing. Deleted albums can be restored from the trash."
+      },
+      {
+        "title": "Share links",
+        "desc": "Select photos and generate a share link. Links are valid for 7 days; anyone with the link can view but not modify or delete."
+      },
+      {
+        "title": "Trash",
+        "desc": "Deleted photos stay in the trash for 30 days, then are permanently removed. Restore or purge them at any time."
+      }
     ]
   }
 }

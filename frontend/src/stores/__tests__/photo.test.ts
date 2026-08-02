@@ -66,6 +66,30 @@ describe('photo store — local mutations', () => {
     expect(photo.photos[0].id).toBe(2)
     expect(photo.totalCount).toBe(1)
   })
+
+  it('applyBatchEdit patches matching ids in place keeping order', () => {
+    const photo = usePhotoStore()
+    photo.photos.push({ id: 1, name: 'a', description: '', fileSize: 100 } as never)
+    photo.photos.push({ id: 2, name: 'b', description: '', fileSize: 200 } as never)
+    photo.photos.push({ id: 3, name: 'c', description: '', fileSize: 300 } as never)
+
+    photo.applyBatchEdit([
+      {
+        id: 2,
+        name: 'b2',
+        description: '',
+        fileSize: 200,
+        tags: [{ id: 9, name: 't', color: '#fff' }],
+      },
+      { id: 4, name: 'gone', description: '', fileSize: 50 }, // not in list — ignored
+    ] as never)
+
+    expect(photo.photos).toHaveLength(3)
+    expect(photo.photos[0].id).toBe(1)
+    expect(photo.photos[1].name).toBe('b2')
+    expect(photo.photos[1].tags?.[0].id).toBe(9)
+    expect(photo.photos[2].id).toBe(3)
+  })
 })
 
 describe('photo store — sort and search', () => {

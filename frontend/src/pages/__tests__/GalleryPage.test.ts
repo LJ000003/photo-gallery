@@ -192,6 +192,65 @@ describe('GalleryPage', () => {
     wrapper.unmount()
     vi.unstubAllGlobals()
   })
+
+  it('hides batch edit button when nothing is selected', () => {
+    const wrapper = createWrapper()
+    expect(wrapper.find('.btn-edit').exists()).toBe(false)
+  })
+
+  it('shows batch edit button after selection and opens batch modal with selected photos', async () => {
+    const testPhotos = [
+      { id: 1, name: 'p1', description: '', fileSize: 100 },
+      { id: 2, name: 'p2', description: '', fileSize: 200 },
+    ]
+
+    const wrapper = mount(GalleryPage, {
+      global: {
+        plugins: [
+          createTestingPinia({
+            createSpy: vi.fn,
+            stubActions: false,
+            initialState: {
+              photo: {
+                photos: testPhotos,
+                page: 0,
+                hasMore: false,
+                loading: false,
+                totalCount: 2,
+                sortBy: 'time',
+                sortOrder: 'asc',
+                selectedTagIds: [],
+                selectedCategoryIds: [],
+                selectedPhotoIds: new Set(),
+                searchQuery: '',
+              },
+            },
+          }),
+          i18n,
+        ],
+        stubs: {
+          PhotoCard: {
+            template: `<div class="photo-card-stub" @click="$emit('toggleSelect', photo.id)">{{ photo.name }}</div>`,
+            props: ['photo', 'selected', 'searchQuery', 'dataInsert'],
+            emits: ['view', 'edit', 'delete', 'toggleSelect'],
+          },
+          UploadCard: true,
+          LottieLoader: true,
+        },
+      },
+    })
+
+    await wrapper.findAll('.photo-card-stub')[0].trigger('click')
+    await wrapper.vm.$nextTick()
+
+    const btnEdit = wrapper.find('.btn-edit')
+    expect(btnEdit.exists()).toBe(true)
+    expect(btnEdit.text()).toContain('Batch Edit')
+
+    await btnEdit.trigger('click')
+    const ui = useUiStore()
+    expect(ui.batchEditPhotos).toEqual([testPhotos[0]])
+  })
 })
 
 afterEach(() => {
