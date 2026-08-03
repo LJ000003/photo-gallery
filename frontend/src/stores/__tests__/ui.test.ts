@@ -54,9 +54,11 @@ describe('ui store', () => {
     expect(ui.editPhoto).toBeNull()
   })
 
-  it('sidebarOpen defaults to false', () => {
+  it('uploadOpen / filterOpen / helpOpen default to false', () => {
     const ui = useUiStore()
-    expect(ui.sidebarOpen).toBe(false)
+    expect(ui.uploadOpen).toBe(false)
+    expect(ui.filterOpen).toBe(false)
+    expect(ui.helpOpen).toBe(false)
   })
 })
 

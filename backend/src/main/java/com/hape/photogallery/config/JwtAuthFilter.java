@@ -61,13 +61,20 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                         photoIds = photos.stream().map(n -> ((Number) n).longValue()).toList();
                         request.setAttribute("sharePhotoIds", photoIds);
                     }
-                    request.setAttribute("sharePermission", claims.get("permission", String.class));
+                    String permission = claims.get("permission", String.class);
+                    request.setAttribute("sharePermission", permission);
 
                     // 校验 viewer 访问图片文件端点时，photo ID 必须在 sharePhotoIds 范围内
                     Long requestedPhotoId = extractPhotoIdFromImagePath(request.getRequestURI());
                     if (requestedPhotoId != null) {
                         if (photoIds == null || !photoIds.contains(requestedPhotoId)) {
                             response.sendError(HttpServletResponse.SC_FORBIDDEN, "无权限访问该照片");
+                            return;
+                        }
+                        // 强制执行分享权限：view 仅可查看缩略图/WebP，禁止下载原图；
+                        // permission claim 缺失时按最保守处理（同样拒绝下载）
+                        if (isFileRequest(request.getRequestURI()) && !"download".equals(permission)) {
+                            response.sendError(HttpServletResponse.SC_FORBIDDEN, "该分享链接仅可查看，不可下载");
                             return;
                         }
                     }
@@ -87,6 +94,11 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private boolean isImageFileRequest(String uri) {
         return PHOTO_IMAGE_PATH.matcher(uri).find();
+    }
+
+    /** 是否为原图下载端点（仅 /file，thumbnail/webp 允许 view 权限查看） */
+    private boolean isFileRequest(String uri) {
+        return uri.endsWith("/file");
     }
 
     private Long extractPhotoIdFromImagePath(String uri) {

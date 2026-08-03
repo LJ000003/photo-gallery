@@ -1,8 +1,7 @@
 backend/target/
-frontend/node_modules/
+node_modules/
 frontend/dist/
 frontend/coverage/
-frontend/test-results/
 frontend/playwright-report/
 .DS_Store
 Thumbs.db
@@ -37,3 +36,7 @@ serena-mcp.bat
 .serena
 # 本地开发配置（含真实密码，不提交）
 backend/src/main/resources/application-local.yml
+
+# 前端测试/视觉产物
+frontend/test-results/
+frontend/.shots

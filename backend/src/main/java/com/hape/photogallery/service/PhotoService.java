@@ -8,8 +8,10 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
@@ -24,6 +26,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -117,9 +120,78 @@ public class PhotoService {
         return listAll(tagIds, categoryIds, pageable).map(this::toResponse);
     }
 
-    public Page<Photo> search(String q, Pageable pageable) {
+    /**
+     * 搜索（含标签/分类组合过滤）。
+     * native query 的排序必须是数据库列名（Hibernate 不做属性→列名翻译），
+     * 而前端传的是实体属性名（createdAt/fileSize），需在此映射，否则 MySQL 报 Unknown column。
+     */
+    public Page<Photo> search(String q, List<Long> tagIds, List<Long> categoryIds, Pageable pageable) {
         if (q == null || q.isBlank()) return repo.findAll(pageable);
-        return repo.search(q.trim(), pageable);
+        Pageable columnSort = toColumnSort(pageable);
+        // 先剥离 FULLTEXT BOOLEAN MODE 运算符再判长度：`ab"` → `ab`，`a"` → `a`（应走 LIKE）
+        String query = sanitizeFullText(q);
+        if (query.isEmpty()) return Page.empty(pageable);
+        boolean hasTags = tagIds != null && !tagIds.isEmpty();
+        boolean hasCats = categoryIds != null && !categoryIds.isEmpty();
+        // 单字（<2 字符）：FULLTEXT 的 ngram 双字分词无法命中，fallback 到 LIKE 子串匹配
+        if (query.length() < 2) {
+            String pattern = "%" + escapeLike(query) + "%";
+            if (hasTags && hasCats) return repo.searchByLikeWithTagAndCategoryIds(pattern, tagIds, categoryIds, columnSort);
+            if (hasTags) return repo.searchByLikeWithTagIds(pattern, tagIds, columnSort);
+            if (hasCats) return repo.searchByLikeWithCategoryIds(pattern, categoryIds, columnSort);
+            return repo.searchByLike(pattern, columnSort);
+        }
+        if (hasTags && hasCats) return repo.searchWithTagAndCategoryIds(query, tagIds, categoryIds, columnSort);
+        if (hasTags) return repo.searchWithTagIds(query, tagIds, columnSort);
+        if (hasCats) return repo.searchWithCategoryIds(query, categoryIds, columnSort);
+        return repo.search(query, columnSort);
+    }
+
+    /** LIKE 通配符转义（MySQL 默认转义字符为反斜杠） */
+    private String escapeLike(String s) {
+        return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+    }
+
+    /** FULLTEXT BOOLEAN MODE 运算符：MySQL 将其按查询表达式解析（`-x` 排除、`"` 短语），
+     *  参数绑定防不了语法错误（`ab"` → 1210 → 500）与语义劫持，只能从输入中剥离 */
+    private static final Pattern BOOLEAN_OPERATORS = Pattern.compile("[+\\-<>()~*\"@]");
+
+    /** 剥离 BOOLEAN MODE 运算符并折叠空白：用户输入一律按纯关键词处理 */
+    static String sanitizeFullText(String q) {
+        String cleaned = BOOLEAN_OPERATORS.matcher(q).replaceAll(" ");
+        return cleaned.replaceAll("\\s+", " ").trim();
+    }
+
+    /** 上传文件名消毒：路径分隔符/控制字符替换为下划线，连续点号折叠，
+     *  最后按安全字符白名单（字母/数字/点/下划线/连字符/空格，含中文）兜底，并截断超长文件名。 */
+    static String sanitizeFileName(String originalFilename) {
+        if (originalFilename == null || originalFilename.isBlank()) return "";
+        String cleaned = originalFilename
+                .replaceAll("[\\\\/\\u0000-\\u001F]", "_")
+                .replaceAll("\\.{2,}", ".");
+        cleaned = cleaned.replaceAll("[^\\p{L}\\p{N}._\\- ]", "_");
+        return cleaned.length() > 100 ? cleaned.substring(0, 100) : cleaned;
+    }
+
+    /** 实体属性名 → 数据库列名（native query 排序用）。
+     *  白名单之外的属性一律 400，杜绝 ORDER BY 字符串拼接注入（前端仅用 createdAt/name/fileSize） */
+    private static final Map<String, String> SORT_COLUMNS = Map.of(
+            "createdAt", "created_at",
+            "fileSize", "file_size",
+            "name", "name"
+    );
+
+    private Pageable toColumnSort(Pageable pageable) {
+        if (pageable.getSort().isUnsorted()) return pageable;
+        List<Sort.Order> orders = new ArrayList<>();
+        for (Sort.Order order : pageable.getSort()) {
+            String column = SORT_COLUMNS.get(order.getProperty());
+            if (column == null) {
+                throw new BusinessException(400, "不支持的排序字段: " + order.getProperty());
+            }
+            orders.add(new Sort.Order(order.getDirection(), column));
+        }
+        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by(orders));
     }
 
     @Transactional(readOnly = true)
@@ -165,9 +237,11 @@ public class PhotoService {
         Path datePath = storage.getUploadDir().resolve(dateDir);
         storage.createDirectories(datePath);
 
-        String baseName = UUID.randomUUID() + "_" + file.getOriginalFilename();
+        // 原始文件名先消毒再入库：`../`、路径分隔符、控制字符一律替换，杜绝写路径穿越
+        String baseName = UUID.randomUUID() + "_" + sanitizeFileName(file.getOriginalFilename());
         String storedName = dateDir + "/" + baseName;
-        Path target = storage.getUploadDir().resolve(storedName);
+        // 写路径复用读路径的 resolveSafe 语义（normalize + startsWith(uploadDir)）
+        Path target = storage.resolveSafe(storedName);
         storage.store(file, target);
 
         Photo photo = new Photo();

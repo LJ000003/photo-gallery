@@ -44,8 +44,13 @@ public class LocalStorageService implements StorageService {
 
     @Override
     public void store(MultipartFile file, Path target) throws IOException {
+        // 写路径同样强制约束在 uploadDir 内（与 resolveSafe 读路径对称），越界直接拒绝
+        Path normalized = target.normalize();
+        if (!normalized.startsWith(uploadDir)) {
+            throw new SecurityException("Invalid file path: " + target);
+        }
         try (var in = file.getInputStream()) {
-            Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
+            Files.copy(in, normalized, StandardCopyOption.REPLACE_EXISTING);
         }
     }
 

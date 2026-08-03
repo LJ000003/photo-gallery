@@ -56,7 +56,8 @@ public class PhotoController {
             @RequestParam(required = false) Long albumId,
             @PageableDefault(size = 20) Pageable pageable) {
         if (q != null && !q.isBlank()) {
-            return ApiResponse.success(service.search(q, pageable).map(service::toResponse));
+            // 搜索与标签/分类筛选可组合（交集），不再忽略筛选条件
+            return ApiResponse.success(service.search(q, tagIds, categoryIds, pageable).map(service::toResponse));
         }
         if (albumId != null) {
             Page<Photo> page = albumId == 0

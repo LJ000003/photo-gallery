@@ -4,8 +4,6 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -20,13 +18,17 @@ import jakarta.servlet.http.HttpServletResponse;
 @Component
 public class RateLimitFilter extends OncePerRequestFilter {
 
-    private static final Logger log = LoggerFactory.getLogger(RateLimitFilter.class);
-
     private static final int MAX_PER_SECOND = 10;
+
+    private final ClientIpResolver ipResolver;
 
     private final Cache<String, AtomicInteger> counters = Caffeine.newBuilder()
             .expireAfterWrite(Duration.ofSeconds(1))
             .build();
+
+    public RateLimitFilter(ClientIpResolver ipResolver) {
+        this.ipResolver = ipResolver;
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -45,7 +47,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
             return;
         }
 
-        String ip = resolveIp(request);
+        String ip = ipResolver.resolve(request);
         AtomicInteger count = counters.get(ip, k -> new AtomicInteger(0));
 
         if (count.incrementAndGet() > MAX_PER_SECOND) {
@@ -56,21 +58,5 @@ public class RateLimitFilter extends OncePerRequestFilter {
         }
 
         chain.doFilter(request, response);
-    }
-
-    private String resolveIp(HttpServletRequest request) {
-        // 优先 X-Real-IP（反向代理设置，客户端不可伪造），X-Forwarded-For 仅作 fallback
-        String realIp = request.getHeader("X-Real-IP");
-        if (realIp != null && !realIp.isBlank()) {
-            return realIp.trim();
-        }
-        String xff = request.getHeader("X-Forwarded-For");
-        if (xff != null && !xff.isBlank()) {
-            // X-Forwarded-For 客户端可伪造，仅记录并提示优先配置反代设置 X-Real-IP
-            String first = xff.split(",")[0].trim();
-            log.warn("Rate-limit IP resolved from spoofable X-Forwarded-For: {}", first);
-            return first;
-        }
-        return request.getRemoteAddr();
     }
 }

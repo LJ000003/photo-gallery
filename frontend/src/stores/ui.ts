@@ -2,16 +2,24 @@ import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import type { Photo } from '../types/photo'
 
+/**
+ * UI 状态：认证、灯箱查看、编辑抽屉、上传抽屉、筛选面板、帮助弹窗
+ * 语义与旧版一致（unlock/relock/查看器导航），旧 sidebarOpen 已随侧栏取消
+ */
 export const useUiStore = defineStore('ui', () => {
   const viewPhoto: Ref<Photo | null> = ref(null)
   const viewPhotos: Ref<Photo[]> = ref([])
   const slideshowPlaying = ref(false)
   const editPhoto: Ref<Photo | null> = ref(null)
-  /** 批量编辑弹窗：非 null 即打开，持有选中的照片列表 */
+  /** 批量编辑抽屉：非 null 即打开，持有选中的照片列表 */
   const batchEditPhotos: Ref<Photo[] | null> = ref(null)
-  const showBackTop = ref(false)
-  const sidebarOpen = ref(false)
+  /** 上传抽屉 */
+  const uploadOpen = ref(false)
+  /** 筛选面板 */
+  const filterOpen = ref(false)
+  /** 帮助弹窗 */
   const helpOpen = ref(false)
+  const showBackTop = ref(false)
   const unlocked = ref(localStorage.getItem('konami_unlocked') === 'true')
   const token: Ref<string | null> = ref(localStorage.getItem('jwt_token'))
 
@@ -72,9 +80,10 @@ export const useUiStore = defineStore('ui', () => {
     slideshowPlaying,
     editPhoto,
     batchEditPhotos,
-    showBackTop,
-    sidebarOpen,
+    uploadOpen,
+    filterOpen,
     helpOpen,
+    showBackTop,
     unlocked,
     token,
     reLock,

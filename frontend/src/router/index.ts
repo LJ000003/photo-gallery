@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useUiStore } from '../stores/ui'
-import MainLayout from '../layouts/MainLayout.vue'
+import AppShell from '../layouts/AppShell.vue'
+import i18n from '../i18n'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -8,36 +9,42 @@ const router = createRouter({
     {
       path: '/share/:token',
       name: 'share',
-      component: () => import('../components/ShareViewer.vue'),
+      component: () => import('../components/share/ShareViewer.vue'),
     },
     {
+      // AppShell 保持 eager：解锁屏（KonamiGate）必须随首屏即时渲染
       path: '/',
-      component: MainLayout,
+      component: AppShell,
       children: [
         {
           path: '',
           name: 'gallery',
-          component: () => import('../pages/GalleryPage.vue'),
+          component: () => import('../components/gallery/PhotosView.vue'),
+          meta: { titleKey: 'nav.photos' },
         },
         {
           path: 'albums',
           name: 'albums',
-          component: () => import('../pages/AlbumsPage.vue'),
+          component: () => import('../components/albums/AlbumsView.vue'),
+          meta: { titleKey: 'nav.albums' },
         },
         {
           path: 'timeline',
           name: 'timeline',
-          component: () => import('../pages/TimelinePage.vue'),
+          component: () => import('../components/timeline/TimelineView.vue'),
+          meta: { titleKey: 'nav.timeline' },
         },
         {
           path: 'map',
           name: 'map',
-          component: () => import('../pages/MapPage.vue'),
+          component: () => import('../components/map/MapView.vue'),
+          meta: { titleKey: 'nav.map' },
         },
         {
           path: 'trash',
           name: 'trash',
-          component: () => import('../pages/TrashPage.vue'),
+          component: () => import('../components/trash/TrashView.vue'),
+          meta: { titleKey: 'nav.trash' },
         },
       ],
     },
@@ -45,10 +52,18 @@ const router = createRouter({
 })
 
 router.beforeEach((to) => {
-  if (to.path.startsWith('/share/')) return true
-
   const ui = useUiStore()
-  document.title = ui.unlocked ? '照片管理器' : '照片管理器 — 已锁定'
+  const t = i18n.global.t
+  if (to.path.startsWith('/share/')) {
+    document.title = t('share.viewer')
+    return true
+  }
+  if (!ui.unlocked) {
+    document.title = `${t('app.name')} · ${t('auth.locked')}`
+    return true
+  }
+  const key = to.meta.titleKey as string | undefined
+  document.title = key ? `${t(key)} · ${t('app.name')}` : t('app.name')
   return true
 })
 

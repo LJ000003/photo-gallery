@@ -53,7 +53,9 @@ export async function api(
     try {
       const body = await res.json()
       if (body.message) message = body.message
-    } catch { /* 响应体不是 JSON，使用默认消息 */ }
+    } catch {
+      /* 响应体不是 JSON，使用默认消息 */
+    }
     throw new ApiError(res.status, message)
   }
 

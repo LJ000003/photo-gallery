@@ -26,13 +26,14 @@ import java.util.List;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(value = PhotoController.class,
             excludeAutoConfiguration = SecurityAutoConfiguration.class)
-@org.springframework.context.annotation.Import(com.hape.photogallery.config.JwtService.class)
+@org.springframework.context.annotation.Import({com.hape.photogallery.config.JwtService.class, com.hape.photogallery.config.ClientIpResolver.class})
 class PhotoControllerTest {
 
     @Autowired private MockMvc mockMvc;
@@ -63,12 +64,22 @@ class PhotoControllerTest {
 
     @Test
     void list_withSearch_shouldCallSearch() throws Exception {
-        when(service.search(eq("cat"), any())).thenReturn(new PageImpl<>(List.of()));
+        when(service.search(eq("cat"), isNull(), isNull(), any())).thenReturn(new PageImpl<>(List.of()));
 
         mockMvc.perform(get("/api/v1/photos?q=cat"))
                 .andExpect(status().isOk());
 
-        verify(service).search("cat", PageRequest.of(0, 20));
+        verify(service).search("cat", null, null, PageRequest.of(0, 20));
+    }
+
+    @Test
+    void list_withSearchAndTagFilter_shouldCallSearchWithFilters() throws Exception {
+        when(service.search(eq("cat"), eq(List.of(1L)), isNull(), any())).thenReturn(new PageImpl<>(List.of()));
+
+        mockMvc.perform(get("/api/v1/photos?q=cat&tagIds=1"))
+                .andExpect(status().isOk());
+
+        verify(service).search("cat", List.of(1L), null, PageRequest.of(0, 20));
     }
 
     @Test
