@@ -9,11 +9,11 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['pwa-icon.svg'],
       manifest: {
-        name: '照片管理器',
-        short_name: '照片管理器',
-        description: '私人照片管理应用 — 朋友间的私人图库',
-        theme_color: '#0a0a0f',
-        background_color: '#0a0a0f',
+        name: '照片墙',
+        short_name: '照片墙',
+        description: '朋友们的照片墙',
+        theme_color: '#101014',
+        background_color: '#101014',
         display: 'standalone',
         orientation: 'any',
         start_url: '/',
@@ -67,9 +67,8 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          gsap: ['gsap'],
-          lottie: ['lottie-web'],
-          leaflet: ['leaflet'],
+          leaflet: ['leaflet', 'leaflet.markercluster'],
+          antd: ['ant-design-vue', '@ant-design/icons-vue'],
         },
       },
     },

@@ -1,251 +1,280 @@
 {
   "app": {
-    "title": "Photo Gallery",
-    "locked": "Locked"
+    "name": "Photo Wall",
+    "tagline": "A photo wall for friends"
   },
   "auth": {
-    "title": "Unlock Photo Gallery",
-    "unlock": "Unlock",
-    "success": "Authenticated",
-    "failed": "Authentication failed, please retry",
     "expired": "Session expired, please unlock again",
-    "relock": "Try again!"
+    "failed": "Unlock failed, please retry",
+    "locked": "Locked"
   },
   "nav": {
-    "view": "View",
-    "grid": "Grid",
+    "photos": "Photos",
     "albums": "Albums",
     "timeline": "Timeline",
-    "trash": "Trash",
-    "map": "Map"
+    "map": "Map",
+    "trash": "Trash"
   },
-  "gallery": {
-    "myPhotos": "My Photos",
-    "searchPlaceholder": "Search photos...",
-    "selectAll": "Select All",
-    "generateShare": "Generate Share Link",
-    "batchEdit": "Batch Edit",
-    "batchDelete": "Batch Delete",
-    "sortBy": "Sort by",
-    "sortTime": "Time",
-    "sortName": "Name",
-    "sortSize": "Size",
-    "noMore": "No more photos",
-    "empty": "No photos yet. Upload your first one!",
-    "loading": "Loading..."
-  },
-  "upload": {
-    "title": "Upload Photos",
-    "selectHint": "Click / Drag / Paste (Ctrl+V)",
-    "selected": "{count} selected",
-    "compressing": "Compressing...",
-    "maxBatch": "Maximum {max} photos per batch",
-    "noCategory": "No Category",
-    "namePlaceholder": "Photo name (optional)",
-    "descPlaceholder": "Photo description (optional)",
-    "watermarkPlaceholder": "Watermark text (optional)",
+  "topbar": {
+    "searchPlaceholder": "Search photos",
+    "sort": "Sort",
+    "filter": "Filter",
     "upload": "Upload",
-    "uploadCount": "Upload ({count})",
-    "cancelSelect": "Cancel",
-    "editImage": "Edit",
-    "success": "Upload succeeded",
-    "failed": "Upload failed",
-    "networkError": "Network error",
-    "timeout": "Upload timeout",
-    "viewExisting": "View",
-    "batchSkipped": "{uploaded} uploaded, {skipped} duplicates skipped"
+    "more": "More",
+    "backupExport": "Export backup",
+    "backupExporting": "Exporting…",
+    "help": "Help & shortcuts",
+    "relock": "Lock again"
   },
-  "album": {
-    "newAlbum": "+ New Album",
-    "unassigned": "Unassigned",
-    "unassignedDesc": "Photos not in any album",
-    "noAlbums": "No albums yet. Assign photos to albums when editing.",
-    "editAlbum": "Edit Album",
-    "name": "Name",
-    "description": "Description",
-    "selectedPhotos": "Selected Photos",
-    "searchPhotoPlaceholder": "Search photos...",
-    "noPhotosYet": "No photos yet",
+  "actions": {
+    "back": "Back",
+    "close": "Close",
     "save": "Save",
-    "delete": "Delete",
-    "albumPhotos": " photos",
-    "deleteConfirm": "Delete album \"{name}\"?",
-    "deleteSuccess": "Deleted",
-    "deleteFailed": "Delete failed",
-    "createFailed": "Create failed",
-    "saveFailed": "Save failed",
-    "nameRequired": "Album name is required",
-    "albumEmpty": "This album has no photos",
-    "back": "← Back",
-    "view": "View",
-    "loading": "Loading..."
-  },
-  "photo": {
-    "view": "View",
+    "cancel": "Cancel",
     "edit": "Edit",
     "delete": "Delete",
-    "deleteConfirm": "Delete this photo?",
-    "editInfo": "Edit Photo Info",
-    "editSuccess": "Saved",
-    "editFailed": "Edit failed",
+    "share": "Share",
+    "copy": "Copy",
+    "download": "Download",
+    "restore": "Restore",
+    "confirm": "OK",
+    "retry": "Retry",
+    "selectAll": "Select all",
+    "create": "Create",
+    "rename": "Rename"
+  },
+  "sort": {
+    "time": "Time",
+    "name": "Name",
+    "size": "Size",
+    "asc": "Ascending",
+    "desc": "Descending"
+  },
+  "gallery": {
+    "count": "{n} photos",
+    "loading": "Loading",
+    "end": "You've reached the end",
+    "emptyTitle": "Nothing here yet",
+    "emptyHint": "Click Upload in the top-right to add your first photo",
+    "emptyHintFiltered": "No photos match the current filters, try another combination",
+    "processing": "Processing",
+    "processFailed": "Processing failed",
+    "retryProcessing": "Retry processing"
+  },
+  "selection": {
+    "selected": "{n} selected",
+    "batchEdit": "Batch edit",
+    "batchDelete": "Delete",
+    "batchShare": "Share"
+  },
+  "filter": {
+    "title": "Filter",
+    "reset": "Reset",
+    "categories": "Categories",
+    "tags": "Tags",
+    "manage": "Manage",
+    "addCategory": "New category",
+    "addTag": "New tag",
+    "categoryName": "Category name",
+    "tagName": "Tag name",
+    "tagColor": "Tag color",
+    "emptyCategories": "No categories yet",
+    "emptyTags": "No tags yet",
+    "deleteConfirm": "Delete \"{name}\"?",
+    "deleted": "Deleted"
+  },
+  "viewer": {
+    "exif": "Details",
+    "slideshow": "Slideshow",
+    "previous": "Previous",
+    "next": "Next",
+    "fullscreen": "Fullscreen",
+    "noExif": "No capture details for this photo",
+    "camera": "Camera",
+    "shoot": "Settings",
+    "location": "Location",
+    "close": "Close"
+  },
+  "exif": {
+    "cameraModel": "Camera",
+    "lensModel": "Lens",
+    "focalLength": "Focal length",
+    "aperture": "Aperture",
+    "shutterSpeed": "Shutter",
+    "iso": "ISO",
+    "dateTaken": "Captured",
+    "gps": "Coordinates",
+    "cameraGroup": "Camera",
+    "shootGroup": "Settings",
+    "locationGroup": "Location"
+  },
+  "upload": {
+    "title": "Upload photos",
+    "dropzone": "Drag photos here, or click to choose",
+    "pasteHint": "You can also paste from clipboard with Ctrl+V",
+    "chooseFiles": "Choose photos",
+    "compressing": "Compressing…",
+    "uploading": "Uploading {pct}%",
+    "success": "Uploaded",
+    "failed": "Upload failed",
+    "duplicate": "This photo already exists",
+    "viewExisting": "View existing",
+    "skipped": "{n} duplicates skipped",
+    "tooMany": "Up to 50 photos at a time",
+    "name": "Name (optional)",
+    "description": "Description (optional)",
+    "category": "Category",
+    "tags": "Tags",
+    "watermark": "Add watermark",
+    "none": "None",
+    "editing": "Edit image"
+  },
+  "edit": {
+    "title": "Edit photo",
     "name": "Name",
     "description": "Description",
     "category": "Category",
+    "clearCategory": "Clear category",
     "tags": "Tags",
     "albums": "Albums",
-    "createdAt": "Date Taken",
-    "fileSize": "File Size",
-    "noCategory": "No Category",
-    "save": "Save"
+    "addTag": "New tag",
+    "addAlbum": "New album",
+    "addCategory": "New category",
+    "newName": "New name",
+    "saved": "Saved"
   },
   "batchEdit": {
-    "title": "Batch Edit Photos",
-    "category": "Category",
-    "noChange": "Don't change",
-    "clearCategory": "Clear category",
+    "title": "Batch edit",
     "addTags": "Add tags",
     "removeTags": "Remove tags",
     "addAlbums": "Add to albums",
     "removeAlbums": "Remove from albums",
-    "newTag": "New tag",
-    "newCategory": "New category",
-    "newAlbum": "New album",
-    "save": "Apply",
-    "success": "Updated {count} photos",
-    "tooMany": "Maximum 50 photos per operation"
+    "category": "Category",
+    "categoryKeep": "Keep unchanged",
+    "categorySet": "Set to",
+    "categoryClear": "Clear category",
+    "saved": "Batch changes saved"
   },
-  "backup": {
-    "export": "Export backup",
-    "exporting": "Exporting...",
-    "success": "Backup ready, download started",
-    "failed": "Export failed"
-  },
-  "slideshow": {
-    "play": "Play slideshow",
-    "pause": "Pause slideshow",
-    "prev": "Previous",
-    "next": "Next"
-  },
-  "share": {
-    "title": "Share {count} photo(s)",
-    "hint": "Link valid for 7 days. Anyone with the link can view.",
-    "generating": "Generating...",
-    "copyLink": "Copy Link",
-    "invalid": "Share link is invalid or expired",
-    "viewerTitle": "Shared Photos",
-    "viewerHint": "View only. Editing and deletion are disabled.",
-    "viewerNoMore": "No more photos",
-    "viewerEmpty": "Link is invalid or expired"
-  },
-  "editor": {
-    "rotate": "Rotate",
-    "mirror": "Mirror",
-    "crop": "Crop",
-    "reset": "Reset",
-    "apply": "Apply",
-    "cancel": "Cancel",
-    "done": "Edit complete",
-    "failed": "Edit failed"
+  "albums": {
+    "title": "Albums",
+    "create": "New album",
+    "edit": "Edit album",
+    "delete": "Delete album",
+    "unassigned": "Unassigned",
+    "unassignedDesc": "Photos not in any album",
+    "empty": "No albums yet, create one",
+    "photoCount": "{n} photos",
+    "name": "Album name",
+    "description": "Album description",
+    "pickPhotos": "Pick photos",
+    "searchInPicker": "Search photos",
+    "picked": "{n} picked",
+    "saved": "Album saved",
+    "deleteConfirm": "Delete album \"{name}\"? Photos will not be deleted"
   },
   "timeline": {
-    "sortNewest": "Newest First",
-    "sortOldest": "Oldest First",
-    "sortLabel": "Time Order",
-    "loading": "Loading...",
-    "empty": "No photos with date information"
+    "title": "Timeline",
+    "empty": "No photos with capture dates yet",
+    "noExif": "No capture date for this photo",
+    "otherPhotos": "Other photos"
   },
   "map": {
-    "loading": "Loading...",
-    "empty": "No photos with GPS location data. Please upload JPEG/WebP images with EXIF GPS data."
+    "title": "Map",
+    "empty": "No photos with location info yet"
   },
-  "filter": {
-    "categories": "Categories",
-    "tags": "Tags",
-    "newCategory": "+ New Category",
-    "newTag": "+ New Tag",
-    "editName": "Enter new name"
+  "trash": {
+    "title": "Trash",
+    "photos": "Photos",
+    "albums": "Albums",
+    "empty": "Trash is empty",
+    "restored": "Restored",
+    "deleteConfirm": "Delete forever? This cannot be undone",
+    "emptyPhotos": "No deleted photos",
+    "emptyAlbums": "No deleted albums",
+    "autoPurge": "Auto-purged after 30 days"
   },
-  "rateLimit": {
-    "tooMany": "Too many requests, please try again later"
+  "share": {
+    "generate": "Create share link",
+    "copy": "Copy link",
+    "copied": "Link copied, share it with friends",
+    "expire": "Valid for 7 days",
+    "generating": "Creating…",
+    "viewer": "Shared photos"
   },
-  "processing": {
-    "processing": "Processing...",
-    "failed": "Processing failed",
-    "retry": "Retry",
-    "retrying": "Retrying..."
-  },
-  "exif": {
-    "title": "EXIF Info",
-    "empty": "No EXIF data",
-    "cameraGroup": "Camera",
-    "shootGroup": "Capture",
-    "locationGroup": "Time & Location",
-    "cameraModel": "Body",
-    "lensModel": "Lens",
-    "focalLength": "Focal Length",
-    "aperture": "Aperture",
-    "shutterSpeed": "Shutter",
-    "iso": "ISO",
-    "dateTaken": "Date Taken",
-    "gps": "GPS"
-  },
-  "general": {
-    "undo": "Undo",
-    "confirm": "Confirm",
-    "cancel": "Cancel",
-    "close": "✕",
-    "lightMode": "Switch to light mode",
-    "darkMode": "Switch to dark mode",
-    "backTop": "↑",
-    "operationFailed": "Operation failed",
-    "serverError": "Internal server error",
-    "requestFailed": "Request failed",
-    "unknownError": "Unknown error"
+  "backup": {
+    "exporting": "Exporting backup…",
+    "done": "Backup exported",
+    "failed": "Export failed"
   },
   "help": {
-    "button": "Help",
-    "title": "User Guide",
-    "shortcutsTitle": "Keyboard Shortcuts",
-    "usageTitle": "Basics",
-    "note": "Shortcuts take effect after unlocking; while typing in an input field, most shortcuts are disabled (except Ctrl+Enter).",
+    "title": "Shortcuts",
+    "shortcutsTitle": "Global shortcuts",
     "shortcuts": [
-      { "keys": "g", "desc": "Go to gallery" },
-      { "keys": "a", "desc": "Go to albums" },
-      { "keys": "t", "desc": "Go to timeline" },
-      { "keys": "m", "desc": "Go to map" },
-      { "keys": "Esc", "desc": "Close dialogs" },
-      { "keys": "/", "desc": "Focus the search box" },
-      { "keys": "Ctrl+Shift+U", "desc": "Focus the upload area" },
-      { "keys": "Ctrl+A", "desc": "Select all photos in gallery" },
-      { "keys": "Delete", "desc": "Delete selected photos in gallery" },
-      { "keys": "Enter", "desc": "View selected photos in gallery" },
-      { "keys": "← / →", "desc": "Previous / next photo in viewer" },
-      { "keys": "Space", "desc": "Play / pause slideshow in the viewer" },
-      { "keys": "e", "desc": "Edit the photo from the viewer" },
-      { "keys": "Ctrl+Enter", "desc": "Submit the edit form" },
-      { "keys": "Shift+R", "desc": "Restore selected photos in trash" }
-    ],
-    "usage": [
       {
-        "title": "Upload photos",
-        "desc": "Click the upload area, drag & drop, or paste with Ctrl+V. Batch upload with auto-compression; duplicate photos are skipped automatically."
+        "keys": "G",
+        "desc": "Photos page"
       },
       {
-        "title": "Edit photos",
-        "desc": "Press e in the viewer or click the edit button to change name, description, category, tags and albums."
+        "keys": "A",
+        "desc": "Albums page"
       },
       {
-        "title": "Albums",
-        "desc": "Create albums on the Albums page and assign photos while editing. Deleted albums can be restored from the trash."
+        "keys": "T",
+        "desc": "Timeline page"
       },
       {
-        "title": "Share links",
-        "desc": "Select photos and generate a share link. Links are valid for 7 days; anyone with the link can view but not modify or delete."
+        "keys": "M",
+        "desc": "Map page"
       },
       {
-        "title": "Trash",
-        "desc": "Deleted photos stay in the trash for 30 days, then are permanently removed. Restore or purge them at any time."
+        "keys": "/",
+        "desc": "Focus search"
+      },
+      {
+        "keys": "Ctrl+Shift+U",
+        "desc": "Open upload"
+      },
+      {
+        "keys": "← →",
+        "desc": "Navigate in viewer"
+      },
+      {
+        "keys": "Space",
+        "desc": "Play / pause slideshow"
+      },
+      {
+        "keys": "E",
+        "desc": "Edit current photo"
+      },
+      {
+        "keys": "Delete",
+        "desc": "Delete selected photos"
+      },
+      {
+        "keys": "Esc",
+        "desc": "Close dialogs / exit selection"
       }
+    ],
+    "usageTitle": "Tips",
+    "usage": [
+      "Click a photo to open it, slideshow supports fullscreen",
+      "Drag photos into the upload area, or paste with Ctrl+V",
+      "Deleted photos go to trash and are purged after 30 days",
+      "Share links last 7 days; anyone can view, only you can manage"
     ]
+  },
+  "editor": {
+    "rotateLeft": "Rotate left 90°",
+    "rotateRight": "Rotate right 90°",
+    "mirrorH": "Flip horizontal",
+    "mirrorV": "Flip vertical",
+    "crop": "Crop",
+    "reset": "Reset",
+    "done": "Changes saved"
+  },
+  "common": {
+    "unknownError": "Something went wrong, please try again",
+    "networkError": "Network error, please check your connection",
+    "copied": "Copied"
   }
 }

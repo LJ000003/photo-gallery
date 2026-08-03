@@ -83,7 +83,20 @@ describe('requestToken', () => {
     vi.restoreAllMocks()
   })
 
-  const konamiKeys = ['up','up','down','down','left','right','left','right','B','A','B','A']
+  const konamiKeys = [
+    'up',
+    'up',
+    'down',
+    'down',
+    'left',
+    'right',
+    'left',
+    'right',
+    'B',
+    'A',
+    'B',
+    'A',
+  ]
 
   it('returns token on successful auth', async () => {
     let callCount = 0
@@ -118,6 +131,6 @@ describe('requestToken', () => {
     })
     vi.stubGlobal('fetch', mockFetch)
 
-    await expect(requestToken(konamiKeys)).rejects.toThrow('Authentication failed')
+    await expect(requestToken(konamiKeys)).rejects.toThrow('Unlock failed, please retry')
   })
 })

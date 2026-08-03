@@ -25,6 +25,8 @@ import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -41,6 +43,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -131,21 +136,95 @@ class PhotoServiceTest {
     @Test
     void search_shouldCallRepository() {
         when(photoRepo.search(eq("cat"), any())).thenReturn(new PageImpl<>(List.of()));
-        service.search("cat", PageRequest.of(0, 20));
+        service.search("cat", null, null, PageRequest.of(0, 20));
         verify(photoRepo).search("cat", PageRequest.of(0, 20));
+    }
+
+    @Test
+    void search_withTagAndCategoryFilters_shouldCallCombinedQuery() {
+        when(photoRepo.searchWithTagAndCategoryIds(eq("cat"), eq(List.of(1L)), eq(List.of(2L)), any()))
+                .thenReturn(new PageImpl<>(List.of()));
+        service.search("cat", List.of(1L), List.of(2L), PageRequest.of(0, 20));
+        verify(photoRepo).searchWithTagAndCategoryIds("cat", List.of(1L), List.of(2L), PageRequest.of(0, 20));
+    }
+
+    @Test
+    void search_withTagFilterOnly_shouldCallTagQuery() {
+        when(photoRepo.searchWithTagIds(eq("cat"), eq(List.of(1L)), any()))
+                .thenReturn(new PageImpl<>(List.of()));
+        service.search("cat", List.of(1L), null, PageRequest.of(0, 20));
+        verify(photoRepo).searchWithTagIds("cat", List.of(1L), PageRequest.of(0, 20));
+    }
+
+    @Test
+    void search_withCategoryFilterOnly_shouldCallCategoryQuery() {
+        when(photoRepo.searchWithCategoryIds(eq("cat"), eq(List.of(2L)), any()))
+                .thenReturn(new PageImpl<>(List.of()));
+        service.search("cat", null, List.of(2L), PageRequest.of(0, 20));
+        verify(photoRepo).searchWithCategoryIds("cat", List.of(2L), PageRequest.of(0, 20));
+    }
+
+    @Test
+    void search_withSort_shouldMapEntityPropertyToColumnName() {
+        when(photoRepo.search(eq("cat"), any())).thenReturn(new PageImpl<>(List.of()));
+        Pageable input = PageRequest.of(0, 20, Sort.by(Sort.Order.desc("createdAt")));
+        service.search("cat", null, null, input);
+        verify(photoRepo).search(eq("cat"), argThat(p -> p.getSort().stream()
+                .anyMatch(o -> o.getProperty().equals("created_at") && o.isDescending())));
+    }
+
+    @Test
+    void search_singleChar_shouldUseLike() {
+        when(photoRepo.searchByLike(eq("%海%"), any())).thenReturn(new PageImpl<>(List.of()));
+        service.search("海", null, null, PageRequest.of(0, 20));
+        verify(photoRepo).searchByLike("%海%", PageRequest.of(0, 20));
+    }
+
+    @Test
+    void search_singleCharWithFilters_shouldUseLikeVariants() {
+        when(photoRepo.searchByLikeWithTagIds(eq("%海%"), eq(List.of(1L)), any()))
+                .thenReturn(new PageImpl<>(List.of()));
+        service.search("海", List.of(1L), null, PageRequest.of(0, 20));
+        verify(photoRepo).searchByLikeWithTagIds("%海%", List.of(1L), PageRequest.of(0, 20));
+
+        when(photoRepo.searchByLikeWithCategoryIds(eq("%海%"), eq(List.of(2L)), any()))
+                .thenReturn(new PageImpl<>(List.of()));
+        service.search("海", null, List.of(2L), PageRequest.of(0, 20));
+        verify(photoRepo).searchByLikeWithCategoryIds("%海%", List.of(2L), PageRequest.of(0, 20));
+
+        when(photoRepo.searchByLikeWithTagAndCategoryIds(eq("%海%"), eq(List.of(1L)), eq(List.of(2L)), any()))
+                .thenReturn(new PageImpl<>(List.of()));
+        service.search("海", List.of(1L), List.of(2L), PageRequest.of(0, 20));
+        verify(photoRepo).searchByLikeWithTagAndCategoryIds("%海%", List.of(1L), List.of(2L), PageRequest.of(0, 20));
+    }
+
+    @Test
+    void search_singleChar_shouldEscapeLikeWildcards() {
+        when(photoRepo.searchByLike(any(), any())).thenReturn(new PageImpl<>(List.of()));
+        service.search("%", null, null, PageRequest.of(0, 20));
+        verify(photoRepo).searchByLike("%\\%%", PageRequest.of(0, 20));
+        service.search("_", null, null, PageRequest.of(0, 20));
+        verify(photoRepo).searchByLike("%\\_%", PageRequest.of(0, 20));
+    }
+
+    @Test
+    void search_twoChars_shouldUseFulltext() {
+        when(photoRepo.search(eq("海边"), any())).thenReturn(new PageImpl<>(List.of()));
+        service.search("海边", null, null, PageRequest.of(0, 20));
+        verify(photoRepo).search("海边", PageRequest.of(0, 20));
     }
 
     @Test
     void search_blankQuery_shouldFallbackToFindAll() {
         when(photoRepo.findAll(any(PageRequest.class))).thenReturn(new PageImpl<>(List.of()));
-        service.search("  ", PageRequest.of(0, 20));
+        service.search("  ", null, null, PageRequest.of(0, 20));
         verify(photoRepo).findAll(any(PageRequest.class));
     }
 
     @Test
     void search_nullQuery_shouldFallbackToFindAll() {
         when(photoRepo.findAll(any(PageRequest.class))).thenReturn(new PageImpl<>(List.of()));
-        service.search(null, PageRequest.of(0, 20));
+        service.search(null, null, null, PageRequest.of(0, 20));
         verify(photoRepo).findAll(any(PageRequest.class));
     }
 

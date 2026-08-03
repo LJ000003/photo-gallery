@@ -37,3 +37,8 @@ serena-mcp.bat
 .serena
 # 本地开发配置（含真实密码，不提交）
 backend/src/main/resources/application-local.yml
+node_modules
+
+# 前端测试/视觉产物
+frontend/test-results
+frontend/.shots

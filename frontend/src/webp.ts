@@ -7,7 +7,7 @@ export function supportsWebp(): boolean {
   canvas.height = 1
   try {
     webpSupported = canvas.toDataURL('image/webp').startsWith('data:image/webp')
-  } catch (e) {
+  } catch {
     webpSupported = false
   }
   return webpSupported

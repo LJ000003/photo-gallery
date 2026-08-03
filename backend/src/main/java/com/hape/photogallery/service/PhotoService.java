@@ -24,6 +24,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -117,9 +118,49 @@ public class PhotoService {
         return listAll(tagIds, categoryIds, pageable).map(this::toResponse);
     }
 
-    public Page<Photo> search(String q, Pageable pageable) {
+    /**
+     * 搜索（含标签/分类组合过滤）。
+     * native query 的排序必须是数据库列名（Hibernate 不做属性→列名翻译），
+     * 而前端传的是实体属性名（createdAt/fileSize），需在此映射，否则 MySQL 报 Unknown column。
+     */
+    public Page<Photo> search(String q, List<Long> tagIds, List<Long> categoryIds, Pageable pageable) {
         if (q == null || q.isBlank()) return repo.findAll(pageable);
-        return repo.search(q.trim(), pageable);
+        Pageable columnSort = toColumnSort(pageable);
+        String query = q.trim();
+        boolean hasTags = tagIds != null && !tagIds.isEmpty();
+        boolean hasCats = categoryIds != null && !categoryIds.isEmpty();
+        // 单字（<2 字符）：FULLTEXT 的 ngram 双字分词无法命中，fallback 到 LIKE 子串匹配
+        if (query.length() < 2) {
+            String pattern = "%" + escapeLike(query) + "%";
+            if (hasTags && hasCats) return repo.searchByLikeWithTagAndCategoryIds(pattern, tagIds, categoryIds, columnSort);
+            if (hasTags) return repo.searchByLikeWithTagIds(pattern, tagIds, columnSort);
+            if (hasCats) return repo.searchByLikeWithCategoryIds(pattern, categoryIds, columnSort);
+            return repo.searchByLike(pattern, columnSort);
+        }
+        if (hasTags && hasCats) return repo.searchWithTagAndCategoryIds(query, tagIds, categoryIds, columnSort);
+        if (hasTags) return repo.searchWithTagIds(query, tagIds, columnSort);
+        if (hasCats) return repo.searchWithCategoryIds(query, categoryIds, columnSort);
+        return repo.search(query, columnSort);
+    }
+
+    /** LIKE 通配符转义（MySQL 默认转义字符为反斜杠） */
+    private String escapeLike(String s) {
+        return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+    }
+
+    /** 实体属性名 → 数据库列名（native query 排序用）；无排序时原样返回 */
+    private Pageable toColumnSort(Pageable pageable) {
+        if (pageable.getSort().isUnsorted()) return pageable;
+        List<Sort.Order> orders = new ArrayList<>();
+        for (Sort.Order order : pageable.getSort()) {
+            String property = switch (order.getProperty()) {
+                case "createdAt" -> "created_at";
+                case "fileSize" -> "file_size";
+                default -> order.getProperty();
+            };
+            orders.add(new Sort.Order(order.getDirection(), property));
+        }
+        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by(orders));
     }
 
     @Transactional(readOnly = true)

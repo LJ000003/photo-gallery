@@ -1,51 +1,36 @@
 <script setup lang="ts">
-import { ref, watch, onErrorCaptured } from 'vue'
-import { RouterView, useRouter } from 'vue-router'
-import ErrorFallback from './components/ErrorFallback.vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { App as AntApp, ConfigProvider } from 'ant-design-vue'
+import zhCN from 'ant-design-vue/es/locale/zh_CN'
+import enUS from 'ant-design-vue/es/locale/en_US'
+import { useI18n } from 'vue-i18n'
+import { applyCssVars, getThemeConfig, isSystemDark, watchColorScheme } from './theme'
+import ErrorBoundary from './components/common/ErrorBoundary.vue'
 
-const router = useRouter()
+const { locale } = useI18n()
 
-interface CapturedError {
-  error: Error
-  componentName: string
-}
-
-const captured = ref<CapturedError | null>(null)
-const errorKey = ref(0)
-
-onErrorCaptured((err, instance, info) => {
-  let name = 'unknown'
-  if (instance) {
-    name = instance.$options?.name || instance.$.type?.name || 'App'
-  }
-  captured.value = {
-    error: err instanceof Error ? err : new Error(String(err)),
-    componentName: name,
-  }
-  console.error(`[ErrorBoundary] ${info}:`, err)
-  return false
+// 明暗跟随系统，变化时同步 antd 主题 + 自定义 CSS 变量
+const isDark = ref(isSystemDark())
+let unsubscribe: (() => void) | null = null
+onMounted(() => {
+  unsubscribe = watchColorScheme((d) => {
+    isDark.value = d
+    applyCssVars(d)
+  })
+})
+onUnmounted(() => {
+  unsubscribe?.()
 })
 
-function handleRecover() {
-  captured.value = null
-  errorKey.value++
-}
-
-// 切换路由自动重置错误
-watch(
-  () => router.currentRoute.value.fullPath,
-  () => {
-    captured.value = null
-  },
-)
+const antdLocale = computed(() => (locale.value === 'zh-CN' ? zhCN : enUS))
 </script>
 
 <template>
-  <ErrorFallback
-    v-if="captured"
-    :error="captured.error"
-    :component-name="captured.componentName"
-    @recover="handleRecover"
-  />
-  <RouterView v-else :key="errorKey" />
+  <ConfigProvider :locale="antdLocale" :theme="getThemeConfig(isDark)">
+    <AntApp>
+      <ErrorBoundary>
+        <RouterView />
+      </ErrorBoundary>
+    </AntApp>
+  </ConfigProvider>
 </template>
