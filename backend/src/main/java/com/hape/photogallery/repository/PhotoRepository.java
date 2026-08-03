@@ -96,6 +96,83 @@ public interface PhotoRepository extends JpaRepository<Photo, Long> {
                                             @Param("catIds") List<Long> catIds,
                                             Pageable pageable);
 
+    /**
+     * 单字搜索（<2 字符）：FULLTEXT 的 ngram 按双字分词，单字无法成 token，
+     * fallback 到 LIKE 子串匹配。pattern 由调用方拼好并转义 LIKE 通配符。
+     * 组合筛选按场景分发到对应方法（与 searchWithTagIds 等同一模式）。
+     */
+    @Query(nativeQuery = true,
+           value = """
+                   SELECT * FROM photos p
+                   WHERE p.deleted_at IS NULL
+                     AND (p.name LIKE :pattern OR p.description LIKE :pattern)
+                   """,
+           countQuery = """
+                   SELECT COUNT(*) FROM photos p
+                   WHERE p.deleted_at IS NULL
+                     AND (p.name LIKE :pattern OR p.description LIKE :pattern)
+                   """)
+    Page<Photo> searchByLike(@Param("pattern") String pattern,
+                             Pageable pageable);
+
+    @Query(nativeQuery = true,
+           value = """
+                   SELECT DISTINCT p.* FROM photos p
+                   JOIN photo_tags pt ON p.id = pt.photo_id
+                   WHERE p.deleted_at IS NULL
+                     AND (p.name LIKE :pattern OR p.description LIKE :pattern)
+                     AND pt.tag_id IN :tagIds
+                   """,
+           countQuery = """
+                   SELECT COUNT(DISTINCT p.id) FROM photos p
+                   JOIN photo_tags pt ON p.id = pt.photo_id
+                   WHERE p.deleted_at IS NULL
+                     AND (p.name LIKE :pattern OR p.description LIKE :pattern)
+                     AND pt.tag_id IN :tagIds
+                   """)
+    Page<Photo> searchByLikeWithTagIds(@Param("pattern") String pattern,
+                                       @Param("tagIds") List<Long> tagIds,
+                                       Pageable pageable);
+
+    @Query(nativeQuery = true,
+           value = """
+                   SELECT * FROM photos p
+                   WHERE p.deleted_at IS NULL
+                     AND (p.name LIKE :pattern OR p.description LIKE :pattern)
+                     AND p.category_id IN :catIds
+                   """,
+           countQuery = """
+                   SELECT COUNT(*) FROM photos p
+                   WHERE p.deleted_at IS NULL
+                     AND (p.name LIKE :pattern OR p.description LIKE :pattern)
+                     AND p.category_id IN :catIds
+                   """)
+    Page<Photo> searchByLikeWithCategoryIds(@Param("pattern") String pattern,
+                                            @Param("catIds") List<Long> catIds,
+                                            Pageable pageable);
+
+    @Query(nativeQuery = true,
+           value = """
+                   SELECT DISTINCT p.* FROM photos p
+                   JOIN photo_tags pt ON p.id = pt.photo_id
+                   WHERE p.deleted_at IS NULL
+                     AND (p.name LIKE :pattern OR p.description LIKE :pattern)
+                     AND pt.tag_id IN :tagIds
+                     AND p.category_id IN :catIds
+                   """,
+           countQuery = """
+                   SELECT COUNT(DISTINCT p.id) FROM photos p
+                   JOIN photo_tags pt ON p.id = pt.photo_id
+                   WHERE p.deleted_at IS NULL
+                     AND (p.name LIKE :pattern OR p.description LIKE :pattern)
+                     AND pt.tag_id IN :tagIds
+                     AND p.category_id IN :catIds
+                   """)
+    Page<Photo> searchByLikeWithTagAndCategoryIds(@Param("pattern") String pattern,
+                                                  @Param("tagIds") List<Long> tagIds,
+                                                  @Param("catIds") List<Long> catIds,
+                                                  Pageable pageable);
+
     @Query("SELECT p FROM Photo p JOIN p.albums a WHERE a.id = :albumId")
     Page<Photo> findByAlbumId(@Param("albumId") Long albumId, Pageable pageable);
 

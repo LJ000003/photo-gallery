@@ -174,6 +174,47 @@ class PhotoServiceTest {
     }
 
     @Test
+    void search_singleChar_shouldUseLike() {
+        when(photoRepo.searchByLike(eq("%海%"), any())).thenReturn(new PageImpl<>(List.of()));
+        service.search("海", null, null, PageRequest.of(0, 20));
+        verify(photoRepo).searchByLike("%海%", PageRequest.of(0, 20));
+    }
+
+    @Test
+    void search_singleCharWithFilters_shouldUseLikeVariants() {
+        when(photoRepo.searchByLikeWithTagIds(eq("%海%"), eq(List.of(1L)), any()))
+                .thenReturn(new PageImpl<>(List.of()));
+        service.search("海", List.of(1L), null, PageRequest.of(0, 20));
+        verify(photoRepo).searchByLikeWithTagIds("%海%", List.of(1L), PageRequest.of(0, 20));
+
+        when(photoRepo.searchByLikeWithCategoryIds(eq("%海%"), eq(List.of(2L)), any()))
+                .thenReturn(new PageImpl<>(List.of()));
+        service.search("海", null, List.of(2L), PageRequest.of(0, 20));
+        verify(photoRepo).searchByLikeWithCategoryIds("%海%", List.of(2L), PageRequest.of(0, 20));
+
+        when(photoRepo.searchByLikeWithTagAndCategoryIds(eq("%海%"), eq(List.of(1L)), eq(List.of(2L)), any()))
+                .thenReturn(new PageImpl<>(List.of()));
+        service.search("海", List.of(1L), List.of(2L), PageRequest.of(0, 20));
+        verify(photoRepo).searchByLikeWithTagAndCategoryIds("%海%", List.of(1L), List.of(2L), PageRequest.of(0, 20));
+    }
+
+    @Test
+    void search_singleChar_shouldEscapeLikeWildcards() {
+        when(photoRepo.searchByLike(any(), any())).thenReturn(new PageImpl<>(List.of()));
+        service.search("%", null, null, PageRequest.of(0, 20));
+        verify(photoRepo).searchByLike("%\\%%", PageRequest.of(0, 20));
+        service.search("_", null, null, PageRequest.of(0, 20));
+        verify(photoRepo).searchByLike("%\\_%", PageRequest.of(0, 20));
+    }
+
+    @Test
+    void search_twoChars_shouldUseFulltext() {
+        when(photoRepo.search(eq("海边"), any())).thenReturn(new PageImpl<>(List.of()));
+        service.search("海边", null, null, PageRequest.of(0, 20));
+        verify(photoRepo).search("海边", PageRequest.of(0, 20));
+    }
+
+    @Test
     void search_blankQuery_shouldFallbackToFindAll() {
         when(photoRepo.findAll(any(PageRequest.class))).thenReturn(new PageImpl<>(List.of()));
         service.search("  ", null, null, PageRequest.of(0, 20));

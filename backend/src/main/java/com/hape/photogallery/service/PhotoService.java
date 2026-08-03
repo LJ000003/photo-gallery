@@ -129,10 +129,23 @@ public class PhotoService {
         String query = q.trim();
         boolean hasTags = tagIds != null && !tagIds.isEmpty();
         boolean hasCats = categoryIds != null && !categoryIds.isEmpty();
+        // 单字（<2 字符）：FULLTEXT 的 ngram 双字分词无法命中，fallback 到 LIKE 子串匹配
+        if (query.length() < 2) {
+            String pattern = "%" + escapeLike(query) + "%";
+            if (hasTags && hasCats) return repo.searchByLikeWithTagAndCategoryIds(pattern, tagIds, categoryIds, columnSort);
+            if (hasTags) return repo.searchByLikeWithTagIds(pattern, tagIds, columnSort);
+            if (hasCats) return repo.searchByLikeWithCategoryIds(pattern, categoryIds, columnSort);
+            return repo.searchByLike(pattern, columnSort);
+        }
         if (hasTags && hasCats) return repo.searchWithTagAndCategoryIds(query, tagIds, categoryIds, columnSort);
         if (hasTags) return repo.searchWithTagIds(query, tagIds, columnSort);
         if (hasCats) return repo.searchWithCategoryIds(query, categoryIds, columnSort);
         return repo.search(query, columnSort);
+    }
+
+    /** LIKE 通配符转义（MySQL 默认转义字符为反斜杠） */
+    private String escapeLike(String s) {
+        return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
     /** 实体属性名 → 数据库列名（native query 排序用）；无排序时原样返回 */
