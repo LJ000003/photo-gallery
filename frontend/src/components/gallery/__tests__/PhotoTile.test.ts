@@ -66,7 +66,9 @@ describe('PhotoTile', () => {
   })
 
   it('处理失败状态显示重试按钮', () => {
-    const wrapper = mountTile({ photo: mkPhoto({ processingStatus: 'FAILED', errorMessage: '超时' }) })
+    const wrapper = mountTile({
+      photo: mkPhoto({ processingStatus: 'FAILED', errorMessage: '超时' }),
+    })
     expect(wrapper.find('.retry-btn').exists()).toBe(true)
     expect(wrapper.find('.warn-text').text()).toContain('超时')
   })

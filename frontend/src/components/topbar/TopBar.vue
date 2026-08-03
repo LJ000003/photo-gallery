@@ -63,20 +63,27 @@ onUnmounted(() => {
   if (debounceTimer) clearTimeout(debounceTimer)
 })
 
-/* ---------- 排序：显式字段 + 方向（六项菜单，勾选当前项） ---------- */
+/* ---------- 排序：三项字段，点击切换正/倒序（菜单项右侧单边箭头指示当前方向） ---------- */
 const sortOptions: {
   field: SortField
-  order: SortOrder
   icon: typeof FieldTimeOutlined
   label: string
 }[] = [
-  { field: 'time', order: 'desc', icon: FieldTimeOutlined, label: 'sort.time' },
-  { field: 'time', order: 'asc', icon: FieldTimeOutlined, label: 'sort.time' },
-  { field: 'name', order: 'asc', icon: FontSizeOutlined, label: 'sort.name' },
-  { field: 'name', order: 'desc', icon: FontSizeOutlined, label: 'sort.name' },
-  { field: 'size', order: 'desc', icon: ColumnHeightOutlined, label: 'sort.size' },
-  { field: 'size', order: 'asc', icon: ColumnHeightOutlined, label: 'sort.size' },
+  { field: 'time', icon: FieldTimeOutlined, label: 'sort.time' },
+  { field: 'name', icon: FontSizeOutlined, label: 'sort.name' },
+  { field: 'size', icon: ColumnHeightOutlined, label: 'sort.size' },
 ]
+
+// 各字段最后使用的方向（首次切到该字段时采用；与旧版六项菜单各字段的默认项一致）
+const lastOrder: Record<SortField, SortOrder> = { time: 'desc', name: 'asc', size: 'desc' }
+
+/**
+ * store 语义 ↔ 用户可见方向互转：time 字段在请求层反转（store asc = 列表 desc = 最新优先↓）。
+ * 反转自逆，同一函数双向可用。
+ */
+function effectiveOrder(field: SortField, order: SortOrder): SortOrder {
+  return field === 'time' ? (order === 'asc' ? 'desc' : 'asc') : order
+}
 
 function applySort(field: SortField, order: SortOrder): void {
   if (photo.sortBy === field && photo.sortOrder === order) return
@@ -86,15 +93,17 @@ function applySort(field: SortField, order: SortOrder): void {
 }
 
 function onSortMenuClick({ key }: { key: string | number }): void {
-  const [field, order] = String(key).split('-') as [SortField, SortOrder]
-  applySort(field, order)
+  const field = String(key) as SortField
+  const current = effectiveOrder(photo.sortBy, photo.sortOrder)
+  const next = field === photo.sortBy ? (current === 'asc' ? 'desc' : 'asc') : lastOrder[field]
+  lastOrder[field] = next
+  applySort(field, effectiveOrder(field, next))
 }
 
 const activeSortLabel = computed(() => {
-  const o = sortOptions.find((s) => s.field === photo.sortBy && s.order === photo.sortOrder)
+  const o = sortOptions.find((s) => s.field === photo.sortBy)
   return o ? t(o.label) : t('sort.time')
 })
-
 </script>
 
 <template>
@@ -125,15 +134,18 @@ const activeSortLabel = computed(() => {
             <CaretDownOutlined class="caret" />
           </Button>
           <template #overlay>
-            <Menu selectable :selected-keys="[`${photo.sortBy}-${photo.sortOrder}`]" @click="onSortMenuClick">
-              <MenuItem
-                v-for="o in sortOptions"
-                :key="`${o.field}-${o.order}`"
-              >
+            <Menu selectable :selected-keys="[photo.sortBy]" @click="onSortMenuClick">
+              <MenuItem v-for="o in sortOptions" :key="o.field">
                 <component :is="o.icon" />
                 {{ t(o.label) }}
-                <CaretUpOutlined v-if="o.order === 'asc'" class="menu-caret" />
-                <CaretDownOutlined v-else class="menu-caret" />
+                <span class="dir-arrow" :aria-hidden="photo.sortBy !== o.field">
+                  <CaretUpOutlined
+                    v-if="
+                      photo.sortBy === o.field && effectiveOrder(o.field, photo.sortOrder) === 'asc'
+                    "
+                  />
+                  <CaretDownOutlined v-else-if="photo.sortBy === o.field" />
+                </span>
               </MenuItem>
             </Menu>
           </template>
@@ -171,7 +183,6 @@ const activeSortLabel = computed(() => {
         </template>
       </Input>
     </div>
-
   </header>
 </template>
 
@@ -252,8 +263,12 @@ const activeSortLabel = computed(() => {
   font-size: 10px;
   margin-left: 2px;
 }
-.menu-caret {
+.dir-arrow {
+  display: inline-flex;
+  width: 14px;
+  justify-content: center;
   font-size: 10px;
+  margin-left: 10px;
 }
 .upload-btn {
   border-radius: 999px;
