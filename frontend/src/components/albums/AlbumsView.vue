@@ -11,7 +11,7 @@ import { useToastStore } from '../../stores/toast'
 import { tokenParam } from '../../utils/token'
 import { useUiStore } from '../../stores/ui'
 import type { Album } from '../../types/album'
-import type { ApiResponse } from '../../types/api'
+import type { ApiResponse, PageResponse } from '../../types/api'
 import type { SortField, SortOrder } from '../../types/view'
 
 /**
@@ -28,6 +28,7 @@ const loading = ref(true)
 const brokenCovers = ref(new Set<number>())
 const selectedAlbum = ref<{ id: number; name: string; photoCount: number } | null>(null)
 const editingAlbum = ref<Album | { id: null; name: string; description: string } | null>(null)
+const unassignedCount = ref(0)
 
 const sortBy = ref<SortField>('time')
 const sortOrder = ref<SortOrder>('desc')
@@ -42,6 +43,17 @@ async function loadAlbums(): Promise<void> {
     albums.value = []
   } finally {
     loading.value = false
+  }
+}
+
+/** 未分配照片数：albumId=0 与相册详情同语义，复用列表接口的 totalElements */
+async function loadUnassignedCount(): Promise<void> {
+  try {
+    const res = await api('/api/photos?albumId=0&page=0&size=1')
+    const json: ApiResponse<PageResponse<unknown>> = await res.json()
+    unassignedCount.value = json.data?.totalElements ?? 0
+  } catch {
+    unassignedCount.value = 0
   }
 }
 
@@ -64,7 +76,7 @@ function formatDate(d: string | undefined): string {
 function selectAlbum(album: Album | null): void {
   selectedAlbum.value = album
     ? { id: album.id, name: album.name, photoCount: album.photoCount }
-    : { id: 0, name: t('albums.unassigned'), photoCount: 0 }
+    : { id: 0, name: t('albums.unassigned'), photoCount: unassignedCount.value }
 }
 
 function backToList(): void {
@@ -148,7 +160,10 @@ function applySort(field: SortField, order: SortOrder): void {
   sortOrder.value = order
 }
 
-onMounted(() => void loadAlbums())
+onMounted(() => {
+  void loadAlbums()
+  void loadUnassignedCount()
+})
 </script>
 
 <template>
@@ -183,7 +198,10 @@ onMounted(() => void loadAlbums())
             </div>
             <div class="album-body">
               <h3 class="album-name">{{ t('albums.unassigned') }}</h3>
-              <p class="album-meta">{{ t('albums.unassignedDesc') }}</p>
+              <p class="album-meta">
+                {{ t('albums.photoCount', { n: unassignedCount }) }}
+                · {{ t('albums.unassignedDesc') }}
+              </p>
             </div>
           </button>
         </div>
