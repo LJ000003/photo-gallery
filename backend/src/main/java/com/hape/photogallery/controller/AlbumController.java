@@ -4,10 +4,12 @@ import java.util.List;
 import java.util.Map;
 
 import com.hape.photogallery.ApiResponse;
+import com.hape.photogallery.config.MediaSignatureService;
 import com.hape.photogallery.dto.AlbumRequest;
+import com.hape.photogallery.dto.PhotoResponse;
 import com.hape.photogallery.entity.Album;
-import com.hape.photogallery.entity.Photo;
 import com.hape.photogallery.service.AlbumService;
+import com.hape.photogallery.service.PhotoService;
 
 import jakarta.validation.Valid;
 
@@ -21,14 +23,26 @@ import org.springframework.web.bind.annotation.*;
 public class AlbumController {
 
     private final AlbumService albumService;
+    private final PhotoService photoService;
+    private final MediaSignatureService mediaSignature;
 
-    public AlbumController(AlbumService albumService) {
+    public AlbumController(AlbumService albumService, PhotoService photoService,
+                           MediaSignatureService mediaSignature) {
         this.albumService = albumService;
+        this.photoService = photoService;
+        this.mediaSignature = mediaSignature;
     }
 
     @GetMapping("/albums")
     public ApiResponse<List<Album>> listAlbums() {
-        return ApiResponse.success(albumService.listAll());
+        List<Album> albums = albumService.listAll();
+        // 封面图短时签名：仅列表渲染需要，创建/更新响应不需要
+        for (Album a : albums) {
+            if (a.getCoverPhotoId() != null) {
+                a.setMediaToken(mediaSignature.sign(a.getCoverPhotoId()));
+            }
+        }
+        return ApiResponse.success(albums);
     }
 
     @PostMapping("/albums")
@@ -54,10 +68,11 @@ public class AlbumController {
     }
 
     @GetMapping("/albums/{id}/photos")
-    public ApiResponse<Page<Photo>> listAlbumPhotos(
+    public ApiResponse<Page<PhotoResponse>> listAlbumPhotos(
             @PathVariable Long id,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ApiResponse.success(albumService.listPhotos(id, pageable));
+        // 走 PhotoResponse（携带图片短时签名），实体直接序列化会让相册详情缩略图无鉴权
+        return ApiResponse.success(albumService.listPhotos(id, pageable).map(photoService::toResponse));
     }
 
     @PostMapping("/albums/{id}/photos")

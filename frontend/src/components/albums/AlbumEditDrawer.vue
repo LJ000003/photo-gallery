@@ -6,7 +6,7 @@ import { Button, Drawer, Input, Modal } from 'ant-design-vue'
 import { api } from '../../api'
 import { useDataStore } from '../../stores/data'
 import { useToastStore } from '../../stores/toast'
-import { tokenParam } from '../../utils/token'
+import { appendMediaParams } from '../../utils/token'
 import type { Photo } from '../../types/photo'
 import type { Album } from '../../types/album'
 import type { ApiResponse, PageResponse } from '../../types/api'
@@ -71,7 +71,8 @@ function togglePhoto(id: number): void {
 
 async function onSubmit(): Promise<void> {
   if (!name.value.trim()) {
-    toast.error(t('albums.name'))
+    // 旧实现弹字段 label「相册名称」而非错误文案
+    toast.error(t('albums.nameRequired'))
     return
   }
   if (submitting.value) return
@@ -115,7 +116,8 @@ function onDelete(): void {
         const res = await api(`/api/albums/${props.album.id}`, { method: 'DELETE' })
         if (!res.ok) throw new Error()
         refreshAlbums()
-        toast.success(t('trash.restored'))
+        // 旧实现删除成功后弹「已恢复」（trash.restored 文案方向反转）
+        toast.success(t('albums.deleted'))
         emit('deleted')
       } catch {
         toast.error(t('common.unknownError'))
@@ -167,7 +169,7 @@ function onDelete(): void {
           @click="togglePhoto(p.id)"
         >
           <img
-            :src="`/api/v1/photos/${p.id}/thumbnail${tokenParam()}`"
+            :src="appendMediaParams(`/api/v1/photos/${p.id}/thumbnail`, p)"
             :alt="p.name"
             loading="lazy"
           />

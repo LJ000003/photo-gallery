@@ -44,6 +44,8 @@ public class ShareController {
 
         Page<PhotoResponse> result = photoService.findByIds(photoIds, PageRequest.of(page, size))
                 .map(photoService::toResponse);
+        // 分享上下文不得签发管理员短时签名（否则 view 权限可借签名下载原图），统一剥离
+        result.getContent().forEach(r -> r.setMediaToken(null));
         return ApiResponse.success(result);
     }
 }

@@ -10,6 +10,7 @@ import PhotoViewer from '../components/viewer/PhotoViewer.vue'
 import UploadDrawer from '../components/upload/UploadDrawer.vue'
 import PhotoEditDrawer from '../components/editor/PhotoEditDrawer.vue'
 import BatchEditDrawer from '../components/editor/BatchEditDrawer.vue'
+import ShareDialog from '../components/common/ShareDialog.vue'
 import HelpModal from '../components/topbar/HelpModal.vue'
 import ToastStack from '../components/common/ToastStack.vue'
 
@@ -129,6 +130,9 @@ onMounted(() => {
       @close="ui.batchEditPhotos = null"
       @saved="onBatchSaved"
     />
+    <!-- 分享弹窗单例：旧版在 PhotosView 与 PhotoViewer 各挂一个，
+         状态是模块级单例，两个实例会同时弹出 -->
+    <ShareDialog />
     <HelpModal />
     <ToastStack />
   </template>

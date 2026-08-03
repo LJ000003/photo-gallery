@@ -37,6 +37,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.annotation.PostConstruct;
 
+import com.hape.photogallery.config.MediaSignatureService;
 import com.hape.photogallery.dto.BatchPhotoUpdateRequest;
 import com.hape.photogallery.dto.MapItem;
 import com.hape.photogallery.dto.PhotoResponse;
@@ -79,6 +80,7 @@ public class PhotoService {
     private final StorageService storage;
     private final ProcessingMessageSender processingSender;
     private final TransactionTemplate transactionTemplate;
+    private final MediaSignatureService mediaSignature;
 
     public PhotoService(PhotoRepository repo, TagRepository tagRepo, CategoryRepository catRepo,
                         ExifDataRepository exifRepo,
@@ -87,7 +89,8 @@ public class PhotoService {
                         AlbumService albumService,
                         StorageService storage,
                         ProcessingMessageSender processingSender,
-                        TransactionTemplate transactionTemplate) {
+                        TransactionTemplate transactionTemplate,
+                        MediaSignatureService mediaSignature) {
         this.repo = repo;
         this.tagRepo = tagRepo;
         this.catRepo = catRepo;
@@ -98,6 +101,7 @@ public class PhotoService {
         this.storage = storage;
         this.processingSender = processingSender;
         this.transactionTemplate = transactionTemplate;
+        this.mediaSignature = mediaSignature;
     }
 
     public Page<Photo> listAll(List<Long> tagIds, List<Long> categoryIds, Pageable pageable) {
@@ -630,8 +634,10 @@ public class PhotoService {
     public List<MapItem> getMapPhotos(double swLat, double swLng, double neLat, double neLng) {
         List<ExifData> list = exifRepo.findWithGpsInBounds(swLat, swLng, neLat, neLng,
                 PageRequest.of(0, 500));
+        // 必须走 toMapItem（内联 MapItem.from 会漏掉 mediaToken 短时签名，
+        // 前端 popup 缩略图无鉴权 401）
         return list.stream().map(e -> {
-            MapItem item = MapItem.from(e);
+            MapItem item = toMapItem(e);
             double[] gcj = CoordUtil.wgs84ToGcj02(e.getLongitude(), e.getLatitude());
             item.setLatitude(gcj[1]);
             item.setLongitude(gcj[0]);
@@ -752,14 +758,20 @@ public class PhotoService {
     }
 
     public PhotoResponse toResponse(Photo photo) {
-        return PhotoResponse.from(photo);
+        PhotoResponse r = PhotoResponse.from(photo);
+        r.setMediaToken(mediaSignature.sign(photo.getId()));
+        return r;
     }
 
     public TimelineItem toTimelineItem(ExifData exif) {
-        return TimelineItem.from(exif);
+        TimelineItem item = TimelineItem.from(exif);
+        item.setMediaToken(mediaSignature.sign(exif.getPhotoId()));
+        return item;
     }
 
     public MapItem toMapItem(ExifData exif) {
-        return MapItem.from(exif);
+        MapItem item = MapItem.from(exif);
+        item.setMediaToken(mediaSignature.sign(exif.getPhotoId()));
+        return item;
     }
 }

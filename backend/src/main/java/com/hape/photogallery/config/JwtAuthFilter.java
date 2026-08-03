@@ -22,9 +22,11 @@ import jakarta.servlet.http.HttpServletResponse;
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
+    private final MediaSignatureService mediaSignatureService;
 
-    public JwtAuthFilter(JwtService jwtService) {
+    public JwtAuthFilter(JwtService jwtService, MediaSignatureService mediaSignatureService) {
         this.jwtService = jwtService;
+        this.mediaSignatureService = mediaSignatureService;
     }
 
     @Override
@@ -40,9 +42,30 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             token = header.substring(7);
         }
 
+        // 图片端点优先校验短时签名（HMAC 时间桶）：签名只在管理员上下文签发的
+        // 响应中出现（分享响应已剥离），绑定 photoId，无会话权限，URL 不泄漏 JWT
+        String uri = request.getRequestURI();
+        if (isImageFileRequest(uri)) {
+            String sig = request.getParameter("sig");
+            if (sig != null && !sig.isBlank()) {
+                Long requestedPhotoId = extractPhotoIdFromImagePath(uri);
+                long verifiedPhotoId = mediaSignatureService.verify(sig);
+                if (requestedPhotoId == null || verifiedPhotoId != requestedPhotoId) {
+                    response.sendError(HttpServletResponse.SC_FORBIDDEN, "图片签名无效或已过期");
+                    return;
+                }
+                SecurityContextHolder.getContext().setAuthentication(
+                        new UsernamePasswordAuthenticationToken(
+                                "media", null,
+                                List.of(new SimpleGrantedAuthority("ROLE_admin"))));
+                filterChain.doFilter(request, response);
+                return;
+            }
+        }
+
         // 仅图片文件端点允许 token 通过 query 参数传递（<img> 标签无法设置 HTTP header）
         // 后续会校验 viewer token 的 photoId 权限范围，风险可控
-        if (token == null && isImageFileRequest(request.getRequestURI())) {
+        if (token == null && isImageFileRequest(uri)) {
             token = request.getParameter("token");
         }
 

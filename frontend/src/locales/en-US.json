@@ -17,6 +17,7 @@
   },
   "topbar": {
     "searchPlaceholder": "Search photos",
+    "searchAlbumsPlaceholder": "Search albums",
     "sort": "Sort",
     "filter": "Filter",
     "upload": "Upload",
@@ -59,13 +60,17 @@
     "emptyHintFiltered": "No photos match the current filters, try another combination",
     "processing": "Processing",
     "processFailed": "Processing failed",
-    "retryProcessing": "Retry processing"
+    "retryProcessing": "Retry processing",
+    "loadFailed": "Failed to load, please try again later",
+    "processingTimeout": "Some photos timed out during processing and were marked as failed; you can retry",
+    "processingTimeoutMessage": "Processing timed out, you can retry"
   },
   "selection": {
     "selected": "{n} selected",
     "batchEdit": "Batch edit",
     "batchDelete": "Delete",
-    "batchShare": "Share"
+    "batchShare": "Share",
+    "batchDeleteConfirm": "Delete the {n} selected photos?"
   },
   "filter": {
     "title": "Filter",
@@ -141,7 +146,8 @@
     "addAlbum": "New album",
     "addCategory": "New category",
     "newName": "New name",
-    "saved": "Saved"
+    "saved": "Saved",
+    "nameRequired": "Photo name is required"
   },
   "batchEdit": {
     "title": "Batch edit",
@@ -170,7 +176,10 @@
     "searchInPicker": "Search photos",
     "picked": "{n} picked",
     "saved": "Album saved",
-    "deleteConfirm": "Delete album \"{name}\"? Photos will not be deleted"
+    "deleteConfirm": "Delete album \"{name}\"? Photos will not be deleted",
+    "nameRequired": "Album name is required",
+    "deleted": "Album deleted",
+    "emptyFiltered": "No albums match your search"
   },
   "timeline": {
     "title": "Timeline",
@@ -191,7 +200,8 @@
     "deleteConfirm": "Delete forever? This cannot be undone",
     "emptyPhotos": "No deleted photos",
     "emptyAlbums": "No deleted albums",
-    "autoPurge": "Auto-purged after 30 days"
+    "autoPurge": "Auto-purged after 30 days",
+    "restoreConfirm": "Restore \"{name}\"?"
   },
   "share": {
     "generate": "Create share link",
@@ -199,7 +209,11 @@
     "copied": "Link copied, share it with friends",
     "expire": "Valid for 7 days",
     "generating": "Creating…",
-    "viewer": "Shared photos"
+    "viewer": "Shared photos",
+    "invalidTitle": "Invalid share link",
+    "invalidHint": "This link is invalid or expired. Ask the sharer to create a new one",
+    "serverErrorTitle": "Failed to load",
+    "serverErrorHint": "The server hit an issue, please try again later"
   },
   "backup": {
     "exporting": "Exporting backup…",

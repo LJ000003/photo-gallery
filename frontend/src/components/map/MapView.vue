@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useUiStore } from '../../stores/ui'
-import { tokenParam } from '../../utils/token'
+import { usePhotoStore } from '../../stores/photo'
+import { appendMediaParams } from '../../utils/token'
+import { escapeHtml } from '../../utils/escape'
 import { api } from '../../api'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -18,6 +20,7 @@ import type { Photo } from '../../types/photo'
  */
 const { t } = useI18n()
 const ui = useUiStore()
+const photo = usePhotoStore()
 
 const loading = ref(true)
 const mapContainer = ref<HTMLElement | null>(null)
@@ -25,7 +28,23 @@ let map: L.Map | null = null
 let mapResizeObs: ResizeObserver | null = null
 let fixSize: (() => void) | null = null
 let clusterGroup: L.MarkerClusterGroup | null = null
+const markersById = new Map<number, L.Marker>()
 let fetchId = 0
+
+// 删除同步：照片被删除后移除对应 marker（photo store 统一记录 deletedIds）
+watch(
+  () => [...photo.deletedIds],
+  (ids) => {
+    if (!clusterGroup || ids.length === 0) return
+    for (const id of ids) {
+      const marker = markersById.get(id)
+      if (marker) {
+        clusterGroup.removeLayer(marker)
+        markersById.delete(id)
+      }
+    }
+  },
+)
 
 /** 自绘 SVG 标记（主色圆点 + 白边），替代 unpkg 热链默认图标 */
 const svgIcon = L.divIcon({
@@ -41,10 +60,22 @@ const svgIcon = L.divIcon({
   popupAnchor: [0, -32],
 })
 
+/**
+ * 查询范围下限：高 zoom 时视野极小（zoom 18 ≈ 50m），照片点会因鼠标锚点
+ * 或坐标转换的微小偏差瞬间出视野，查询返回空后全部标签被清掉（用户感知
+ * 为「放大后标签消失」）。钳制到 ~0.05°（约 zoom 13.5 的视野）后，
+ * 高 zoom 下返回的点即使暂时在视野外也会保留，滚动回来依然可见可点。
+ */
+const MIN_QUERY_SPAN = 0.05
+
 function boundsToParams(): string {
   if (!map) return ''
   const b = map.getBounds()
-  return `swLat=${b.getSouthWest().lat.toFixed(6)}&swLng=${b.getSouthWest().lng.toFixed(6)}&neLat=${b.getNorthEast().lat.toFixed(6)}&neLng=${b.getNorthEast().lng.toFixed(6)}`
+  const centerLat = (b.getNorth() + b.getSouth()) / 2
+  const centerLng = (b.getEast() + b.getWest()) / 2
+  const halfLat = Math.max((b.getNorth() - b.getSouth()) / 2, MIN_QUERY_SPAN / 2)
+  const halfLng = Math.max((b.getEast() - b.getWest()) / 2, MIN_QUERY_SPAN / 2)
+  return `swLat=${(centerLat - halfLat).toFixed(6)}&swLng=${(centerLng - halfLng).toFixed(6)}&neLat=${(centerLat + halfLat).toFixed(6)}&neLng=${(centerLng + halfLng).toFixed(6)}`
 }
 
 async function fetchMarkers(): Promise<void> {
@@ -57,22 +88,26 @@ async function fetchMarkers(): Promise<void> {
     const data: MapExifItem[] = json.data || []
 
     clusterGroup.clearLayers()
+    markersById.clear()
     for (const exif of data) {
       if (exif.latitude == null || exif.longitude == null) continue
       const marker = L.marker([exif.latitude, exif.longitude], { icon: svgIcon })
-      marker.bindPopup(
+      // 悬浮显示缩略图（tooltip），点击直接查看大图（灯箱）——不再用 popup
+      marker.bindTooltip(
         `
         <div class="photo-popup">
-          <img src="${exif.photoThumbnail}${tokenParam()}" alt="${exif.photoName}" />
-          <p>${exif.photoName}</p>
+          <img src="${escapeHtml(appendMediaParams(exif.photoThumbnail, exif))}" alt="${escapeHtml(exif.photoName)}" />
+          <p>${escapeHtml(exif.photoName)}</p>
         </div>
         `,
-        { closeButton: false },
+        { direction: 'top', offset: [0, -10], opacity: 1 },
       )
       marker.on('click', () => {
-        const partial = { id: exif.photoId, name: exif.photoName } as Photo
+        // mediaToken 必须带上：灯箱大图鉴权用 per-photo 签名，残缺对象不带会 401
+        const partial = { id: exif.photoId, name: exif.photoName, mediaToken: exif.mediaToken } as Photo
         ui.openViewer(partial, [partial])
       })
+      markersById.set(exif.photoId, marker)
       clusterGroup.addLayer(marker)
     }
   } catch (e) {
@@ -122,7 +157,11 @@ function initMap(): void {
 
   clusterGroup = L.markerClusterGroup({
     maxClusterRadius: 60,
-    spiderfyOnMaxZoom: true,
+    // zoom >= 13 时彻底解除聚合（与 MIN_QUERY_SPAN 0.05° 视野衔接）：
+    // 放大后标签不再折叠消失，单个 marker 始终可见可点
+    disableClusteringAtZoom: 13,
+    // 聚合在最高级用蜘蛛展开对 divIcon 有交互兼容问题，直接随 disableClusteringAtZoom 失效
+    spiderfyOnMaxZoom: false,
     showCoverageOnHover: false,
     zoomToBoundsOnClick: true,
   })
@@ -234,6 +273,14 @@ onUnmounted(() => {
   border: none;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
 }
+/* 悬浮缩略图卡片：去掉 Leaflet 默认白框，图片即卡片；不拦截鼠标（hover 时可直达 marker） */
+.map-container :deep(.leaflet-tooltip) {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  pointer-events: none;
+}
 .map-container :deep(.photo-popup) {
   text-align: center;
   max-width: 180px;
@@ -252,6 +299,16 @@ onUnmounted(() => {
   font-size: 12px;
   color: var(--c-text);
   word-break: break-all;
+}
+/* 悬浮卡片内名字：深色胶囊，浅色瓦片上可读 */
+.map-container :deep(.leaflet-tooltip .photo-popup p) {
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  border-radius: 999px;
+  padding: 2px 8px;
+  margin-top: 4px;
+  display: inline-block;
+  max-width: 160px;
 }
 /* 聚合点配色（主色） */
 .map-container :deep(.marker-cluster div) {

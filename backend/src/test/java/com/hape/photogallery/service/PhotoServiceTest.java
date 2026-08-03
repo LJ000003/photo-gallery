@@ -42,6 +42,7 @@ import java.util.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -96,7 +97,9 @@ class PhotoServiceTest {
         }).when(storage).deleteFile(any());
 
         service = new PhotoService(photoRepo, tagRepo, catRepo, exifRepo, exifService,
-                imageService, albumService, storage, processingSender, transactionTemplate);
+                imageService, albumService, storage, processingSender, transactionTemplate,
+                new com.hape.photogallery.config.MediaSignatureService(
+                        "test-secret-0123456789abcdef0123456789abcdef", 300));
     }
 
     // ==================== listAll ====================
@@ -757,6 +760,26 @@ class PhotoServiceTest {
         // coordinates should have been transformed from WGS84 to GCJ02
         assertThat(items.get(0).getLatitude()).isNotEqualTo(39.9);
         assertThat(items.get(0).getLongitude()).isNotEqualTo(116.4);
+    }
+
+    @Test
+    void getMapPhotos_shouldIncludeMediaToken() {
+        // 回归：内联 MapItem.from 会漏掉短时签名，前端 popup 缩略图 401
+        ExifData e = new ExifData();
+        e.setLatitude(39.9); e.setLongitude(116.4);
+        Photo p = new Photo(); p.setId(10L); p.setName("map1");
+        e.setPhoto(p);
+        when(exifRepo.findWithGpsInBounds(anyDouble(), anyDouble(), anyDouble(), anyDouble(),
+                any(PageRequest.class))).thenReturn(List.of(e));
+
+        List<MapItem> items = service.getMapPhotos(30.0, 100.0, 50.0, 130.0);
+        assertThat(items).hasSize(1);
+        assertThat(items.get(0).getMediaToken()).isNotBlank();
+        // 签名能通过校验且绑定 photoId
+        long verified = new com.hape.photogallery.config.MediaSignatureService(
+                "test-secret-0123456789abcdef0123456789abcdef", 300)
+                .verify(items.get(0).getMediaToken());
+        assertThat(verified).isEqualTo(10L);
     }
 
     // ==================== extractExif ====================

@@ -11,7 +11,7 @@ import {
 } from '@ant-design/icons-vue'
 import { Modal } from 'ant-design-vue'
 import { thumbUrl } from '../../webp'
-import { tokenQS } from '../../utils/token'
+import { appendMediaParams, appendTokenParam } from '../../utils/token'
 import { formatSize } from '../../utils/format'
 import { api } from '../../api'
 import { useToastStore } from '../../stores/toast'
@@ -30,8 +30,10 @@ const props = withDefaults(
     searchQuery?: string
     /** 是否显示选择圈（相册详情等纯浏览场景传 false） */
     selectable?: boolean
+    /** 显式查询 token（分享页 viewer token）；photo.mediaToken 缺失时回退 */
+    token?: string
   }>(),
-  { selectable: true, searchQuery: '' },
+  { selectable: true, searchQuery: '', token: '' },
 )
 
 const emit = defineEmits<{
@@ -61,6 +63,12 @@ function highlightSegments(text: string | undefined): HighlightSegment[] {
 }
 
 const nameSegments = computed(() => highlightSegments(props.photo.name))
+
+/** 缩略图 URL：优先 per-photo 短时签名，缺失时回退显式 token（分享页） */
+function tileSrc(p: Photo, w: number): string {
+  const base = thumbUrl(p.id, w)
+  return p.mediaToken ? appendMediaParams(base, p) : appendTokenParam(base, props.token)
+}
 
 /* ---------- 处理失败重试 ---------- */
 const retrying = ref(false)
@@ -143,8 +151,8 @@ function onKeydown(e: KeyboardEvent): void {
     <div class="tile-photo" @click="emit('view', photo)">
       <img
         class="tile-img"
-        :src="thumbUrl(photo.id, 400) + tokenQS(photo.fileSize)"
-        :srcset="`${thumbUrl(photo.id, 200)}${tokenQS(photo.fileSize)} 200w, ${thumbUrl(photo.id, 400)}${tokenQS(photo.fileSize)} 400w`"
+        :src="tileSrc(photo, 400)"
+        :srcset="`${tileSrc(photo, 200)} 200w, ${tileSrc(photo, 400)} 400w`"
         sizes="(max-width: 768px) calc((100vw - 20px) / 2), (max-width: 1400px) calc((100vw - 280px) / 5), 240px"
         :alt="photo.name"
         loading="lazy"

@@ -9,6 +9,7 @@ import {
   UndoOutlined,
 } from '@ant-design/icons-vue'
 import { Button } from 'ant-design-vue'
+import { hasTransparentPixels } from '../../upload'
 import type { TransformParams, MirrorMode, ImageEditResult } from '../../types/transform'
 
 /**
@@ -343,12 +344,16 @@ function confirm(): void {
     ch: cropMode.value ? crop.value.h : null,
   }
 
+  // 透明像素保持 PNG 编码（JPEG 会把透明填黑）。
+  // 注：当前调用方只消费 params、blob 未落库，这里保持诚实编码以防后续复用
+  const finalCtx = finalCanvas.getContext('2d')!
+  const outType = hasTransparentPixels(finalCanvas, finalCtx) ? 'image/png' : 'image/jpeg'
   finalCanvas.toBlob(
     (blob) => {
       if (blob) emit('done', { blob, params: transformParams })
     },
-    'image/jpeg',
-    0.92,
+    outType,
+    outType === 'image/jpeg' ? 0.92 : undefined,
   )
 }
 

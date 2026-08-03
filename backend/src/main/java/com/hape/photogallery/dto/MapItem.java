@@ -9,6 +9,8 @@ public class MapItem {
     private String photoThumbnail;
     private double latitude;
     private double longitude;
+    /** 图片 URL 短时签名（同 PhotoResponse.mediaToken） */
+    private String mediaToken;
 
     public static MapItem from(ExifData exif) {
         MapItem item = new MapItem();
@@ -27,4 +29,6 @@ public class MapItem {
     public double getLongitude() { return longitude; }
     public void setLatitude(double latitude) { this.latitude = latitude; }
     public void setLongitude(double longitude) { this.longitude = longitude; }
+    public String getMediaToken() { return mediaToken; }
+    public void setMediaToken(String mediaToken) { this.mediaToken = mediaToken; }
 }

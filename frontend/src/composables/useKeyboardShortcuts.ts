@@ -25,6 +25,9 @@ export function useKeyboardShortcuts(): void {
 
   function handleKey(e: KeyboardEvent): void {
     if (!ui.unlocked) return // KonamiGate 持有键盘
+    // 灯箱/编辑抽屉打开时全局快捷键让位：
+    // 否则 g/a/m/t 会在灯箱背后切路由、/ 会聚焦灯箱背后的搜索框
+    if (ui.viewPhoto || ui.editPhoto || ui.batchEditPhotos) return
     if (e.ctrlKey || e.metaKey || e.altKey) {
       if (e.ctrlKey && e.shiftKey && (e.key === 'U' || e.key === 'u')) {
         e.preventDefault()

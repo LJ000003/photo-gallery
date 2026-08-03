@@ -17,6 +17,7 @@
   },
   "topbar": {
     "searchPlaceholder": "搜索照片",
+    "searchAlbumsPlaceholder": "搜索相册",
     "sort": "排序",
     "filter": "筛选",
     "upload": "上传",
@@ -59,13 +60,17 @@
     "emptyHintFiltered": "没有符合当前筛选条件的照片，换个条件试试",
     "processing": "处理中",
     "processFailed": "处理失败",
-    "retryProcessing": "重新处理"
+    "retryProcessing": "重新处理",
+    "loadFailed": "加载失败，请稍后重试",
+    "processingTimeout": "部分照片处理超时，已标记为失败，可点击重试",
+    "processingTimeoutMessage": "处理超时，可点击重试"
   },
   "selection": {
     "selected": "已选 {n} 张",
     "batchEdit": "批量编辑",
     "batchDelete": "删除",
-    "batchShare": "生成分享"
+    "batchShare": "生成分享",
+    "batchDeleteConfirm": "确定删除选中的 {n} 张照片吗？"
   },
   "filter": {
     "title": "筛选",
@@ -140,7 +145,8 @@
     "addAlbum": "新建相册",
     "addCategory": "新建分类",
     "newName": "新名称",
-    "saved": "已保存"
+    "saved": "已保存",
+    "nameRequired": "照片名称不能为空"
   },
   "batchEdit": {
     "title": "批量编辑",
@@ -169,7 +175,10 @@
     "searchInPicker": "搜索照片",
     "picked": "已选 {n} 张",
     "saved": "相册已保存",
-    "deleteConfirm": "删除相册「{name}」？照片不会被删除"
+    "deleteConfirm": "删除相册「{name}」？照片不会被删除",
+    "nameRequired": "相册名称不能为空",
+    "deleted": "相册已删除",
+    "emptyFiltered": "没有符合搜索条件的相册"
   },
   "timeline": {
     "title": "时间线",
@@ -190,7 +199,8 @@
     "deleteConfirm": "彻底删除？此操作不可撤销",
     "emptyPhotos": "没有已删除的照片",
     "emptyAlbums": "没有已删除的相册",
-    "autoPurge": "30 天后自动清空"
+    "autoPurge": "30 天后自动清空",
+    "restoreConfirm": "恢复「{name}」吗？"
   },
   "share": {
     "generate": "生成分享链接",
@@ -198,7 +208,11 @@
     "copied": "链接已复制，分享给朋友吧",
     "expire": "7 天内有效",
     "generating": "生成中…",
-    "viewer": "照片分享"
+    "viewer": "照片分享",
+    "invalidTitle": "分享链接无效",
+    "invalidHint": "链接已失效或不存在，请联系分享者重新生成",
+    "serverErrorTitle": "加载失败",
+    "serverErrorHint": "服务器开小差了，请稍后重试"
   },
   "backup": {
     "exporting": "正在导出备份…",

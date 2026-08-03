@@ -1,6 +1,7 @@
 package com.hape.photogallery.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 import org.hibernate.annotations.SQLRestriction;
 
@@ -37,6 +38,11 @@ public class Album {
 
     private LocalDateTime deletedAt;
 
+    /** 封面图短时签名（HMAC 时间桶），序列化进响应但不落库 */
+    @jakarta.persistence.Transient
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String mediaToken;
+
     public Album() {}
 
     public Album(String name) {
@@ -61,4 +67,7 @@ public class Album {
 
     @com.fasterxml.jackson.annotation.JsonProperty
     public int getPhotoCount() { return photos != null ? photos.size() : 0; }
+
+    public String getMediaToken() { return mediaToken; }
+    public void setMediaToken(String mediaToken) { this.mediaToken = mediaToken; }
 }

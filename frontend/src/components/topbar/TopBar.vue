@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import {
   CaretDownOutlined,
   CaretUpOutlined,
@@ -27,6 +28,18 @@ import type { SortField, SortOrder } from '../../types/view'
 const { t } = useI18n()
 const photo = usePhotoStore()
 const ui = useUiStore()
+const route = useRoute()
+
+/** 排序仅对照片/相册两种模式有意义（时间线/地图/回收站无排序语义），其余模式留占位 */
+const showSort = computed(() => route.name === 'gallery' || route.name === 'albums')
+/** 筛选（标签/分类）仅照片模式有意义，其余模式留占位 */
+const showFilter = computed(() => route.name === 'gallery')
+/** 搜索仅照片/相册两种模式有意义（照片搜照片、相册搜相册），其余模式留占位 */
+const showSearch = computed(() => route.name === 'gallery' || route.name === 'albums')
+/** 搜索框文案随模式变化：照片搜照片、相册搜相册 */
+const searchPlaceholder = computed(() =>
+  route.name === 'albums' ? t('topbar.searchAlbumsPlaceholder') : t('topbar.searchPlaceholder'),
+)
 
 /* ---------- 品牌彩蛋：连点 30 次触发彩虹 ---------- */
 const clicks = ref(0)
@@ -36,19 +49,31 @@ function onBrandClick(): void {
   if (clicks.value >= 30) rainbow.value = true
 }
 
-/* ---------- 搜索（300ms 防抖；查询语义与旧版 setSearch 一致） ---------- */
+/* ---------- 搜索（实时；按模式分派：照片搜照片、相册搜相册） ---------- */
 const searchValue = ref(photo.searchQuery)
 const mobileSearchOpen = ref(false)
-let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
+// 实时搜索：每字符立即生效（照片模式走服务端搜索，photo store 的 requestId
+// 竞态保护已保证旧请求结果不会覆盖新输入）
 watch(searchValue, (q) => {
-  if (debounceTimer) clearTimeout(debounceTimer)
-  debounceTimer = setTimeout(() => {
+  if (route.name === 'albums') {
+    if (q !== ui.albumSearch) ui.albumSearch = q
+  } else if (route.name === 'gallery') {
     if (q !== photo.searchQuery) photo.setSearch(q)
-  }, 300)
+  }
 })
 
+// 切模式时搜索框显示当前模式的关键词（两种模式的搜索词各自独立）
+watch(
+  () => route.name,
+  () => {
+    searchValue.value = route.name === 'albums' ? ui.albumSearch : photo.searchQuery
+    mobileSearchOpen.value = false
+  },
+)
+
 function focusSearch(): void {
+  if (!showSearch.value) return // 非搜索模式：快捷键不弹搜索框
   mobileSearchOpen.value = true
   requestAnimationFrame(() =>
     document.querySelector<HTMLInputElement>('.mobile-search-row input')?.focus(),
@@ -60,7 +85,6 @@ onMounted(() => {
 })
 onUnmounted(() => {
   document.removeEventListener('kb:focusSearch', focusSearch)
-  if (debounceTimer) clearTimeout(debounceTimer)
 })
 
 /* ---------- 排序：三项字段，点击切换正/倒序（菜单项右侧单边箭头指示当前方向） ---------- */
@@ -119,43 +143,55 @@ const currentOrder = computed(() => effectiveOrder(photo.sortBy, photo.sortOrder
       <ModeTabs class="topbar-tabs" />
 
       <div class="topbar-actions">
-        <Input
-          v-model:value="searchValue"
-          class="search-input"
-          :placeholder="t('topbar.searchPlaceholder')"
-          :aria-label="t('topbar.searchPlaceholder')"
-          allow-clear
-        >
-          <template #prefix>
-            <SearchOutlined />
-          </template>
-        </Input>
+        <template v-if="showSearch">
+          <Input
+            v-model:value="searchValue"
+            class="search-input"
+            :placeholder="searchPlaceholder"
+            :aria-label="searchPlaceholder"
+            allow-clear
+          >
+            <template #prefix>
+              <SearchOutlined />
+            </template>
+          </Input>
+        </template>
+        <!-- 其余模式：等宽占位，保持顶栏布局不跳动 -->
+        <span v-else class="search-placeholder" aria-hidden="true"></span>
 
-        <Dropdown placement="bottomRight" trigger="click">
-          <Button class="tool-btn" type="text" :aria-label="t('topbar.sort')">
-            <span class="sort-label">{{ activeSortLabel }}</span>
-            <CaretUpOutlined v-if="currentOrder === 'asc'" class="caret" />
-            <CaretDownOutlined v-else class="caret" />
-          </Button>
-          <template #overlay>
-            <Menu selectable :selected-keys="[photo.sortBy]" @click="onSortMenuClick">
-              <MenuItem v-for="o in sortOptions" :key="o.field">
-                <component :is="o.icon" />
-                {{ t(o.label) }}
-                <span class="dir-arrow" :aria-hidden="photo.sortBy !== o.field">
-                  <CaretUpOutlined
-                    v-if="
-                      photo.sortBy === o.field && effectiveOrder(o.field, photo.sortOrder) === 'asc'
-                    "
-                  />
-                  <CaretDownOutlined v-else-if="photo.sortBy === o.field" />
-                </span>
-              </MenuItem>
-            </Menu>
-          </template>
-        </Dropdown>
+        <template v-if="showSort">
+          <Dropdown placement="bottomRight" trigger="click">
+            <Button class="tool-btn" type="text" :aria-label="t('topbar.sort')">
+              <span class="sort-label">{{ activeSortLabel }}</span>
+              <CaretUpOutlined v-if="currentOrder === 'asc'" class="caret" />
+              <CaretDownOutlined v-else class="caret" />
+            </Button>
+            <template #overlay>
+              <Menu selectable :selected-keys="[photo.sortBy]" @click="onSortMenuClick">
+                <MenuItem v-for="o in sortOptions" :key="o.field">
+                  <component :is="o.icon" />
+                  {{ t(o.label) }}
+                  <span class="dir-arrow" :aria-hidden="photo.sortBy !== o.field">
+                    <CaretUpOutlined
+                      v-if="
+                        photo.sortBy === o.field && effectiveOrder(o.field, photo.sortOrder) === 'asc'
+                      "
+                    />
+                    <CaretDownOutlined v-else-if="photo.sortBy === o.field" />
+                  </span>
+                </MenuItem>
+              </Menu>
+            </template>
+          </Dropdown>
+        </template>
+        <!-- 其余模式：等宽占位，保持顶栏布局不跳动 -->
+        <span v-else class="sort-placeholder" aria-hidden="true"></span>
 
-        <FilterPanel v-model:open="ui.filterOpen" />
+        <template v-if="showFilter">
+          <FilterPanel v-model:open="ui.filterOpen" />
+        </template>
+        <!-- 其余模式：等宽占位，保持顶栏布局不跳动 -->
+        <span v-else class="filter-placeholder" aria-hidden="true"></span>
 
         <Button
           type="primary"
@@ -172,12 +208,12 @@ const currentOrder = computed(() => effectiveOrder(photo.sortBy, photo.sortOrder
     </div>
 
     <!-- 移动端搜索行 -->
-    <div v-show="mobileSearchOpen" class="mobile-search-row">
+    <div v-show="mobileSearchOpen && showSearch" class="mobile-search-row">
       <Input
         v-model:value="searchValue"
         class="mobile-search-input"
-        :placeholder="t('topbar.searchPlaceholder')"
-        :aria-label="t('topbar.searchPlaceholder')"
+        :placeholder="searchPlaceholder"
+        :aria-label="searchPlaceholder"
         allow-clear
         autofocus
         @blur="mobileSearchOpen = false"
@@ -247,6 +283,10 @@ const currentOrder = computed(() => effectiveOrder(photo.sortBy, photo.sortOrder
   border-radius: 999px;
   transition: width 0.25s ease;
 }
+.search-placeholder {
+  width: 220px;
+  height: 36px;
+}
 .search-input:focus-within {
   width: 300px;
 }
@@ -262,6 +302,14 @@ const currentOrder = computed(() => effectiveOrder(photo.sortBy, photo.sortOrder
 }
 .sort-label {
   font-size: 13px;
+}
+.sort-placeholder {
+  width: 62px;
+  height: 36px;
+}
+.filter-placeholder {
+  width: 36px;
+  height: 36px;
 }
 .caret {
   font-size: 10px;
@@ -294,6 +342,10 @@ const currentOrder = computed(() => effectiveOrder(photo.sortBy, photo.sortOrder
   .search-input {
     display: none;
   }
+  /* 移动端 actions 行本无搜索按钮，占位随之隐藏 */
+  .search-placeholder {
+    display: none;
+  }
   .mobile-search-row {
     display: block;
     padding: 0 12px 10px;
@@ -303,6 +355,9 @@ const currentOrder = computed(() => effectiveOrder(photo.sortBy, photo.sortOrder
   }
   .sort-label {
     display: none;
+  }
+  .sort-placeholder {
+    width: 34px;
   }
   .upload-label {
     display: none;

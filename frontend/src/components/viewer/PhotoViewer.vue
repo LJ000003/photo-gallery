@@ -16,9 +16,8 @@ import {
 import { Button, Modal } from 'ant-design-vue'
 
 import ExifPanel from './ExifPanel.vue'
-import ShareDialog from '../common/ShareDialog.vue'
 import { webpUrl } from '../../webp'
-import { tokenParam } from '../../utils/token'
+import { appendMediaParams } from '../../utils/token'
 import { formatSize } from '../../utils/format'
 import { useUiStore } from '../../stores/ui'
 import { usePhotoActions } from '../../composables/usePhotoActions'
@@ -127,7 +126,13 @@ watch(canSlideshow, () => syncSlideTimer())
 function onKeydown(e: KeyboardEvent): void {
   switch (e.key) {
     case 'Escape':
-      emit('close')
+      // 分层处理：全屏中先退全屏（浏览器也拦截 Esc），不关闭灯箱
+      if (isFullscreenActive()) {
+        e.preventDefault()
+        exitFullscreen()
+      } else {
+        emit('close')
+      }
       break
     case 'ArrowLeft':
       ui.navigateViewer(-1)
@@ -180,20 +185,14 @@ function onDelete(): void {
     cancelText: t('actions.cancel'),
     onOk: () => {
       const id = props.photo.id
-      // 删除后导航到下一张，或关闭
-      const list = ui.viewPhotos
-      const idx = list.findIndex((p) => p.id === id)
-      if (idx > -1 && idx + 1 < list.length) {
-        deletePhoto(id)
-      } else {
-        onClose()
-        deletePhoto(id)
-      }
+      // 统一删除路径：store 从快照移除并导航到下一张（或关闭），组件不再自行导航
+      ui.removeViewerPhoto(id)
+      void deletePhoto(id)
     },
   })
 }
 
-const downloadUrl = computed(() => `${webpUrl(props.photo.id)}${tokenParam(props.photo.fileSize)}`)
+const downloadUrl = computed(() => appendMediaParams(webpUrl(props.photo.id), props.photo))
 </script>
 
 <template>
@@ -274,14 +273,14 @@ const downloadUrl = computed(() => `${webpUrl(props.photo.id)}${tokenParam(props
       <div class="img-wrap" @click.stop>
         <img
           class="img-thumb"
-          :src="`/api/v1/photos/${photo.id}/thumbnail${tokenParam(photo.fileSize)}`"
+          :src="appendMediaParams(`/api/v1/photos/${photo.id}/thumbnail`, photo)"
           :alt="photo.name"
           decoding="async"
         />
         <img
           class="img-full"
           :class="{ show: fullLoaded }"
-          :src="`${webpUrl(photo.id)}${tokenParam(photo.fileSize)}`"
+          :src="appendMediaParams(webpUrl(photo.id), photo)"
           :alt="photo.name"
           decoding="async"
           @load="fullLoaded = true"
@@ -353,7 +352,6 @@ const downloadUrl = computed(() => `${webpUrl(props.photo.id)}${tokenParam(props
     </footer>
 
     <ExifPanel :photo="photo" :open="exifOpen" />
-    <ShareDialog />
   </div>
 </template>
 

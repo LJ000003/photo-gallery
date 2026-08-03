@@ -27,7 +27,13 @@ export const useDataStore = defineStore('data', () => {
       categories.value = cJson.data || []
       albums.value = aJson.data || []
     })()
-    return loadPromise
+    try {
+      await loadPromise
+    } finally {
+      // 失败也重置缓存：下次 loadAll() 重新请求，
+      // 避免永远拿到同一个被拒的 Promise（标签/分类/相册下拉永久空白）
+      loadPromise = null
+    }
   }
 
   async function refreshTags(): Promise<void> {

@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { CalendarOutlined } from '@ant-design/icons-vue'
 import { useUiStore } from '../../stores/ui'
-import { tokenParam } from '../../utils/token'
+import { usePhotoStore } from '../../stores/photo'
+import { appendMediaParams } from '../../utils/token'
 import { api } from '../../api'
 import EmptyState from '../common/EmptyState.vue'
 import type { TimelineExifItem } from '../../types/view'
@@ -16,6 +17,7 @@ import type { Photo } from '../../types/photo'
  */
 const { t } = useI18n()
 const ui = useUiStore()
+const photo = usePhotoStore()
 
 const sortOrder = ref<'asc' | 'desc'>('desc')
 
@@ -25,6 +27,10 @@ const hasMore = ref(true)
 const loading = ref(false)
 const initialLoading = ref(true)
 let requestId = 0
+
+/** 加载失败冷却：避免 IntersectionObserver 对持续不可用的服务器连环重试 */
+let lastFailAt = 0
+const FAIL_COOLDOWN_MS = 5000
 
 function toggleOrder(): void {
   sortOrder.value = sortOrder.value === 'desc' ? 'asc' : 'desc'
@@ -54,8 +60,10 @@ function monthLabel(month: string): string {
   return `${y} 年 ${Number(m)} 月`
 }
 
-async function loadMore(): Promise<void> {
-  if (loading.value || !hasMore.value) return
+/** @returns 是否成功加载了一页（失败时调用方不触发连环重试） */
+async function loadMore(): Promise<boolean> {
+  if (loading.value || !hasMore.value) return false
+  if (Date.now() - lastFailAt < FAIL_COOLDOWN_MS) return false
   loading.value = true
   const myId = ++requestId
   try {
@@ -63,13 +71,16 @@ async function loadMore(): Promise<void> {
       `/api/photos/timeline?sortOrder=${sortOrder.value}&page=${page.value}&size=50`,
     )
     const json = await res.json()
-    if (json.code !== 200 || myId !== requestId) return
+    if (json.code !== 200 || myId !== requestId) return false
     const data: PageResponse<TimelineExifItem> = json.data
     if (data.content && data.content.length) items.value.push(...data.content)
     page.value++
     hasMore.value = page.value < data.totalPages
+    return true
   } catch (e) {
     console.error('Failed to load timeline', e)
+    lastFailAt = Date.now()
+    return false
   } finally {
     if (myId === requestId) loading.value = false
     initialLoading.value = false
@@ -112,9 +123,20 @@ onUnmounted(() => {
 
 function openViewer(exif: TimelineExifItem): void {
   // 时间线数据为 EXIF 摘要，用最小 Photo 结构打开查看器（名称/图片 URL 均由 id 驱动）
-  const partial = { id: exif.photoId, name: exif.photoName } as Photo
+  // mediaToken 必须带上：灯箱大图鉴权用 per-photo 签名，残缺对象不带会 401
+  const partial = { id: exif.photoId, name: exif.photoName, mediaToken: exif.mediaToken } as Photo
   ui.openViewer(partial, [partial])
 }
+
+// 删除同步：照片被删除后从本地时间线移除（photo store 统一记录 deletedIds）
+watch(
+  () => [...photo.deletedIds],
+  (ids) => {
+    if (ids.length === 0) return
+    const set = new Set(ids)
+    items.value = items.value.filter((i) => !set.has(i.photoId))
+  },
+)
 </script>
 
 <template>
@@ -155,7 +177,7 @@ function openViewer(exif: TimelineExifItem): void {
             @click="openViewer(exif)"
           >
             <img
-              :src="`${exif.photoThumbnail}${tokenParam()}`"
+              :src="appendMediaParams(exif.photoThumbnail, exif)"
               :alt="exif.photoName"
               loading="lazy"
             />

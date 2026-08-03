@@ -2,6 +2,8 @@ import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { api, AuthError } from '../api'
+import i18n from '../i18n'
+import { useToastStore } from './toast'
 import type { Photo } from '../types/photo'
 import type { ApiResponse, PageResponse } from '../types/api'
 import type { SortField, SortOrder } from '../types/view'
@@ -9,6 +11,7 @@ import type { SortField, SortOrder } from '../types/view'
 export const usePhotoStore = defineStore('photo', () => {
   const router = useRouter()
   const route = useRoute()
+  const toast = useToastStore()
 
   const photos: Ref<Photo[]> = ref([])
   const page = ref(0)
@@ -25,6 +28,8 @@ export const usePhotoStore = defineStore('photo', () => {
   )
   const selectedPhotoIds: Ref<Set<number>> = ref(new Set())
   const searchQuery = ref((route.query.q as string) || '')
+  /** 已删除照片 id（时间线/地图等持有本地列表的视图据此清理） */
+  const deletedIds: Ref<Set<number>> = ref(new Set())
 
   let requestId = 0
 
@@ -38,8 +43,9 @@ export const usePhotoStore = defineStore('photo', () => {
     router.replace({ query })
   }
 
-  async function loadMore(): Promise<void> {
-    if (loading.value || !hasMore.value) return
+  /** @returns 是否成功加载了一页（失败时调用方应终止循环，避免死循环重试） */
+  async function loadMore(): Promise<boolean> {
+    if (loading.value || !hasMore.value) return false
     loading.value = true
     const myId = ++requestId
     try {
@@ -60,18 +66,20 @@ export const usePhotoStore = defineStore('photo', () => {
       })
       if (searchQuery.value) url += `&q=${encodeURIComponent(searchQuery.value)}`
       const res = await api(url)
-      if (myId !== requestId) return
+      if (myId !== requestId) return false
       const json: ApiResponse<PageResponse<Photo>> = await res.json()
-      if (!json.data) return
+      if (!json.data) return false
       const { content, totalPages, totalElements } = json.data
       if (content && content.length) photos.value.push(...content)
       page.value++
       hasMore.value = page.value < totalPages
       totalCount.value = totalElements
+      return true
     } catch (err) {
       if (!(err instanceof AuthError)) {
         console.error('加载照片失败:', err)
       }
+      return false
     } finally {
       if (myId === requestId) loading.value = false
     }
@@ -103,14 +111,20 @@ export const usePhotoStore = defineStore('photo', () => {
   }
 
   function removePhoto(id: number): void {
+    // 仅当照片确实在当前列表才减计数：时间线/地图用残缺对象删除时，
+    // 照片可能不在过滤后的列表里，无条件 -- 会导致首页计数错乱
+    const existed = photos.value.some((p) => p.id === id)
     photos.value = photos.value.filter((p) => p.id !== id)
-    totalCount.value--
+    if (existed) totalCount.value--
+    deletedIds.value.add(id)
   }
 
   function removePhotos(ids: number[]): void {
     const set = new Set(ids)
+    const removed = photos.value.filter((p) => set.has(p.id)).length
     photos.value = photos.value.filter((p) => !set.has(p.id))
-    totalCount.value -= ids.length
+    totalCount.value -= removed
+    for (const id of ids) deletedIds.value.add(id)
   }
 
   /**
@@ -126,32 +140,45 @@ export const usePhotoStore = defineStore('photo', () => {
   }
 
   let processingTimer: ReturnType<typeof setTimeout> | null = null
+  const MAX_POLL_ATTEMPTS = 20
 
   function startProcessingPoll(): void {
     stopProcessingPoll()
     let attempts = 0
-    const maxAttempts = 20
     function poll(): void {
-      const processingIds = photos.value
-        .filter((p) => p.processingStatus === 'PROCESSING')
-        .map((p) => p.id)
-      if (processingIds.length === 0 || attempts >= maxAttempts) {
+      const processingPhotos = photos.value.filter((p) => p.processingStatus === 'PROCESSING')
+      if (processingPhotos.length === 0) {
+        stopProcessingPoll()
+        return
+      }
+      if (attempts >= MAX_POLL_ATTEMPTS) {
+        // 超时（20×3s=60s）不再静默停止：本地标 FAILED（FAILED 态出现重试按钮）+ 提示
+        const timeoutMsg = i18n.global.t('gallery.processingTimeoutMessage')
+        photos.value.forEach((p, i) => {
+          if (p.processingStatus === 'PROCESSING') {
+            photos.value[i] = { ...p, processingStatus: 'FAILED', errorMessage: timeoutMsg }
+          }
+        })
+        toast.info(i18n.global.t('gallery.processingTimeout'))
         stopProcessingPoll()
         return
       }
       attempts++
       processingTimer = setTimeout(async () => {
         try {
-          for (const id of processingIds) {
-            const res = await api(`/api/photos/${id}`)
-            const json: ApiResponse<Photo> = await res.json()
-            if (json.code === 200 && json.data) {
-              const idx = photos.value.findIndex((p) => p.id === id)
-              if (idx !== -1) photos.value[idx] = json.data
-            }
-          }
+          // 本轮全部处理中照片并行拉取（旧实现逐张串行，50 张 = 50 个串行请求）
+          await Promise.all(
+            processingPhotos.map(async (p) => {
+              const res = await api(`/api/photos/${p.id}`)
+              const json: ApiResponse<Photo> = await res.json()
+              if (json.code === 200 && json.data) {
+                const idx = photos.value.findIndex((x) => x.id === p.id)
+                if (idx !== -1) photos.value[idx] = json.data
+              }
+            }),
+          )
         } catch (err) {
-          console.warn(`[photo store] 轮询照片处理状态失败: ${processingIds.join(',')}`, err)
+          console.warn(`[photo store] 轮询照片处理状态失败: ${processingPhotos.map((p) => p.id).join(',')}`, err)
         }
         poll()
       }, 3000)
@@ -180,6 +207,7 @@ export const usePhotoStore = defineStore('photo', () => {
     selectedCategoryIds,
     selectedPhotoIds,
     searchQuery,
+    deletedIds,
     loadMore,
     resetAndReload,
     setSort,

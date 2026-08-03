@@ -24,6 +24,8 @@ public class PhotoResponse {
     private String processingStatus;
     private String errorMessage;
     private ExifData exifData;
+    /** 图片 URL 短时签名（HMAC 时间桶），仅管理员上下文签发；分享上下文剥离 */
+    private String mediaToken;
 
     public static PhotoResponse from(Photo photo) {
         PhotoResponse r = new PhotoResponse();
@@ -54,4 +56,6 @@ public class PhotoResponse {
     public String getProcessingStatus() { return processingStatus; }
     public String getErrorMessage() { return errorMessage; }
     public ExifData getExifData() { return exifData; }
+    public String getMediaToken() { return mediaToken; }
+    public void setMediaToken(String mediaToken) { this.mediaToken = mediaToken; }
 }

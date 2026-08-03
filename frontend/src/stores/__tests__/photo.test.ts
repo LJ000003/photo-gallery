@@ -67,6 +67,26 @@ describe('photo store — local mutations', () => {
     expect(photo.totalCount).toBe(1)
   })
 
+  it('removePhoto 不在列表的照片不减计数（时间线/地图删除场景）', () => {
+    const photo = usePhotoStore()
+    ;(photo as never as { totalCount: number }).totalCount = 5
+
+    photo.removePhoto(999)
+
+    expect(photo.totalCount).toBe(5)
+    expect([...photo.deletedIds]).toContain(999)
+  })
+
+  it('removePhotos 只减实际在列表中的数量', () => {
+    const photo = usePhotoStore()
+    photo.photos.push({ id: 1, name: 'a', description: '', fileSize: 100 } as never)
+    ;(photo as never as { totalCount: number }).totalCount = 5
+
+    photo.removePhotos([1, 888])
+
+    expect(photo.totalCount).toBe(4)
+  })
+
   it('applyBatchEdit patches matching ids in place keeping order', () => {
     const photo = usePhotoStore()
     photo.photos.push({ id: 1, name: 'a', description: '', fileSize: 100 } as never)
@@ -153,6 +173,26 @@ describe('photo store — loadMore (success)', () => {
 
     expect(photo.hasMore).toBe(false)
     expect(photo.totalCount).toBe(1)
+  })
+
+  it('loadMore returns false on server error（调用方据此终止全选循环）', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        headers: new Headers(),
+        json: () => Promise.resolve({ code: 500, message: 'boom' }),
+      }),
+    )
+
+    const photo = usePhotoStore()
+    const ok = await photo.loadMore()
+
+    expect(ok).toBe(false)
+    // hasMore 不翻转：失败≠到底，但调用方不得死循环重试
+    expect(photo.hasMore).toBe(true)
+    expect(photo.photos).toHaveLength(0)
   })
 })
 

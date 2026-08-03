@@ -112,7 +112,8 @@ async function extractErrorMessage(res: Response): Promise<string> {
 
 async function onSubmit(): Promise<void> {
   if (!editName.value.trim()) {
-    toast.error(t('edit.name'))
+    // 旧实现弹字段 label「名称」而非错误文案
+    toast.error(t('edit.nameRequired'))
     return
   }
   if (saving.value) return

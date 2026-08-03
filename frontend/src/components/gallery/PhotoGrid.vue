@@ -19,8 +19,10 @@ const props = withDefaults(
     hasMore: boolean
     /** 关闭选择圈（相册详情/分享端等纯浏览场景） */
     selectable?: boolean
+    /** 显式查询 token（分享页 viewer token），透传给 PhotoTile */
+    token?: string
   }>(),
-  { selectable: true, searchQuery: '' },
+  { selectable: true, searchQuery: '', token: '' },
 )
 
 const emit = defineEmits<{
@@ -144,6 +146,7 @@ function isSelected(id: number): boolean {
           :search-query="searchQuery"
           :selected="isSelected(p.id)"
           :selectable="selectable"
+          :token="token"
           @view="emit('view', $event)"
           @edit="emit('edit', $event)"
           @edit-image="emit('edit-image', $event)"

@@ -5,15 +5,15 @@ import { useI18n } from 'vue-i18n'
 import PhotoGrid from './PhotoGrid.vue'
 import GridSkeleton from './GridSkeleton.vue'
 import SelectionBar from './SelectionBar.vue'
-import ShareDialog from '../common/ShareDialog.vue'
 import EmptyState from '../common/EmptyState.vue'
 import ImageEditor from '../editor/ImageEditor.vue'
+import { Modal } from 'ant-design-vue'
 
 import { usePhotoStore } from '../../stores/photo'
 import { useUiStore } from '../../stores/ui'
 import { usePhotoActions } from '../../composables/usePhotoActions'
 import { webpUrl } from '../../webp'
-import { tokenParam } from '../../utils/token'
+import { appendMediaParams } from '../../utils/token'
 import { api } from '../../api'
 import { useToastStore } from '../../stores/toast'
 import type { Photo } from '../../types/photo'
@@ -48,16 +48,34 @@ async function toggleAll(): Promise<void> {
     selectedIds.value = new Set()
     return
   }
+  // 失败即终止循环：loadMore 返回 false 时服务器不可用，
+  // 旧实现会 while(hasMore) 无限发请求
+  let failed = false
   while (photo.hasMore && !photo.loading) {
-    await photo.loadMore()
+    if (!(await photo.loadMore())) {
+      failed = true
+      break
+    }
   }
   selectedIds.value = new Set(photo.photos.map((p) => p.id))
+  if (failed) {
+    toast.error(t('gallery.loadFailed'))
+  }
 }
 
 function batchDelete(): void {
   if (selectedIds.value.size === 0) return
-  deletePhotos([...selectedIds.value])
-  selectedIds.value = new Set()
+  Modal.confirm({
+    title: t('actions.delete'),
+    content: t('selection.batchDeleteConfirm', { n: selectedIds.value.size }),
+    okText: t('actions.delete'),
+    okButtonProps: { danger: true },
+    cancelText: t('actions.cancel'),
+    onOk: () => {
+      deletePhotos([...selectedIds.value])
+      selectedIds.value = new Set()
+    },
+  })
 }
 
 function batchEdit(): void {
@@ -132,9 +150,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 /* ---------- 图片编辑器（裁剪/旋转，POST transform） ---------- */
 const editorPhoto = ref<Photo | null>(null)
 const editorSrc = computed(() =>
-  editorPhoto.value
-    ? `${webpUrl(editorPhoto.value.id)}${tokenParam(editorPhoto.value.fileSize)}`
-    : '',
+  editorPhoto.value ? appendMediaParams(webpUrl(editorPhoto.value.id), editorPhoto.value) : '',
 )
 
 function openImageEditor(p: Photo): void {
@@ -217,7 +233,6 @@ const showEmpty = computed(() => !photo.loading && !photo.hasMore && photo.photo
       @toggle-select="toggleSelect"
     />
 
-    <ShareDialog />
     <ImageEditor
       :src="editorSrc"
       :visible="!!editorPhoto"

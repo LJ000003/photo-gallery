@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import { LeftOutlined, RightOutlined } from '@ant-design/icons-vue'
 import { webpUrl } from '../../webp'
 import { formatSize } from '../../utils/format'
+import { appendTokenParam } from '../../utils/token'
 import { api } from '../../api'
 import PhotoGrid from '../gallery/PhotoGrid.vue'
 import GridSkeleton from '../gallery/GridSkeleton.vue'
@@ -16,7 +18,9 @@ import type { PageResponse } from '../../types/api'
  * 极简照片流 + 轻量灯箱；无导航无上传，带品牌落款
  */
 const { t } = useI18n()
-const token = window.location.pathname.replace('/share/', '')
+const route = useRoute()
+// 用路由参数而非 pathname 解析：子路径部署（/app/share/xxx）下 pathname 替换会出错
+const token = String(route.params.token || '')
 
 const photos = ref<Photo[]>([])
 const loading = ref(true)
@@ -24,7 +28,8 @@ const hasMore = ref(true)
 const page = ref(0)
 const viewIndex = ref(-1)
 
-// 网格内缩略图由 PhotoGrid 内部生成（走 /thumbnail?token= 形式，与公开访问一致）
+/** 错误态区分：auth=链接无效/已过期（401/403），server=服务器错误（5xx/网络） */
+const errorKind = ref<'auth' | 'server' | null>(null)
 
 async function load(): Promise<void> {
   if (loading.value || !hasMore.value) return
@@ -35,6 +40,7 @@ async function load(): Promise<void> {
       skipAuth: true,
     })
     if (!res.ok) {
+      errorKind.value = res.status === 401 || res.status === 403 ? 'auth' : 'server'
       hasMore.value = false
       return
     }
@@ -43,7 +49,9 @@ async function load(): Promise<void> {
     photos.value = [...photos.value, ...data.content]
     hasMore.value = !data.last
     page.value++
+    errorKind.value = null
   } catch {
+    errorKind.value = 'server'
     hasMore.value = false
   } finally {
     loading.value = false
@@ -98,8 +106,8 @@ onUnmounted(() => {
 
     <EmptyState
       v-else-if="!loading && photos.length === 0"
-      :title="t('gallery.emptyTitle')"
-      :hint="t('share.expire')"
+      :title="t(errorKind === 'auth' ? 'share.invalidTitle' : errorKind === 'server' ? 'share.serverErrorTitle' : 'gallery.emptyTitle')"
+      :hint="t(errorKind === 'auth' ? 'share.invalidHint' : errorKind === 'server' ? 'share.serverErrorHint' : 'share.expire')"
     />
 
     <PhotoGrid
@@ -109,6 +117,7 @@ onUnmounted(() => {
       :loading="loading"
       :has-more="hasMore"
       :selectable="false"
+      :token="token"
       @load-more="load"
       @view="(p) => openViewer(photos.findIndex((x) => x.id === p.id))"
     />
@@ -129,7 +138,7 @@ onUnmounted(() => {
         <div class="lb-content" @click.self="closeViewer">
           <img
             v-if="photos[viewIndex]"
-            :src="`${webpUrl(photos[viewIndex].id)}?token=${token}`"
+            :src="appendTokenParam(webpUrl(photos[viewIndex].id), token)"
             :alt="photos[viewIndex].name"
             loading="lazy"
           />
