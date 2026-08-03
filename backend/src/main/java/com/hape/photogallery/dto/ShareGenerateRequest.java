@@ -2,6 +2,7 @@ package com.hape.photogallery.dto;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.Pattern;
 import java.util.List;
 
 public class ShareGenerateRequest {
@@ -9,6 +10,8 @@ public class ShareGenerateRequest {
     @NotEmpty(message = "请选择至少一张照片")
     private List<Long> photoIds;
 
+    /** 分享权限仅支持 view/download，任意字符串会被拒绝（permission claim 随 JWT 签发，不可放任非法值） */
+    @Pattern(regexp = "view|download", message = "分享权限只能是 view 或 download")
     private String permission = "view";
 
     @Min(value = 1, message = "过期天数必须大于 0")

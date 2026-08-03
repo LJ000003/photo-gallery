@@ -219,8 +219,17 @@ public class PhotoService {
         if (req.getTagIds() != null) {
             photo.setTags(new HashSet<>(tagRepo.findAllById(req.getTagIds())));
         }
-        photo.setCategory(req.getCategoryId() != null
-                ? catRepo.findById(req.getCategoryId()).orElse(null) : null);
+        // categoryId 语义与 albumId=0 的"未分配"约定一致：
+        //   null = 不修改分类；0 = 清除分类；>0 = 设为指定分类（不存在则 404，不做静默置 null）
+        Long catId = req.getCategoryId();
+        if (catId != null) {
+            if (catId == 0L) {
+                photo.setCategory(null);
+            } else {
+                photo.setCategory(catRepo.findById(catId)
+                        .orElseThrow(() -> new BusinessException(404, "分类不存在")));
+            }
+        }
         if (req.getAlbumIds() != null) {
             albumService.syncPhotoAlbums(photo, req.getAlbumIds());
         }
@@ -584,8 +593,23 @@ public class PhotoService {
         Path filePath = storage.getUploadDir().resolve(photo.getFileName());
         if (!Files.exists(filePath)) return;
 
+        try {
+            doTransformPhoto(photo, filePath, rotate, mirror, cx, cy, cw, ch);
+        } catch (IOException e) {
+            // 图片无法解码（读取返回 null / IIOException）或写入编码失败（如 JPEG 编码器拒绝
+            // 异常色彩空间）——均属"用户图片不可处理"，返回业务错误而非 500
+            log.warn("Transform failed for photo {}: {}", id, e.getMessage());
+            throw new BusinessException(400, "图片无法处理，可能已损坏");
+        }
+        repo.save(photo);
+    }
+
+    private void doTransformPhoto(Photo photo, Path filePath, int rotate, String mirror,
+                                  Double cx, Double cy, Double cw, Double ch) throws IOException {
         BufferedImage img = ImageIO.read(filePath.toFile());
-        if (img == null) throw new IOException("无法读取图片");
+        if (img == null) {
+            throw new IOException("ImageIO.read returned null");
+        }
 
         if (cx != null && cy != null && cw != null && ch != null
                 && cw > 0 && ch > 0 && cw < 1 && ch < 1) {
@@ -619,12 +643,11 @@ public class PhotoService {
         imageService.generateThumbnail(filePath, parts.dateDir, parts.baseName);
         imageService.generateThumbnail(filePath, parts.dateDir, parts.baseName, 200);
         imageService.generateWebp(filePath, parts.dateDir, parts.baseName);
-        repo.save(photo);
 
         try {
             exifService.extractAndSave(photo, filePath);
         } catch (Exception e) {
-            log.warn("变换后 EXIF 提取失败 photo={}: {}", id, e.getMessage());
+            log.warn("变换后 EXIF 提取失败 photo={}: {}", photo.getId(), e.getMessage());
         }
     }
 

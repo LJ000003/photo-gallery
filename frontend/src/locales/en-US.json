@@ -114,6 +114,12 @@
     "success": "Updated {count} photos",
     "tooMany": "Maximum 50 photos per operation"
   },
+  "backup": {
+    "export": "Export backup",
+    "exporting": "Exporting...",
+    "success": "Backup ready, download started",
+    "failed": "Export failed"
+  },
   "slideshow": {
     "play": "Play slideshow",
     "pause": "Pause slideshow",

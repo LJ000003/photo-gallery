@@ -99,7 +99,8 @@ export function uploadWithProgress(
       try {
         data = JSON.parse(xhr.responseText)
       } catch {
-        /* keep null */
+        /* 响应体非 JSON（如 HTML 错误页）时保留 null，仅记录便于排查 */
+        console.warn('[upload] 响应非 JSON，跳过解析:', xhr.responseText?.slice(0, 200))
       }
       resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, data })
     }

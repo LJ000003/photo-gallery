@@ -57,4 +57,19 @@ class JwtServiceTest {
         assertThatThrownBy(() -> jwtService.verify(""))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void constructor_secretTooShort_shouldThrow() {
+        // 30 字节 < 32 字节要求
+        assertThatThrownBy(() -> new JwtService("short-secret-key-123456789"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("至少 32 字节");
+    }
+
+    @Test
+    void constructor_blankSecret_shouldThrow() {
+        assertThatThrownBy(() -> new JwtService("   "))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("JWT_SECRET");
+    }
 }

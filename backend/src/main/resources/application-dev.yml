@@ -10,5 +10,14 @@ spring:
       ddl-auto: update
     show-sql: true
 
+# dev 不跑 RabbitMQ/Redis，禁用其健康检查，避免 /actuator/health 误报 DOWN
+# （starter 自动配置会无条件注册 ConnectionFactory + 健康指示器，连 localhost 5672/6379 失败）
+management:
+  health:
+    rabbit:
+      enabled: false
+    redis:
+      enabled: false
+
 cors:
   allowed-origins: http://localhost:*,https://hape233.online

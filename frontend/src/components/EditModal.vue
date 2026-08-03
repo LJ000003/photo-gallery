@@ -136,7 +136,8 @@ async function onSubmit(): Promise<void> {
       name: editName.value.trim(),
       description: editDesc.value.trim(),
       tagIds: selectedTagIds.value,
-      categoryId: selectedCatId.value,
+      // 后端语义：null=不修改分类，0=清除分类（与 albumId=0 的"未分配"约定一致）
+      categoryId: selectedCatId.value || 0,
       albumIds: selectedAlbumIds.value,
     }
 

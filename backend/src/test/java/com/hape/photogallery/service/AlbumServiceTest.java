@@ -118,9 +118,20 @@ class AlbumServiceTest {
 
     @Test
     void listPhotos_shouldCallRepository() {
+        Album a = new Album("a"); a.setId(1L);
+        when(albumRepo.findById(1L)).thenReturn(Optional.of(a));
         when(photoRepo.findByAlbumId(eq(1L), any())).thenReturn(new PageImpl<>(List.of()));
         Page<Photo> result = service.listPhotos(1L, PageRequest.of(0, 20));
         assertThat(result).isEmpty();
+    }
+
+    @Test
+    void listPhotos_albumNotFound_shouldThrow404() {
+        when(albumRepo.findById(99L)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.listPhotos(99L, PageRequest.of(0, 20)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("相册不存在");
+        verify(photoRepo, never()).findByAlbumId(any(), any());
     }
 
     // ==================== listUnassigned ====================

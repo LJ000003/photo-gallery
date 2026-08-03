@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -17,6 +19,8 @@ import jakarta.servlet.http.HttpServletResponse;
 
 @Component
 public class RateLimitFilter extends OncePerRequestFilter {
+
+    private static final Logger log = LoggerFactory.getLogger(RateLimitFilter.class);
 
     private static final int MAX_PER_SECOND = 10;
 
@@ -32,8 +36,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
         String path = request.getServletPath();
         String method = request.getMethod();
-        boolean isAuthEndpoint = "POST".equalsIgnoreCase(method)
-                && ("/api/v1/auth/unlock".equals(path) || "/api/v1/auth/challenge".equals(path));
+        // 认证端点全量限流：unlock 是 POST，challenge 是 GET（原实现漏掉 GET 导致 challenge 永不受限）
+        boolean isAuthEndpoint = ("/api/v1/auth/unlock".equals(path) && "POST".equalsIgnoreCase(method))
+                || ("/api/v1/auth/challenge".equals(path) && "GET".equalsIgnoreCase(method));
 
         if (!isAuthEndpoint) {
             chain.doFilter(request, response);
@@ -61,7 +66,10 @@ public class RateLimitFilter extends OncePerRequestFilter {
         }
         String xff = request.getHeader("X-Forwarded-For");
         if (xff != null && !xff.isBlank()) {
-            return xff.split(",")[0].trim();
+            // X-Forwarded-For 客户端可伪造，仅记录并提示优先配置反代设置 X-Real-IP
+            String first = xff.split(",")[0].trim();
+            log.warn("Rate-limit IP resolved from spoofable X-Forwarded-For: {}", first);
+            return first;
         }
         return request.getRemoteAddr();
     }

@@ -126,6 +126,22 @@ describe('ViewModal slideshow', () => {
     expect(ui.viewPhoto?.id).toBe(2)
   })
 
+  it('pauses slideshow when fullscreen is exited (Esc) while playing', async () => {
+    const list = [mk(1), mk(2), mk(3)]
+    const wrapper = mountView(list[0], list)
+    await startPlaying(wrapper)
+    expect(ui.slideshowPlaying).toBe(true)
+
+    // 模拟用户按 Esc 退出全屏（测试环境无 fullscreenElement，等价于已退出）
+    document.dispatchEvent(new Event('fullscreenchange'))
+    await nextTick()
+
+    expect(ui.slideshowPlaying).toBe(false)
+    await advanceAndFlush(10000, wrapper)
+    expect(ui.viewPhoto?.id).toBe(1) // 暂停后不再推进
+    wrapper.unmount()
+  })
+
   it('manual next button advances without wrapping and disables at the end', async () => {
     const list = [mk(1), mk(2), mk(3)]
     const wrapper = mountView(list[0], list)

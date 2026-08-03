@@ -18,6 +18,7 @@ const ui = useUiStore()
 
 const isMobile = 'ontouchstart' in window
 const fullLoaded = ref(false)
+const modalRoot = ref<HTMLElement | null>(null)
 
 const hasExif = computed(() => props.photo.exifData != null)
 
@@ -35,7 +36,8 @@ const exifGroups = computed(() => {
   const shootItems: { label: string; value: string }[] = []
   if (exif.focalLength) shootItems.push({ label: t('exif.focalLength'), value: exif.focalLength })
   if (exif.aperture) shootItems.push({ label: t('exif.aperture'), value: exif.aperture })
-  if (exif.shutterSpeed) shootItems.push({ label: t('exif.shutterSpeed'), value: exif.shutterSpeed })
+  if (exif.shutterSpeed)
+    shootItems.push({ label: t('exif.shutterSpeed'), value: exif.shutterSpeed })
   if (exif.iso != null) shootItems.push({ label: t('exif.iso'), value: `ISO ${exif.iso}` })
   if (shootItems.length) groups.push({ label: t('exif.shootGroup'), items: shootItems })
 
@@ -44,7 +46,10 @@ const exifGroups = computed(() => {
     locItems.push({ label: t('exif.dateTaken'), value: new Date(exif.dateTaken).toLocaleString() })
   }
   if (exif.latitude != null && exif.longitude != null) {
-    locItems.push({ label: t('exif.gps'), value: `${exif.latitude.toFixed(6)}, ${exif.longitude.toFixed(6)}` })
+    locItems.push({
+      label: t('exif.gps'),
+      value: `${exif.latitude.toFixed(6)}, ${exif.longitude.toFixed(6)}`,
+    })
   }
   if (locItems.length) groups.push({ label: t('exif.locationGroup'), items: locItems })
 
@@ -73,6 +78,53 @@ function syncSlideTimer(): void {
   }, SLIDESHOW_INTERVAL)
 }
 
+// ---- 全屏幻灯片 ----
+
+function isFullscreenActive(): boolean {
+  return !!(
+    document.fullscreenElement ||
+    (document as Document & { webkitFullscreenElement?: Element }).webkitFullscreenElement
+  )
+}
+
+function enterFullscreen(): void {
+  const el = modalRoot.value
+  if (!el || isFullscreenActive()) return
+  try {
+    if (el.requestFullscreen) {
+      el.requestFullscreen().catch(() => {})
+    } else {
+      const webkit = (el as HTMLElement & { webkitRequestFullscreen?: () => void })
+        .webkitRequestFullscreen
+      webkit?.call(el)
+    }
+  } catch {
+    /* 浏览器不支持/手势丢失时静默，仅保留自动播放 */
+  }
+}
+
+function exitFullscreen(): void {
+  if (!isFullscreenActive()) return
+  try {
+    if (document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {})
+    } else {
+      const webkit = (document as Document & { webkitExitFullscreen?: () => void })
+        .webkitExitFullscreen
+      webkit?.call(document)
+    }
+  } catch {
+    /* 静默 */
+  }
+}
+
+/** 用户按 Esc 退出全屏 → 同步暂停幻灯片（主动暂停已先置 false，不会重复触发） */
+function onFullscreenChange(): void {
+  if (!isFullscreenActive() && ui.slideshowPlaying) {
+    ui.toggleSlideshow()
+  }
+}
+
 // 照片切换（手动或自动）→ 重置淡入 + 重置倒计时
 watch(
   () => props.photo.id,
@@ -81,8 +133,15 @@ watch(
     syncSlideTimer()
   },
 )
-// 播放/暂停切换 → 重置倒计时
-watch(() => ui.slideshowPlaying, () => syncSlideTimer())
+// 播放/暂停切换 → 重置倒计时 + 全屏联动（按钮与空格键共用同一状态入口）
+watch(
+  () => ui.slideshowPlaying,
+  (playing) => {
+    syncSlideTimer()
+    if (playing) enterFullscreen()
+    else exitFullscreen()
+  },
+)
 // 列表退化（<2 或当前照片不在列表）→ 清定时器
 watch(canSlideshow, () => syncSlideTimer())
 
@@ -96,11 +155,16 @@ onMounted(() => {
     { scale: 1, opacity: 1, duration: dur, ease: 'expo.out' },
   )
   gsap.fromTo(backdrop, { opacity: 0 }, { opacity: 1, duration: dur, ease: 'none' })
+  document.addEventListener('fullscreenchange', onFullscreenChange)
+  document.addEventListener('webkitfullscreenchange', onFullscreenChange)
   syncSlideTimer()
 })
 
 onUnmounted(() => {
   clearSlideTimer()
+  document.removeEventListener('fullscreenchange', onFullscreenChange)
+  document.removeEventListener('webkitfullscreenchange', onFullscreenChange)
+  exitFullscreen()
 })
 
 function onClose(): void {
@@ -120,7 +184,7 @@ function onClose(): void {
 </script>
 
 <template>
-  <div id="viewModal" class="modal">
+  <div id="viewModal" ref="modalRoot" class="modal">
     <div class="modal-backdrop" @click="onClose"></div>
     <div class="modal-content-wrap">
       <button class="modal-close" @click="onClose">&times;</button>
@@ -148,18 +212,24 @@ function onClose(): void {
             :disabled="currentIndex <= 0"
             :title="t('slideshow.prev')"
             @click="ui.navigateViewer(-1)"
-          >&lsaquo;</button>
+          >
+            &lsaquo;
+          </button>
           <button
             class="ss-btn ss-play"
             :title="ui.slideshowPlaying ? t('slideshow.pause') : t('slideshow.play')"
             @click="ui.toggleSlideshow()"
-          >{{ ui.slideshowPlaying ? '❚❚' : '▶' }}</button>
+          >
+            {{ ui.slideshowPlaying ? '❚❚' : '▶' }}
+          </button>
           <button
             class="ss-btn"
             :disabled="currentIndex >= ui.viewPhotos.length - 1"
             :title="t('slideshow.next')"
             @click="ui.navigateViewer(1)"
-          >&rsaquo;</button>
+          >
+            &rsaquo;
+          </button>
           <span class="ss-counter">{{ currentIndex + 1 }}/{{ ui.viewPhotos.length }}</span>
         </div>
         <div class="modal-info">
@@ -237,6 +307,56 @@ function onClose(): void {
   font-size: 13px;
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
+}
+
+/* ---- 全屏幻灯片模式 ---- */
+
+#viewModal:fullscreen,
+#viewModal:-webkit-full-screen {
+  background: #000;
+}
+
+#viewModal:fullscreen .modal-backdrop,
+#viewModal:fullscreen .modal-close,
+#viewModal:-webkit-full-screen .modal-backdrop,
+#viewModal:-webkit-full-screen .modal-close {
+  display: none;
+}
+
+#viewModal:fullscreen .modal-info,
+#viewModal:-webkit-full-screen .modal-info {
+  display: none;
+}
+
+#viewModal:fullscreen .modal-content,
+#viewModal:-webkit-full-screen .modal-content {
+  width: 100vw;
+  max-width: 100vw;
+  max-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 20px;
+  overflow: hidden;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+}
+
+#viewModal:fullscreen .modal-content img,
+#viewModal:-webkit-full-screen .modal-content img {
+  max-height: calc(100vh - 160px);
+  border-radius: 6px;
+}
+
+#viewModal:fullscreen .slideshow-bar,
+#viewModal:-webkit-full-screen .slideshow-bar {
+  border-top-color: rgba(255, 255, 255, 0.18);
 }
 
 .modal-filesize {

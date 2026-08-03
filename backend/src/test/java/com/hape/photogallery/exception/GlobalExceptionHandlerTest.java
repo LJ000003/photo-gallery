@@ -8,7 +8,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BeanPropertyBindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -102,5 +106,47 @@ class GlobalExceptionHandlerTest {
         ResponseEntity<ApiResponse<Void>> res = handler.handleException(ex);
         assertThat(res.getStatusCode().value()).isEqualTo(500);
         assertThat(res.getBody().getMessage()).isEqualTo("系统繁忙，请稍后重试");
+    }
+
+    @Test
+    void handleMissingParam_shouldReturn400WithParamName() {
+        MissingServletRequestParameterException ex =
+                new MissingServletRequestParameterException("swLat", "double");
+
+        ResponseEntity<ApiResponse<Void>> res = handler.handleMissingParam(ex);
+
+        assertThat(res.getStatusCode().value()).isEqualTo(400);
+        assertThat(res.getBody().getMessage()).contains("swLat");
+    }
+
+    @Test
+    void handleMissingPart_shouldReturn400WithPartName() {
+        MissingServletRequestPartException ex = new MissingServletRequestPartException("file");
+
+        ResponseEntity<ApiResponse<Void>> res = handler.handleMissingPart(ex);
+
+        assertThat(res.getStatusCode().value()).isEqualTo(400);
+        assertThat(res.getBody().getMessage()).contains("file");
+    }
+
+    @Test
+    void handleMultipart_shouldReturn400() {
+        MultipartException ex = new MultipartException("Current request is not a multipart request");
+
+        ResponseEntity<ApiResponse<Void>> res = handler.handleMultipart(ex);
+
+        assertThat(res.getStatusCode().value()).isEqualTo(400);
+        assertThat(res.getBody().getMessage()).contains("multipart");
+    }
+
+    @Test
+    void handleTypeMismatch_shouldReturn400WithParamName() {
+        MethodArgumentTypeMismatchException ex = new MethodArgumentTypeMismatchException(
+                "abc", Long.class, "tagIds", null, null);
+
+        ResponseEntity<ApiResponse<Void>> res = handler.handleTypeMismatch(ex);
+
+        assertThat(res.getStatusCode().value()).isEqualTo(400);
+        assertThat(res.getBody().getMessage()).contains("tagIds");
     }
 }

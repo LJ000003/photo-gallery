@@ -55,4 +55,19 @@ public interface PhotoRepository extends JpaRepository<Photo, Long> {
     List<Photo> findByProcessingStatus(@Param("status") String status);
 
     Optional<Photo> findByFileHash(String fileHash);
+
+    /**
+     * 备份导出筛选：所有参数可选，null 表示不限制。
+     * albumId=0 表示未分配任何相册的照片（与 /photos 列表语义一致）。
+     */
+    @Query("SELECT DISTINCT p FROM Photo p WHERE "
+            + "(:albumId IS NULL OR :albumId = 0 OR EXISTS (SELECT a FROM p.albums a WHERE a.id = :albumId)) "
+            + "AND (:albumId IS NULL OR :albumId != 0 OR p.albums IS EMPTY) "
+            + "AND (:categoryId IS NULL OR p.category.id = :categoryId) "
+            + "AND (:dateFrom IS NULL OR p.createdAt >= :dateFrom) "
+            + "AND (:dateTo IS NULL OR p.createdAt <= :dateTo)")
+    List<Photo> findForBackup(@Param("albumId") Long albumId,
+                              @Param("categoryId") Long categoryId,
+                              @Param("dateFrom") LocalDateTime dateFrom,
+                              @Param("dateTo") LocalDateTime dateTo);
 }

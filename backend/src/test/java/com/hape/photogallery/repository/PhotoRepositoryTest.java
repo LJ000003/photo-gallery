@@ -1,5 +1,6 @@
 package com.hape.photogallery.repository;
 
+import com.hape.photogallery.entity.Album;
 import com.hape.photogallery.entity.Category;
 import com.hape.photogallery.entity.Photo;
 import com.hape.photogallery.entity.Tag;
@@ -11,6 +12,7 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -27,13 +29,16 @@ class PhotoRepositoryTest {
     @Autowired
     private CategoryRepository catRepo;
 
-    private Category cat1;
+    @Autowired
+    private AlbumRepository albumRepo;
+
+    private Category cat1, cat2;
     private Tag tag1, tag2;
 
     @BeforeEach
     void setUp() {
         cat1 = catRepo.save(new Category("风景"));
-        Category cat2 = catRepo.save(new Category("人像"));
+        cat2 = catRepo.save(new Category("人像"));
         tag1 = tagRepo.save(new Tag("日出", "#ff8800"));
         tag2 = tagRepo.save(new Tag("海边", "#0088ff"));
 
@@ -139,5 +144,80 @@ class PhotoRepositoryTest {
         List<Photo> expired = photoRepo.findDeletedBefore(
                 java.time.LocalDateTime.now().minusDays(30));
         assertThat(expired).hasSize(1);
+    }
+
+    // ==================== findForBackup（备份导出筛选） ====================
+
+    @Test
+    void findForBackup_noFilters_shouldReturnAll() {
+        List<Photo> result = photoRepo.findForBackup(null, null, null, null);
+        assertThat(result).hasSize(3);
+    }
+
+    @Test
+    void findForBackup_byAlbum_shouldReturnAlbumPhotosOnly() {
+        Album album = albumRepo.save(new Album("旅行"));
+        Photo p1 = photoRepo.findAll(PageRequest.of(0, 10)).getContent().get(0);
+        album.getPhotos().add(p1);
+        p1.getAlbums().add(album);
+        albumRepo.save(album);
+        photoRepo.save(p1);
+
+        List<Photo> result = photoRepo.findForBackup(album.getId(), null, null, null);
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getId()).isEqualTo(p1.getId());
+    }
+
+    @Test
+    void findForBackup_albumZero_shouldReturnUnassignedOnly() {
+        Album album = albumRepo.save(new Album("旅行"));
+        Photo p1 = photoRepo.findAll(PageRequest.of(0, 10)).getContent().get(0);
+        album.getPhotos().add(p1);
+        p1.getAlbums().add(album);
+        albumRepo.save(album);
+        photoRepo.save(p1);
+
+        List<Photo> result = photoRepo.findForBackup(0L, null, null, null);
+        assertThat(result).hasSize(2);
+    }
+
+    @Test
+    void findForBackup_byCategory_shouldReturnCategoryPhotos() {
+        List<Photo> result = photoRepo.findForBackup(null, cat1.getId(), null, null);
+        assertThat(result).hasSize(2);
+    }
+
+    @Test
+    void findForBackup_byDateRange_shouldReturnPhotosInRange() {
+        List<Photo> all = photoRepo.findAll(PageRequest.of(0, 10)).getContent();
+        LocalDateTime now = LocalDateTime.now();
+        all.get(0).setCreatedAt(now.minusDays(10));
+        all.get(1).setCreatedAt(now.minusDays(5));
+        all.get(2).setCreatedAt(now.minusDays(1));
+        photoRepo.saveAll(all);
+
+        List<Photo> result = photoRepo.findForBackup(null, null,
+                now.minusDays(6), now.minusDays(2));
+        assertThat(result).hasSize(1);
+    }
+
+    @Test
+    void findForBackup_combinedFilters_shouldIntersect() {
+        LocalDateTime now = LocalDateTime.now();
+        Photo p1 = photoRepo.findAll(PageRequest.of(0, 10)).getContent().get(0);
+        p1.setCreatedAt(now.minusDays(3));
+        photoRepo.save(p1);
+
+        // cat1 且 3 天内的照片只有 p1
+        List<Photo> result = photoRepo.findForBackup(null, cat1.getId(),
+                now.minusDays(7), now);
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getId()).isEqualTo(p1.getId());
+    }
+
+    @Test
+    void findForBackup_noMatch_shouldReturnEmpty() {
+        List<Photo> result = photoRepo.findForBackup(null, 9999L, null, null);
+        assertThat(result).isEmpty();
     }
 }

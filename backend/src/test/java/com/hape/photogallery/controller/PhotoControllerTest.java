@@ -220,6 +220,46 @@ class PhotoControllerTest {
                 .andExpect(jsonPath("$.code").value(200));
     }
 
+    // ==================== 参数错误 → 400（缺陷 1 回归）====================
+
+    @Test
+    void mapPhotos_missingParams_shouldReturn400() throws Exception {
+        mockMvc.perform(get("/api/v1/photos/map"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("swLat")));
+    }
+
+    @Test
+    void mapPhotos_typeMismatch_shouldReturn400() throws Exception {
+        mockMvc.perform(get("/api/v1/photos/map?swLat=abc&swLng=-180&neLat=90&neLng=180"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("swLat")));
+    }
+
+    @Test
+    void list_typeMismatchTagIds_shouldReturn400() throws Exception {
+        mockMvc.perform(get("/api/v1/photos?tagIds=abc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
+    void upload_missingFile_shouldReturn400() throws Exception {
+        mockMvc.perform(multipart("/api/v1/photos"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
+    void upload_nonMultipartRequest_shouldReturn400() throws Exception {
+        mockMvc.perform(post("/api/v1/photos"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("multipart")));
+    }
+
     // ==================== EXIF utility endpoints ====================
 
     @Test

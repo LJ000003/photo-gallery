@@ -122,6 +122,8 @@ public class AlbumService {
     }
 
     public Page<Photo> listPhotos(Long albumId, Pageable pageable) {
+        // 不存在/已删除的相册返回 404，而非静默空列表（与 /photos/{id} 的资源缺失语义一致）
+        albumRepo.findById(albumId).orElseThrow(() -> new BusinessException(404, "相册不存在"));
         return photoRepo.findByAlbumId(albumId, pageable);
     }
 
