@@ -163,7 +163,9 @@ onUnmounted(() => {
         {{ t('actions.back') }}
       </Button>
       <h2 class="page-title">{{ t('nav.trash') }}</h2>
-      <span class="trash-hint">{{ t('trash.empty') }}</span>
+      <span class="trash-hint">
+        {{ photos.length + albums.length > 0 ? t('trash.autoPurge') : t('trash.empty') }}
+      </span>
     </div>
 
     <!-- 已删除照片 -->

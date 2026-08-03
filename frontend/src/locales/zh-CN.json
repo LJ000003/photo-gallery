@@ -189,7 +189,8 @@
     "restored": "已恢复",
     "deleteConfirm": "彻底删除？此操作不可撤销",
     "emptyPhotos": "没有已删除的照片",
-    "emptyAlbums": "没有已删除的相册"
+    "emptyAlbums": "没有已删除的相册",
+    "autoPurge": "30 天后自动清空"
   },
   "share": {
     "generate": "生成分享链接",
@@ -208,17 +209,50 @@
     "title": "快捷键",
     "shortcutsTitle": "全局快捷键",
     "shortcuts": [
-      { "keys": "G", "desc": "照片页" },
-      { "keys": "A", "desc": "相册页" },
-      { "keys": "T", "desc": "时间线页" },
-      { "keys": "M", "desc": "地图页" },
-      { "keys": "/", "desc": "聚焦搜索" },
-      { "keys": "Ctrl+Shift+U", "desc": "打开上传" },
-      { "keys": "← →", "desc": "灯箱中切换照片" },
-      { "keys": "Space", "desc": "播放/暂停幻灯片" },
-      { "keys": "E", "desc": "编辑当前照片" },
-      { "keys": "Delete", "desc": "删除选中照片" },
-      { "keys": "Esc", "desc": "关闭弹窗/退出选择" }
+      {
+        "keys": "G",
+        "desc": "照片页"
+      },
+      {
+        "keys": "A",
+        "desc": "相册页"
+      },
+      {
+        "keys": "T",
+        "desc": "时间线页"
+      },
+      {
+        "keys": "M",
+        "desc": "地图页"
+      },
+      {
+        "keys": "/",
+        "desc": "聚焦搜索"
+      },
+      {
+        "keys": "Ctrl+Shift+U",
+        "desc": "打开上传"
+      },
+      {
+        "keys": "← →",
+        "desc": "灯箱中切换照片"
+      },
+      {
+        "keys": "Space",
+        "desc": "播放/暂停幻灯片"
+      },
+      {
+        "keys": "E",
+        "desc": "编辑当前照片"
+      },
+      {
+        "keys": "Delete",
+        "desc": "删除选中照片"
+      },
+      {
+        "keys": "Esc",
+        "desc": "关闭弹窗/退出选择"
+      }
     ],
     "usageTitle": "使用提示",
     "usage": [

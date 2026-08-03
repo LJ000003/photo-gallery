@@ -34,6 +34,68 @@ public interface PhotoRepository extends JpaRepository<Photo, Long> {
            countQuery = "SELECT COUNT(*) FROM photos WHERE MATCH(name, description) AGAINST(:q IN BOOLEAN MODE) AND deleted_at IS NULL")
     Page<Photo> search(@Param("q") String q, Pageable pageable);
 
+    /**
+     * 搜索 + 标签/分类组合过滤。调用方必须传非空筛选（按场景分发到对应方法），
+     * 空集合/null 集合绑定到 IN 会被 Hibernate 生成非法 SQL（IN ?）。
+     */
+    @Query(nativeQuery = true,
+           value = """
+                   SELECT DISTINCT p.* FROM photos p
+                   JOIN photo_tags pt ON p.id = pt.photo_id
+                   WHERE p.deleted_at IS NULL
+                     AND MATCH(p.name, p.description) AGAINST(:q IN BOOLEAN MODE)
+                     AND pt.tag_id IN :tagIds
+                   """,
+           countQuery = """
+                   SELECT COUNT(DISTINCT p.id) FROM photos p
+                   JOIN photo_tags pt ON p.id = pt.photo_id
+                   WHERE p.deleted_at IS NULL
+                     AND MATCH(p.name, p.description) AGAINST(:q IN BOOLEAN MODE)
+                     AND pt.tag_id IN :tagIds
+                   """)
+    Page<Photo> searchWithTagIds(@Param("q") String q,
+                                 @Param("tagIds") List<Long> tagIds,
+                                 Pageable pageable);
+
+    @Query(nativeQuery = true,
+           value = """
+                   SELECT * FROM photos p
+                   WHERE p.deleted_at IS NULL
+                     AND MATCH(p.name, p.description) AGAINST(:q IN BOOLEAN MODE)
+                     AND p.category_id IN :catIds
+                   """,
+           countQuery = """
+                   SELECT COUNT(*) FROM photos p
+                   WHERE p.deleted_at IS NULL
+                     AND MATCH(p.name, p.description) AGAINST(:q IN BOOLEAN MODE)
+                     AND p.category_id IN :catIds
+                   """)
+    Page<Photo> searchWithCategoryIds(@Param("q") String q,
+                                      @Param("catIds") List<Long> catIds,
+                                      Pageable pageable);
+
+    @Query(nativeQuery = true,
+           value = """
+                   SELECT DISTINCT p.* FROM photos p
+                   JOIN photo_tags pt ON p.id = pt.photo_id
+                   WHERE p.deleted_at IS NULL
+                     AND MATCH(p.name, p.description) AGAINST(:q IN BOOLEAN MODE)
+                     AND pt.tag_id IN :tagIds
+                     AND p.category_id IN :catIds
+                   """,
+           countQuery = """
+                   SELECT COUNT(DISTINCT p.id) FROM photos p
+                   JOIN photo_tags pt ON p.id = pt.photo_id
+                   WHERE p.deleted_at IS NULL
+                     AND MATCH(p.name, p.description) AGAINST(:q IN BOOLEAN MODE)
+                     AND pt.tag_id IN :tagIds
+                     AND p.category_id IN :catIds
+                   """)
+    Page<Photo> searchWithTagAndCategoryIds(@Param("q") String q,
+                                            @Param("tagIds") List<Long> tagIds,
+                                            @Param("catIds") List<Long> catIds,
+                                            Pageable pageable);
+
     @Query("SELECT p FROM Photo p JOIN p.albums a WHERE a.id = :albumId")
     Page<Photo> findByAlbumId(@Param("albumId") Long albumId, Pageable pageable);
 

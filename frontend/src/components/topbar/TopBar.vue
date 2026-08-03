@@ -6,12 +6,11 @@ import {
   CaretUpOutlined,
   ColumnHeightOutlined,
   FieldTimeOutlined,
-  FilterOutlined,
   FontSizeOutlined,
   PlusOutlined,
   SearchOutlined,
 } from '@ant-design/icons-vue'
-import { Badge, Button, Dropdown, Input, Menu, MenuItem } from 'ant-design-vue'
+import { Button, Dropdown, Input, Menu, MenuItem } from 'ant-design-vue'
 
 import ModeTabs from './ModeTabs.vue'
 import CornerMenu from './CornerMenu.vue'
@@ -96,8 +95,6 @@ const activeSortLabel = computed(() => {
   return o ? t(o.label) : t('sort.time')
 })
 
-/* ---------- 筛选 ---------- */
-const filterCount = computed(() => photo.selectedTagIds.length + photo.selectedCategoryIds.length)
 </script>
 
 <template>
@@ -142,16 +139,7 @@ const filterCount = computed(() => photo.selectedTagIds.length + photo.selectedC
           </template>
         </Dropdown>
 
-        <Badge :count="filterCount" :offset="[-2, 2]" size="small">
-          <Button
-            class="tool-btn"
-            type="text"
-            :aria-label="t('topbar.filter')"
-            @click="ui.filterOpen = true"
-          >
-            <FilterOutlined />
-          </Button>
-        </Badge>
+        <FilterPanel v-model:open="ui.filterOpen" />
 
         <Button
           type="primary"
@@ -184,7 +172,6 @@ const filterCount = computed(() => photo.selectedTagIds.length + photo.selectedC
       </Input>
     </div>
 
-    <FilterPanel v-model:open="ui.filterOpen" />
   </header>
 </template>
 

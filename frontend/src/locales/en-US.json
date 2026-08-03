@@ -190,7 +190,8 @@
     "restored": "Restored",
     "deleteConfirm": "Delete forever? This cannot be undone",
     "emptyPhotos": "No deleted photos",
-    "emptyAlbums": "No deleted albums"
+    "emptyAlbums": "No deleted albums",
+    "autoPurge": "Auto-purged after 30 days"
   },
   "share": {
     "generate": "Create share link",
@@ -209,17 +210,50 @@
     "title": "Shortcuts",
     "shortcutsTitle": "Global shortcuts",
     "shortcuts": [
-      { "keys": "G", "desc": "Photos page" },
-      { "keys": "A", "desc": "Albums page" },
-      { "keys": "T", "desc": "Timeline page" },
-      { "keys": "M", "desc": "Map page" },
-      { "keys": "/", "desc": "Focus search" },
-      { "keys": "Ctrl+Shift+U", "desc": "Open upload" },
-      { "keys": "← →", "desc": "Navigate in viewer" },
-      { "keys": "Space", "desc": "Play / pause slideshow" },
-      { "keys": "E", "desc": "Edit current photo" },
-      { "keys": "Delete", "desc": "Delete selected photos" },
-      { "keys": "Esc", "desc": "Close dialogs / exit selection" }
+      {
+        "keys": "G",
+        "desc": "Photos page"
+      },
+      {
+        "keys": "A",
+        "desc": "Albums page"
+      },
+      {
+        "keys": "T",
+        "desc": "Timeline page"
+      },
+      {
+        "keys": "M",
+        "desc": "Map page"
+      },
+      {
+        "keys": "/",
+        "desc": "Focus search"
+      },
+      {
+        "keys": "Ctrl+Shift+U",
+        "desc": "Open upload"
+      },
+      {
+        "keys": "← →",
+        "desc": "Navigate in viewer"
+      },
+      {
+        "keys": "Space",
+        "desc": "Play / pause slideshow"
+      },
+      {
+        "keys": "E",
+        "desc": "Edit current photo"
+      },
+      {
+        "keys": "Delete",
+        "desc": "Delete selected photos"
+      },
+      {
+        "keys": "Esc",
+        "desc": "Close dialogs / exit selection"
+      }
     ],
     "usageTitle": "Tips",
     "usage": [
