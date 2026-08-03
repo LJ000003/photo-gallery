@@ -110,13 +110,13 @@ onUnmounted(() => {
         >
           {{
             history[i - 1] === 'up'
-              ? '↑'
+              ? '▲'
               : history[i - 1] === 'down'
-                ? '↓'
+                ? '▼'
                 : history[i - 1] === 'left'
-                  ? '←'
+                  ? '◀'
                   : history[i - 1] === 'right'
-                    ? '→'
+                    ? '▶'
                     : history[i - 1] || '·'
           }}
         </span>
@@ -174,7 +174,7 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <div class="arcade-footer">也支持键盘：↑ ↓ ← → 方向键 + B / A</div>
+    <div class="arcade-footer">也支持键盘：▲ ▼ ◀ ▶ 方向键 + B / A</div>
   </div>
 </template>
 

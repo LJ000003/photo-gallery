@@ -104,6 +104,9 @@ const activeSortLabel = computed(() => {
   const o = sortOptions.find((s) => s.field === photo.sortBy)
   return o ? t(o.label) : t('sort.time')
 })
+
+/** 当前排序方向（用户可见语义，按钮图标用） */
+const currentOrder = computed(() => effectiveOrder(photo.sortBy, photo.sortOrder))
 </script>
 
 <template>
@@ -131,7 +134,8 @@ const activeSortLabel = computed(() => {
         <Dropdown placement="bottomRight" trigger="click">
           <Button class="tool-btn" type="text" :aria-label="t('topbar.sort')">
             <span class="sort-label">{{ activeSortLabel }}</span>
-            <CaretDownOutlined class="caret" />
+            <CaretUpOutlined v-if="currentOrder === 'asc'" class="caret" />
+            <CaretDownOutlined v-else class="caret" />
           </Button>
           <template #overlay>
             <Menu selectable :selected-keys="[photo.sortBy]" @click="onSortMenuClick">

@@ -44,3 +44,36 @@ test('排序菜单：三项字段、点击切换方向、单边箭头', async ({
   await expect(page).toHaveURL(/sortOrder=desc/)
   await expect(page.locator('.dir-arrow .anticon-caret-up')).toBeVisible()
 })
+
+
+test('排序按钮文字与方向图标实时反映', async ({ page }) => {
+  await page.goto('/')
+  await unlockWithKeyboard(page)
+  await waitForGallery(page)
+
+  const sortBtn = page.locator('.tool-btn[aria-label="排序"]')
+  await expect(sortBtn.locator('.sort-label')).toHaveText('时间')
+  await expect(sortBtn.locator('.caret')).toHaveClass(/caret-down/)
+
+  // 点「名称」→ 文字变「名称」，正序 → 图标朝上
+  await sortBtn.click()
+  await page.locator('.ant-dropdown-menu-item').nth(1).click()
+  await expect(sortBtn.locator('.sort-label')).toHaveText('名称')
+  await expect(sortBtn.locator('.caret')).toHaveClass(/caret-up/)
+
+  // 再点「名称」→ 倒序 → 图标朝下
+  await sortBtn.click()
+  await page.locator('.ant-dropdown-menu-item').nth(1).click()
+  await expect(sortBtn.locator('.caret')).toHaveClass(/caret-down/)
+
+  // 点「大小」→ 文字变「大小」
+  await sortBtn.click()
+  await page.locator('.ant-dropdown-menu-item').nth(2).click()
+  await expect(sortBtn.locator('.sort-label')).toHaveText('大小')
+
+  // 点「时间」→ 回到「时间」，最新优先 → 图标朝下
+  await sortBtn.click()
+  await page.locator('.ant-dropdown-menu-item').nth(0).click()
+  await expect(sortBtn.locator('.sort-label')).toHaveText('时间')
+  await expect(sortBtn.locator('.caret')).toHaveClass(/caret-down/)
+})
