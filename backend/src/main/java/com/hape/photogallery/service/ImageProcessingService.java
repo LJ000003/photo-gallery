@@ -259,7 +259,10 @@ public class ImageProcessingService {
         Path webpDir = uploadDir.resolve(dateDir).resolve("webp");
         try {
             Files.createDirectories(webpDir);
-        } catch (IOException e) { return; }
+        } catch (IOException e) {
+            log.warn("WebP 目录创建失败: {}", webpDir, e);
+            return;
+        }
         Path webpPath = webpDir.resolve(baseName + ".webp");
 
         if (lower.endsWith(".webp")) {

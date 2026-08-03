@@ -150,8 +150,8 @@ export const usePhotoStore = defineStore('photo', () => {
               if (idx !== -1) photos.value[idx] = json.data
             }
           }
-        } catch {
-          /* 轮询静默失败 */
+        } catch (err) {
+          console.warn(`[photo store] 轮询照片处理状态失败: ${processingIds.join(',')}`, err)
         }
         poll()
       }, 3000)

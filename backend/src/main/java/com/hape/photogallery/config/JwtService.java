@@ -24,7 +24,14 @@ public class JwtService {
             throw new IllegalStateException(
                 "必须设置环境变量 JWT_SECRET，例如: export JWT_SECRET=$(openssl rand -base64 32)");
         }
-        this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
+        // HS256 要求密钥 ≥32 字节，过短仅靠 Keys.hmacShaKeyFor 运行时兜底，启动即暴露更清晰
+        if (keyBytes.length < 32) {
+            throw new IllegalStateException(
+                "JWT_SECRET 过短（当前 " + keyBytes.length + " 字节），HS256 要求至少 32 字节，"
+                    + "请用 openssl rand -base64 32 生成后重新设置");
+        }
+        this.key = Keys.hmacShaKeyFor(keyBytes);
     }
 
     public String issueAdmin(long durationMs) {

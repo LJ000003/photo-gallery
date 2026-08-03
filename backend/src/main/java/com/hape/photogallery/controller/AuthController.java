@@ -116,7 +116,10 @@ public class AuthController {
         }
         String xff = request.getHeader("X-Forwarded-For");
         if (xff != null && !xff.isBlank()) {
-            return xff.split(",")[0].trim();
+            // X-Forwarded-For 客户端可伪造，仅记录并提示优先配置反代设置 X-Real-IP
+            String first = xff.split(",")[0].trim();
+            log.warn("Auth IP resolved from spoofable X-Forwarded-For: {}", first);
+            return first;
         }
         return request.getRemoteAddr();
     }

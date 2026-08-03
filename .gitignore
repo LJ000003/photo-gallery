@@ -11,7 +11,9 @@ hs_err_pid*
 *.jar
 *.war
 *.ear
+# AI 辅助文档（本地保留，不提交）
 CLAUDE.md
+.claude/
 # OS & editors
 *~
 *.swp
