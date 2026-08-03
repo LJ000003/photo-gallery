@@ -31,10 +31,11 @@ test.describe('核心流程', () => {
     await page.goto('/')
     await unlockWithKeyboard(page)
     await waitForGallery(page)
-    // 计数行格式如「77 张照片」，解析数字
+    // 计数行格式如「77 张照片」，解析数字；空库时计数行不渲染（totalCount=0），按 0 计
     const parseCount = async () => {
-      const text = await page.locator('.count-line').textContent()
-      const m = text?.match(/\d+/)
+      const line = page.locator('.count-line')
+      if (!(await line.isVisible())) return 0
+      const m = (await line.textContent())?.match(/\d+/)
       return m ? Number(m[0]) : 0
     }
     const before = await parseCount()
