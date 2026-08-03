@@ -214,6 +214,69 @@ class PhotoServiceTest {
         verify(photoRepo).search("海边", PageRequest.of(0, 20));
     }
 
+    // ==================== FULLTEXT 运算符剥离（P0-3） ====================
+
+    @Test
+    void search_unpairedQuote_shouldStripOperator() {
+        when(photoRepo.search(eq("ab"), any())).thenReturn(new PageImpl<>(List.of()));
+        service.search("ab\"", null, null, PageRequest.of(0, 20));
+        verify(photoRepo).search("ab", PageRequest.of(0, 20));
+    }
+
+    @Test
+    void search_minusOperator_shouldNotBeExclusionSemantics() {
+        when(photoRepo.search(eq("secret"), any())).thenReturn(new PageImpl<>(List.of()));
+        service.search("-secret", null, null, PageRequest.of(0, 20));
+        verify(photoRepo).search("secret", PageRequest.of(0, 20));
+    }
+
+    @Test
+    void search_strippedToSingleChar_shouldFallbackToLike() {
+        when(photoRepo.searchByLike(eq("%a%"), any())).thenReturn(new PageImpl<>(List.of()));
+        service.search("a\"", null, null, PageRequest.of(0, 20));
+        verify(photoRepo).searchByLike("%a%", PageRequest.of(0, 20));
+    }
+
+    @Test
+    void search_allOperatorsStripped_shouldReturnEmptyPage() {
+        Page<Photo> result = service.search("\"***\"", null, null, PageRequest.of(0, 20));
+        assertThat(result).isEmpty();
+        verify(photoRepo, never()).search(any(), any());
+    }
+
+    @Test
+    void sanitizeFullText_shouldStripBooleanOperators() {
+        assertThat(PhotoService.sanitizeFullText("海边 (1) +晴天")).isEqualTo("海边 1 晴天");
+        assertThat(PhotoService.sanitizeFullText("\"phrase\" @x ~y")).isEqualTo("phrase x y");
+    }
+
+    // ==================== ORDER BY 白名单（P0-2） ====================
+
+    @Test
+    void search_sortBySqlInjection_shouldReject400() {
+        Pageable malicious = PageRequest.of(0, 20, Sort.by(Sort.Order.asc("(SELECT SLEEP(5))")));
+        assertThatThrownBy(() -> service.search("cat", null, null, malicious))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("不支持的排序字段");
+    }
+
+    @Test
+    void search_sortByUnknownProperty_shouldReject400() {
+        Pageable malicious = PageRequest.of(0, 20, Sort.by(Sort.Order.asc("id")));
+        assertThatThrownBy(() -> service.search("cat", null, null, malicious))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("不支持的排序字段");
+    }
+
+    @Test
+    void search_sortByName_shouldMapToNameColumn() {
+        when(photoRepo.search(eq("cat"), any())).thenReturn(new PageImpl<>(List.of()));
+        Pageable input = PageRequest.of(0, 20, Sort.by(Sort.Order.asc("name")));
+        service.search("cat", null, null, input);
+        verify(photoRepo).search(eq("cat"), argThat(p -> p.getSort().stream()
+                .anyMatch(o -> o.getProperty().equals("name") && o.isAscending())));
+    }
+
     @Test
     void search_blankQuery_shouldFallbackToFindAll() {
         when(photoRepo.findAll(any(PageRequest.class))).thenReturn(new PageImpl<>(List.of()));
@@ -281,6 +344,36 @@ class PhotoServiceTest {
         assertThatThrownBy(() -> service.upload(file, "big", null, null, null, null))
                 .isInstanceOf(FileSizeExceededException.class)
                 .hasMessageContaining("10MB");
+    }
+
+    @Test
+    void upload_traversalFileName_shouldSanitizeBeforeStore() throws IOException {
+        MockMultipartFile file = new MockMultipartFile("file", "../../evil.jpg", "image/jpeg", JPEG_BYTES);
+        when(photoRepo.save(any(Photo.class))).thenAnswer(inv -> {
+            Photo p = inv.getArgument(0);
+            if (p.getId() == null) { p.setId(1L); p.setFileName("2026/07/test.jpg"); }
+            return p;
+        });
+        when(tagRepo.findAllById(any())).thenReturn(List.of());
+
+        Photo result = service.upload(file, "test", null, null, null, null);
+
+        // 存储路径必须被消毒：不含 .. 且落在上传目录内
+        verify(storage).store(any(MultipartFile.class), argThat(target -> {
+            assertThat(target.toString()).doesNotContain("..");
+            return target.startsWith(tempDir);
+        }));
+        assertThat(result.getFileName()).doesNotContain("..");
+    }
+
+    @Test
+    void sanitizeFileName_shouldStripTraversalAndSeparators() {
+        assertThat(PhotoService.sanitizeFileName("../../evil.jpg")).doesNotContain("..").doesNotContain("/");
+        assertThat(PhotoService.sanitizeFileName("a/b\\c.txt")).isEqualTo("a_b_c.txt");
+        assertThat(PhotoService.sanitizeFileName("中文 照片 (1).jpg")).isEqualTo("中文 照片 _1_.jpg");
+        assertThat(PhotoService.sanitizeFileName(null)).isEmpty();
+        assertThat(PhotoService.sanitizeFileName("  ")).isEmpty();
+        assertThat(PhotoService.sanitizeFileName("a".repeat(150))).hasSize(100);
     }
 
     @Test

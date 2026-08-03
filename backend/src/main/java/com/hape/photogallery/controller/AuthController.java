@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.hape.photogallery.ApiResponse;
+import com.hape.photogallery.config.ClientIpResolver;
 import com.hape.photogallery.config.FailedAttemptStore;
 import com.hape.photogallery.config.JwtService;
 import com.hape.photogallery.config.NonceStore;
@@ -29,15 +30,17 @@ public class AuthController {
     private final JwtService jwtService;
     private final NonceStore nonceStore;
     private final FailedAttemptStore failedAttemptStore;
+    private final ClientIpResolver ipResolver;
 
     @Value("${auth.konami-sequence}")
     private String konamiSequence;
 
     public AuthController(JwtService jwtService, NonceStore nonceStore,
-                          FailedAttemptStore failedAttemptStore) {
+                          FailedAttemptStore failedAttemptStore, ClientIpResolver ipResolver) {
         this.jwtService = jwtService;
         this.nonceStore = nonceStore;
         this.failedAttemptStore = failedAttemptStore;
+        this.ipResolver = ipResolver;
     }
 
     /** 获取一次性 nonce，60 秒有效 */
@@ -52,7 +55,7 @@ public class AuthController {
     @PostMapping("/api/v1/auth/unlock")
     public ResponseEntity<ApiResponse<Map<String, Object>>> unlock(@RequestBody Map<String, Object> body,
                                                     HttpServletRequest request) {
-        String ip = resolveIp(request);
+        String ip = ipResolver.resolve(request);
 
         // 封禁检查
         if (failedAttemptStore.isBlocked(ip)) {
@@ -106,21 +109,5 @@ public class AuthController {
                 "token", token,
                 "expiresIn", String.valueOf(req.getExpireDays() * 86400)
         ));
-    }
-
-    private String resolveIp(HttpServletRequest request) {
-        // 优先 X-Real-IP（反向代理设置，客户端不可伪造），X-Forwarded-For 仅作 fallback
-        String realIp = request.getHeader("X-Real-IP");
-        if (realIp != null && !realIp.isBlank()) {
-            return realIp.trim();
-        }
-        String xff = request.getHeader("X-Forwarded-For");
-        if (xff != null && !xff.isBlank()) {
-            // X-Forwarded-For 客户端可伪造，仅记录并提示优先配置反代设置 X-Real-IP
-            String first = xff.split(",")[0].trim();
-            log.warn("Auth IP resolved from spoofable X-Forwarded-For: {}", first);
-            return first;
-        }
-        return request.getRemoteAddr();
     }
 }

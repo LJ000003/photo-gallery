@@ -33,7 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(value = PhotoController.class,
             excludeAutoConfiguration = SecurityAutoConfiguration.class)
-@org.springframework.context.annotation.Import(com.hape.photogallery.config.JwtService.class)
+@org.springframework.context.annotation.Import({com.hape.photogallery.config.JwtService.class, com.hape.photogallery.config.ClientIpResolver.class})
 class PhotoControllerTest {
 
     @Autowired private MockMvc mockMvc;
