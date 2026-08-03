@@ -1,0 +1,285 @@
+<script setup lang="ts">
+import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { CheckOutlined } from '@ant-design/icons-vue'
+import { Button, Drawer, Input, Modal } from 'ant-design-vue'
+import { api } from '../../api'
+import { useDataStore } from '../../stores/data'
+import { useToastStore } from '../../stores/toast'
+import { tokenParam } from '../../utils/token'
+import type { Photo } from '../../types/photo'
+import type { Album } from '../../types/album'
+import type { ApiResponse, PageResponse } from '../../types/api'
+
+/**
+ * 相册创建/编辑抽屉：名称/描述 + 照片选择器（搜索过滤）
+ * API 语义与旧版一致：POST/PUT /albums 携带 photoIds
+ */
+const props = defineProps<{ album: Album | { id: null; name: string; description: string } }>()
+const emit = defineEmits<{
+  close: []
+  saved: []
+  deleted: []
+}>()
+
+const { t } = useI18n()
+const { refreshAlbums } = useDataStore()
+const toast = useToastStore()
+
+const name = ref('')
+const description = ref('')
+const allPhotos = ref<Photo[]>([])
+const selectedPhotoIds = ref(new Set<number>())
+const submitting = ref(false)
+const searchQuery = ref('')
+
+const filteredPhotos = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return allPhotos.value
+  return allPhotos.value.filter(
+    (p) =>
+      (p.name && p.name.toLowerCase().includes(q)) ||
+      (p.description && p.description.toLowerCase().includes(q)),
+  )
+})
+
+onMounted(async () => {
+  name.value = props.album.name || ''
+  description.value = props.album.description || ''
+  try {
+    const res = await api('/api/photos?size=1000')
+    const data: ApiResponse<PageResponse<Photo>> = await res.json()
+    allPhotos.value = data.data?.content || []
+    if (props.album.id) {
+      selectedPhotoIds.value = new Set(
+        allPhotos.value
+          .filter((p) => p.albums && p.albums.some((a) => a.id === props.album.id))
+          .map((p) => p.id),
+      )
+    }
+  } catch (e) {
+    console.error('加载相册照片失败', e)
+  }
+})
+
+function togglePhoto(id: number): void {
+  const s = new Set(selectedPhotoIds.value)
+  if (s.has(id)) s.delete(id)
+  else s.add(id)
+  selectedPhotoIds.value = s
+}
+
+async function onSubmit(): Promise<void> {
+  if (!name.value.trim()) {
+    toast.error(t('albums.name'))
+    return
+  }
+  if (submitting.value) return
+  submitting.value = true
+  try {
+    const body = {
+      name: name.value.trim(),
+      description: description.value.trim(),
+      photoIds: [...selectedPhotoIds.value],
+    }
+    if (props.album.id) {
+      const res = await api(`/api/albums/${props.album.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) throw new Error()
+    } else {
+      const res = await api('/api/albums', { method: 'POST', body: JSON.stringify(body) })
+      if (!res.ok) throw new Error()
+    }
+    refreshAlbums()
+    toast.success(t('albums.saved'))
+    emit('saved')
+  } catch {
+    toast.error(t('common.unknownError'))
+  } finally {
+    submitting.value = false
+  }
+}
+
+function onDelete(): void {
+  if (!props.album.id) return
+  Modal.confirm({
+    title: t('albums.delete'),
+    content: t('albums.deleteConfirm', { name: props.album.name }),
+    okText: t('actions.delete'),
+    okButtonProps: { danger: true },
+    cancelText: t('actions.cancel'),
+    onOk: async () => {
+      try {
+        const res = await api(`/api/albums/${props.album.id}`, { method: 'DELETE' })
+        if (!res.ok) throw new Error()
+        refreshAlbums()
+        toast.success(t('trash.restored'))
+        emit('deleted')
+      } catch {
+        toast.error(t('common.unknownError'))
+      }
+    },
+  })
+}
+</script>
+
+<template>
+  <Drawer
+    :open="true"
+    :title="props.album.id ? t('albums.edit') : t('albums.create')"
+    placement="right"
+    :width="'min(560px, 100vw)'"
+    @close="emit('close')"
+  >
+    <div class="album-edit-body">
+      <label class="field-label">{{ t('albums.name') }}</label>
+      <Input v-model:value="name" :placeholder="t('albums.name')" @press-enter="onSubmit" />
+
+      <label class="field-label">{{ t('albums.description') }}</label>
+      <Input.TextArea
+        v-model:value="description"
+        :maxlength="500"
+        :rows="2"
+        :placeholder="t('albums.description')"
+      />
+
+      <div class="picker-header">
+        <span class="field-label picker-label"
+          >{{ t('albums.pickPhotos') }} ({{ selectedPhotoIds.size }})</span
+        >
+        <Input
+          v-model:value="searchQuery"
+          size="small"
+          :placeholder="t('albums.searchInPicker')"
+          class="picker-search"
+        />
+      </div>
+
+      <div class="photo-picker">
+        <button
+          v-for="p in filteredPhotos"
+          :key="p.id"
+          type="button"
+          class="picker-item"
+          :class="{ selected: selectedPhotoIds.has(p.id) }"
+          @click="togglePhoto(p.id)"
+        >
+          <img
+            :src="`/api/v1/photos/${p.id}/thumbnail${tokenParam()}`"
+            :alt="p.name"
+            loading="lazy"
+          />
+          <span v-if="selectedPhotoIds.has(p.id)" class="picker-check">
+            <CheckOutlined />
+          </span>
+        </button>
+        <p v-if="allPhotos.length === 0" class="picker-empty">{{ t('gallery.emptyTitle') }}</p>
+      </div>
+
+      <div class="footer-actions">
+        <Button v-if="props.album.id" danger @click="onDelete">{{ t('albums.delete') }}</Button>
+        <Button
+          type="primary"
+          size="large"
+          class="save-btn"
+          :loading="submitting"
+          @click="onSubmit"
+        >
+          {{ t('actions.save') }}
+        </Button>
+      </div>
+    </div>
+  </Drawer>
+</template>
+
+<style scoped>
+.album-edit-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.field-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--c-text-dim);
+  margin-top: 14px;
+}
+.field-label:first-child {
+  margin-top: 0;
+}
+.picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.picker-label {
+  margin-top: 0;
+  white-space: nowrap;
+}
+.picker-search {
+  max-width: 200px;
+}
+.photo-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 6px;
+  max-height: 46vh;
+  overflow-y: auto;
+  padding: 2px;
+}
+.picker-item {
+  position: relative;
+  aspect-ratio: 1;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  overflow: hidden;
+  padding: 0;
+  cursor: pointer;
+  background: var(--c-surface-2);
+  transition: border-color 0.15s ease;
+}
+.picker-item:hover {
+  border-color: var(--c-accent);
+}
+.picker-item.selected {
+  border-color: var(--c-accent);
+}
+.picker-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.picker-check {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--c-accent);
+  color: #fff;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.picker-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 40px 0;
+  font-size: 13px;
+  color: var(--c-text-dim);
+}
+.footer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 20px;
+}
+.save-btn {
+  border-radius: 999px;
+}
+</style>

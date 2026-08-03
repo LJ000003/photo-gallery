@@ -3,7 +3,16 @@ import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
 import i18n from './i18n'
-import './style.css'
+
+// 字体（自托管，font-display: swap 由 fontsource 默认提供）
+import '@fontsource-variable/inter'
+// 样式：令牌兜底层 + 基础层（主题变量由 theme.ts 运行时注入）
+import './styles/tokens.css'
+import './styles/base.css'
+
+// 主题：首帧前同步系统明暗（避免闪烁），后续变化由 App.vue 监听
+import { applyCssVars, isSystemDark } from './theme'
+applyCssVars(isSystemDark())
 
 const app = createApp(App)
 app.use(createPinia())
@@ -11,15 +20,12 @@ app.use(router)
 app.use(i18n)
 
 // 全局兜底：捕获所有未被 onErrorCaptured 拦截的错误
-app.config.errorHandler = (err, instance, info) => {
+app.config.errorHandler = (err, _instance, info) => {
   console.error(`[GlobalErrorHandler] ${info}:`, err)
-
-  // 如果 App.vue 的 onErrorCaptured 已经捕获（同步渲染错误），
-  // 这里作为最后一道防线，防止极端情况下的白屏
   const msg = err instanceof Error ? err.message : String(err)
   const root = document.getElementById('app')
   if (root && !root.textContent?.trim()) {
-    root.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;background:var(--bg,#0f0f1a);color:var(--text,#e0e0e0);font-family:system-ui,sans-serif;text-align:center"><div><h2 style="margin:0 0 8px">应用遇到错误</h2><p style="color:var(--text-dim,#888);margin:0 0 20px;font-size:14px">${msg}</p><button onclick="location.reload()" style="padding:10px 24px;border-radius:8px;background:var(--accent,#00d4ff);color:#fff;border:none;cursor:pointer;font-size:14px">刷新页面</button></div></div>`
+    root.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;background:var(--c-bg,#f5f5f7);color:var(--c-text,#1d1d1f);font-family:var(--font-sans,system-ui,sans-serif);text-align:center"><div><h2 style="margin:0 0 8px;font-weight:600">应用遇到错误</h2><p style="color:var(--c-text-dim,#6e6e73);margin:0 0 20px;font-size:14px">${msg}</p><button onclick="location.reload()" style="padding:9px 24px;border-radius:999px;background:var(--c-accent,#2563eb);color:#fff;border:none;cursor:pointer;font-size:14px">刷新页面</button></div></div>`
   }
 }
 
@@ -29,7 +35,7 @@ router.onError((err) => {
   const msg = err instanceof Error ? err.message : String(err)
   const root = document.getElementById('app')
   if (root && !root.textContent?.trim()) {
-    root.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;background:var(--bg,#0f0f1a);color:var(--text,#e0e0e0);font-family:system-ui,sans-serif;text-align:center"><div><h2 style="margin:0 0 8px">页面加载失败</h2><p style="color:var(--text-dim,#888);margin:0 0 20px;font-size:14px">${msg}</p><button onclick="location.reload()" style="padding:10px 24px;border-radius:8px;background:var(--accent,#00d4ff);color:#fff;border:none;cursor:pointer;font-size:14px">刷新页面</button></div></div>`
+    root.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;background:var(--c-bg,#f5f5f7);color:var(--c-text,#1d1d1f);font-family:var(--font-sans,system-ui,sans-serif);text-align:center"><div><h2 style="margin:0 0 8px;font-weight:600">页面加载失败</h2><p style="color:var(--c-text-dim,#6e6e73);margin:0 0 20px;font-size:14px">${msg}</p><button onclick="location.reload()" style="padding:9px 24px;border-radius:999px;background:var(--c-accent,#2563eb);color:#fff;border:none;cursor:pointer;font-size:14px">刷新页面</button></div></div>`
   }
 })
 

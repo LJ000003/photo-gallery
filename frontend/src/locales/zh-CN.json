@@ -1,251 +1,245 @@
 {
   "app": {
-    "title": "照片管理器",
-    "locked": "已锁定"
+    "name": "照片墙",
+    "tagline": "朋友们的照片墙"
   },
   "auth": {
-    "title": "照片管理器解锁",
-    "unlock": "解锁",
-    "success": "认证成功",
-    "failed": "认证失败，请重试",
     "expired": "登录已过期，请重新解锁",
-    "relock": "再来一次！"
+    "failed": "解锁失败，请重试",
+    "locked": "已锁定"
   },
   "nav": {
-    "view": "视图",
-    "grid": "网格",
+    "photos": "照片",
     "albums": "相册",
     "timeline": "时间线",
     "map": "地图",
     "trash": "回收站"
   },
-  "gallery": {
-    "myPhotos": "我的照片",
-    "searchPlaceholder": "搜索照片名称或描述...",
-    "selectAll": "全选",
-    "generateShare": "生成分享链接",
-    "batchEdit": "批量编辑",
-    "batchDelete": "批量删除",
-    "sortBy": "排序方式",
-    "sortTime": "时间",
-    "sortName": "名称",
-    "sortSize": "大小",
-    "noMore": "没有更多了",
-    "empty": "还没有照片，上传第一张吧",
-    "loading": "加载中..."
-  },
-  "upload": {
-    "title": "上传照片",
-    "selectHint": "点击选择 / 拖拽 / 粘贴 (Ctrl+V)",
-    "selected": "已选 {count} 张",
-    "compressing": "压缩中...",
-    "maxBatch": "单次最多上传 {max} 张图片",
-    "noCategory": "无分类",
-    "namePlaceholder": "照片名称（可选）",
-    "descPlaceholder": "照片描述（可选）",
-    "watermarkPlaceholder": "水印文字（可选）",
+  "topbar": {
+    "searchPlaceholder": "搜索照片",
+    "sort": "排序",
+    "filter": "筛选",
     "upload": "上传",
-    "uploadCount": "上传 ({count})",
-    "cancelSelect": "取消选择",
-    "editImage": "编辑图片",
-    "success": "上传成功",
-    "failed": "上传失败",
-    "networkError": "网络错误",
-    "timeout": "上传超时",
-    "viewExisting": "查看已有",
-    "batchSkipped": "上传 {uploaded} 张，跳过 {skipped} 张重复"
+    "more": "更多",
+    "backupExport": "备份导出",
+    "backupExporting": "导出中…",
+    "help": "帮助与快捷键",
+    "relock": "重新锁定"
   },
-  "album": {
-    "newAlbum": "+ 新建相册",
-    "unassigned": "未分配",
-    "unassignedDesc": "未归属任何相册的照片",
-    "noAlbums": "暂无相册，在编辑照片时可以将其分配到此处的相册",
-    "editAlbum": "编辑相册",
-    "name": "名称",
-    "description": "描述",
-    "selectedPhotos": "已选照片",
-    "searchPhotoPlaceholder": "搜索照片名称或描述...",
-    "noPhotosYet": "还没有照片",
+  "actions": {
+    "back": "返回",
+    "close": "关闭",
     "save": "保存",
-    "delete": "删除",
-    "albumPhotos": "张",
-    "deleteConfirm": "确定删除相册「{name}」？",
-    "deleteSuccess": "已删除",
-    "deleteFailed": "删除失败",
-    "createFailed": "创建失败",
-    "saveFailed": "保存失败",
-    "nameRequired": "请输入相册名称",
-    "albumEmpty": "此相册还没有照片",
-    "back": "← 返回",
-    "view": "查看",
-    "loading": "加载中..."
-  },
-  "photo": {
-    "view": "查看",
+    "cancel": "取消",
     "edit": "编辑",
     "delete": "删除",
-    "deleteConfirm": "确定删除这张照片？",
-    "editInfo": "编辑照片信息",
-    "editSuccess": "保存成功",
-    "editFailed": "编辑失败",
+    "share": "分享",
+    "copy": "复制",
+    "download": "下载",
+    "restore": "恢复",
+    "confirm": "确定",
+    "retry": "重试",
+    "selectAll": "全选",
+    "create": "新建",
+    "rename": "重命名"
+  },
+  "sort": {
+    "time": "时间",
     "name": "名称",
-    "description": "描述",
-    "category": "分类",
-    "tags": "标签",
-    "albums": "相册",
-    "createdAt": "拍摄时间",
-    "fileSize": "文件大小",
-    "noCategory": "无分类",
-    "save": "保存"
+    "size": "大小",
+    "asc": "升序",
+    "desc": "降序"
   },
-  "batchEdit": {
-    "title": "批量编辑照片",
-    "category": "分类",
-    "noChange": "不修改",
-    "clearCategory": "清除分类",
-    "addTags": "添加标签",
-    "removeTags": "移除标签",
-    "addAlbums": "加入相册",
-    "removeAlbums": "移出相册",
-    "newTag": "新建标签",
-    "newCategory": "新建分类",
-    "newAlbum": "新建相册",
-    "save": "保存修改",
-    "success": "已更新 {count} 张照片",
-    "tooMany": "单次最多处理 50 张照片"
+  "gallery": {
+    "count": "{n} 张照片",
+    "loading": "加载中",
+    "end": "已经到底啦",
+    "emptyTitle": "这里还空着",
+    "emptyHint": "点击右上角「上传」，把第一张照片放进来吧",
+    "emptyHintFiltered": "没有符合当前筛选条件的照片，换个条件试试",
+    "processing": "处理中",
+    "processFailed": "处理失败",
+    "retryProcessing": "重新处理"
   },
-  "backup": {
-    "export": "导出备份",
-    "exporting": "正在导出...",
-    "success": "备份已生成，开始下载",
-    "failed": "导出失败"
-  },
-  "slideshow": {
-    "play": "播放幻灯片",
-    "pause": "暂停幻灯片",
-    "prev": "上一张",
-    "next": "下一张"
-  },
-  "share": {
-    "title": "分享 {count} 张照片",
-    "hint": "链接 7 天内有效，拿到链接的人可直接查看",
-    "generating": "生成中...",
-    "copyLink": "复制链接",
-    "invalid": "分享链接无效或已过期",
-    "viewerTitle": "分享的照片",
-    "viewerHint": "此链接仅可查看，无法编辑或删除",
-    "viewerNoMore": "没有更多了",
-    "viewerEmpty": "链接无效或已过期"
-  },
-  "editor": {
-    "rotate": "旋转",
-    "mirror": "镜像",
-    "crop": "裁剪",
-    "reset": "重置",
-    "apply": "应用",
-    "cancel": "取消",
-    "done": "编辑完成",
-    "failed": "编辑失败"
-  },
-  "timeline": {
-    "sortNewest": "最新在前",
-    "sortOldest": "最早在前",
-    "sortLabel": "时间排序",
-    "loading": "加载中...",
-    "empty": "没有包含拍摄日期的照片"
-  },
-  "map": {
-    "loading": "加载中...",
-    "empty": "没有包含 GPS 位置信息的照片，请上传带有 EXIF GPS 数据的 JPEG/WebP 图片"
+  "selection": {
+    "selected": "已选 {n} 张",
+    "batchEdit": "批量编辑",
+    "batchDelete": "删除",
+    "batchShare": "生成分享"
   },
   "filter": {
+    "title": "筛选",
+    "reset": "重置",
     "categories": "分类",
     "tags": "标签",
-    "newCategory": "+ 新建分类",
-    "newTag": "+ 新建标签",
-    "editName": "输入新名称"
+    "manage": "管理",
+    "addCategory": "新建分类",
+    "addTag": "新建标签",
+    "categoryName": "分类名称",
+    "tagName": "标签名称",
+    "tagColor": "标签颜色",
+    "emptyCategories": "还没有分类",
+    "emptyTags": "还没有标签",
+    "deleteConfirm": "确定删除「{name}」吗？"
   },
-  "rateLimit": {
-    "tooMany": "请求过于频繁，请稍后再试"
-  },
-  "processing": {
-    "processing": "处理中...",
-    "failed": "处理失败",
-    "retry": "重试",
-    "retrying": "重试中..."
+  "viewer": {
+    "exif": "拍摄信息",
+    "slideshow": "幻灯片播放",
+    "previous": "上一张",
+    "next": "下一张",
+    "fullscreen": "全屏",
+    "noExif": "这张照片没有拍摄信息",
+    "camera": "相机",
+    "shoot": "拍摄参数",
+    "location": "位置",
+    "close": "关闭"
   },
   "exif": {
-    "title": "拍摄信息",
-    "empty": "无拍摄信息",
-    "cameraGroup": "相机信息",
-    "shootGroup": "拍摄参数",
-    "locationGroup": "时间地点",
-    "cameraModel": "机身",
+    "cameraModel": "相机型号",
     "lensModel": "镜头",
     "focalLength": "焦距",
     "aperture": "光圈",
     "shutterSpeed": "快门",
-    "iso": "感光度",
+    "iso": "ISO",
     "dateTaken": "拍摄时间",
-    "gps": "GPS 坐标"
+    "gps": "坐标",
+    "cameraGroup": "相机",
+    "shootGroup": "拍摄参数",
+    "locationGroup": "位置"
   },
-  "general": {
-    "undo": "撤销",
-    "confirm": "确定",
-    "cancel": "取消",
-    "close": "✕",
-    "lightMode": "切换明亮模式",
-    "darkMode": "切换暗黑模式",
-    "backTop": "↑",
-    "operationFailed": "操作失败",
-    "serverError": "服务器内部错误",
-    "requestFailed": "请求失败",
-    "unknownError": "未知错误"
+  "upload": {
+    "title": "上传照片",
+    "dropzone": "拖拽照片到这里，或点击选择",
+    "pasteHint": "也可以直接 Ctrl+V 粘贴剪贴板图片",
+    "chooseFiles": "选择照片",
+    "compressing": "压缩处理中…",
+    "uploading": "上传中 {pct}%",
+    "success": "上传成功",
+    "failed": "上传失败",
+    "duplicate": "这张照片已经存在",
+    "viewExisting": "查看已有",
+    "skipped": "已有 {n} 张照片重复，已跳过",
+    "tooMany": "一次最多上传 50 张",
+    "name": "名称（可选）",
+    "description": "描述（可选）",
+    "category": "分类",
+    "tags": "标签",
+    "watermark": "添加水印",
+    "none": "无",
+    "editing": "编辑图片"
+  },
+  "edit": {
+    "title": "编辑照片",
+    "name": "名称",
+    "description": "描述",
+    "category": "分类",
+    "clearCategory": "清除分类",
+    "tags": "标签",
+    "albums": "相册",
+    "addTag": "新建标签",
+    "addAlbum": "新建相册",
+    "addCategory": "新建分类",
+    "newName": "新名称",
+    "saved": "已保存"
+  },
+  "batchEdit": {
+    "title": "批量编辑",
+    "addTags": "添加标签",
+    "removeTags": "移除标签",
+    "addAlbums": "加入相册",
+    "removeAlbums": "移出相册",
+    "category": "分类",
+    "categoryKeep": "保持不变",
+    "categorySet": "设置为",
+    "categoryClear": "清除分类",
+    "saved": "批量修改已保存"
+  },
+  "albums": {
+    "title": "相册",
+    "create": "新建相册",
+    "edit": "编辑相册",
+    "delete": "删除相册",
+    "unassigned": "未分配",
+    "unassignedDesc": "不属于任何相册的照片",
+    "empty": "还没有相册，建一个吧",
+    "photoCount": "{n} 张",
+    "name": "相册名称",
+    "description": "相册描述",
+    "pickPhotos": "选择照片",
+    "searchInPicker": "搜索照片",
+    "picked": "已选 {n} 张",
+    "saved": "相册已保存",
+    "deleteConfirm": "删除相册「{name}」？照片不会被删除"
+  },
+  "timeline": {
+    "title": "时间线",
+    "empty": "还没有带拍摄时间的照片",
+    "noExif": "这张照片没有拍摄时间",
+    "otherPhotos": "其他照片"
+  },
+  "map": {
+    "title": "地图",
+    "empty": "还没有带位置信息的照片"
+  },
+  "trash": {
+    "title": "回收站",
+    "photos": "照片",
+    "albums": "相册",
+    "empty": "回收站是空的",
+    "restored": "已恢复",
+    "deleteConfirm": "彻底删除？此操作不可撤销",
+    "emptyPhotos": "没有已删除的照片",
+    "emptyAlbums": "没有已删除的相册"
+  },
+  "share": {
+    "generate": "生成分享链接",
+    "copy": "复制链接",
+    "copied": "链接已复制，分享给朋友吧",
+    "expire": "7 天内有效",
+    "generating": "生成中…",
+    "viewer": "照片分享"
+  },
+  "backup": {
+    "exporting": "正在导出备份…",
+    "done": "备份已导出",
+    "failed": "导出失败"
   },
   "help": {
-    "button": "帮助",
-    "title": "操作手册",
-    "shortcutsTitle": "键盘快捷键",
-    "usageTitle": "基本操作",
-    "note": "提示：快捷键需解锁后生效；在输入框中输入文字时，除 Ctrl+Enter 外的大部分快捷键不会触发。",
+    "title": "快捷键",
+    "shortcutsTitle": "全局快捷键",
     "shortcuts": [
-      { "keys": "g", "desc": "回到图库" },
-      { "keys": "a", "desc": "前往相册" },
-      { "keys": "t", "desc": "前往时间线" },
-      { "keys": "m", "desc": "前往地图" },
-      { "keys": "Esc", "desc": "关闭弹窗" },
-      { "keys": "/", "desc": "聚焦搜索框" },
-      { "keys": "Ctrl+Shift+U", "desc": "聚焦上传区域" },
-      { "keys": "Ctrl+A", "desc": "图库中全选照片" },
-      { "keys": "Delete", "desc": "图库中删除选中照片" },
-      { "keys": "Enter", "desc": "图库中查看选中照片" },
-      { "keys": "← / →", "desc": "查看器中切换上一张 / 下一张" },
-      { "keys": "空格", "desc": "查看器中播放 / 暂停幻灯片" },
-      { "keys": "e", "desc": "查看器中直接编辑照片" },
-      { "keys": "Ctrl+Enter", "desc": "编辑弹窗中提交表单" },
-      { "keys": "Shift+R", "desc": "回收站中恢复选中照片" }
+      { "keys": "G", "desc": "照片页" },
+      { "keys": "A", "desc": "相册页" },
+      { "keys": "T", "desc": "时间线页" },
+      { "keys": "M", "desc": "地图页" },
+      { "keys": "/", "desc": "聚焦搜索" },
+      { "keys": "Ctrl+Shift+U", "desc": "打开上传" },
+      { "keys": "← →", "desc": "灯箱中切换照片" },
+      { "keys": "Space", "desc": "播放/暂停幻灯片" },
+      { "keys": "E", "desc": "编辑当前照片" },
+      { "keys": "Delete", "desc": "删除选中照片" },
+      { "keys": "Esc", "desc": "关闭弹窗/退出选择" }
     ],
+    "usageTitle": "使用提示",
     "usage": [
-      {
-        "title": "上传照片",
-        "desc": "点击上传区域选择文件，或拖拽、Ctrl+V 粘贴；支持批量上传并自动压缩，重复照片会自动跳过。"
-      },
-      {
-        "title": "编辑照片",
-        "desc": "查看器中按 e 或点击编辑按钮，可修改名称、描述、分类、标签与所属相册。"
-      },
-      {
-        "title": "相册管理",
-        "desc": "在相册页新建相册，编辑照片时可分配归属；删除的相册可在回收站恢复。"
-      },
-      {
-        "title": "分享链接",
-        "desc": "选中照片后生成分享链接，7 天内有效，任何拿到链接的人都可以查看，但无法修改或删除。"
-      },
-      {
-        "title": "回收站",
-        "desc": "删除的照片进入回收站，30 天后自动彻底清除；期间可恢复或直接彻底删除。"
-      }
+      "点击照片打开大图，可全屏播放幻灯片",
+      "拖动照片到上传区，或直接 Ctrl+V 粘贴截图",
+      "删除的照片会进入回收站，30 天后自动清空",
+      "分享链接 7 天内有效，谁都能看但只有你能管理"
     ]
+  },
+  "editor": {
+    "rotateLeft": "左旋 90°",
+    "rotateRight": "右旋 90°",
+    "mirrorH": "水平镜像",
+    "mirrorV": "垂直镜像",
+    "crop": "裁剪",
+    "reset": "重置",
+    "done": "已保存修改"
+  },
+  "common": {
+    "unknownError": "出错了，请稍后重试",
+    "networkError": "网络异常，请检查连接",
+    "copied": "已复制"
   }
 }

@@ -3,14 +3,5 @@
   "private": true,
   "scripts": {
     "prepare": "cd frontend && npx husky"
-  },
-  "dependencies": {
-    "@arco-design/web-vue": "^2.58.0",
-    "ant-design-vue": "^4.2.6",
-    "antd": "^6.5.3",
-    "element-plus": "^2.14.3"
-  },
-  "devDependencies": {
-    "naive-ui": "^2.44.1"
   }
 }

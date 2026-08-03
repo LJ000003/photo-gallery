@@ -4,13 +4,17 @@ import { usePhotoStore } from '../stores/photo'
 import { useToastStore } from '../stores/toast'
 import type { ApiResponse } from '../types/api'
 
+/**
+ * 分享状态为模块级单例：多个视图（照片流/相册）共享同一份 shareModal 状态，
+ * 任意组件调用 usePhotoActions() 都读写同一份状态
+ */
+const shareModal = ref<{ photoIds: number[] } | null>(null)
+const shareUrl = ref('')
+const shareLoading = ref(false)
+
 export function usePhotoActions() {
   const photo = usePhotoStore()
   const toast = useToastStore()
-
-  const shareModal = ref<{ photoIds: number[] } | null>(null)
-  const shareUrl = ref('')
-  const shareLoading = ref(false)
 
   async function extractErrorMessage(res: Response): Promise<string> {
     try {

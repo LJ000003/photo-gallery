@@ -7,7 +7,12 @@ export const useToastStore = defineStore('toast', () => {
   const timers = new Map<number, ReturnType<typeof setTimeout>>()
   let id = 0
 
-  function add(message: string, type: ToastType = 'info', duration: number = 3000, action?: ToastAction): void {
+  function add(
+    message: string,
+    type: ToastType = 'info',
+    duration: number = 3000,
+    action?: ToastAction,
+  ): void {
     const item: Toast = { id: ++id, message, type, action }
     toasts.value.push(item)
     if (duration > 0) {
