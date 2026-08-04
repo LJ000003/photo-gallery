@@ -11,7 +11,7 @@
 | 层级 | 技术 | 版本 |
 |------|------|------|
 | 运行时 | Java | 17 |
-| 后端框架 | Spring Boot | 3.3.0 |
+| 后端框架 | Spring Boot | 3.3.13 |
 | 安全 | Spring Security + JWT (jjwt) | 0.12.6 |
 | ORM | Spring Data JPA + Hibernate | — |
 | 数据库 | MySQL + Flyway 迁移（含 FULLTEXT 全文索引） | 8.0+ |
@@ -28,8 +28,9 @@
 | 构建 | Vite | 5.4 |
 | 虚拟滚动 | @tanstack/vue-virtual | — |
 | 地图 | Leaflet + markercluster | 1.9.4 |
-| 动画 | GSAP + Lottie | — |
-| 国际化 | vue-i18n（前端）+ Spring MessageSource（后端） | — |
+| UI | ant-design-vue（主题令牌 theme.ts 驱动） | 4.2.6 |
+| 统计图表 | uPlot | 1.6.32 |
+| 国际化 | vue-i18n（前端，zh-CN / en-US） | — |
 | PWA | vite-plugin-pwa + Workbox | — |
 | 部署 | Docker Compose / Nginx 反向代理 | — |
 
@@ -73,7 +74,7 @@
 - **统一参数校验** — 缺必填参数、参数类型错误、非法枚举统一返回 400 + 参数名（`GlobalExceptionHandler` 兜底，不落 500）
 - **缓存策略** — dev 使用 Caffeine 本地缓存（30s TTL），prod 切换 Redis 分布式缓存（JSON 序列化 + PageImpl mixin 反序列化），所有写操作自动驱逐列表缓存
 - **软删除 + 回收站** — 删除标记 `deleted_at`（Hibernate @SQLRestriction 全局过滤），删除时清空哈希允许重新上传。5 秒 Toast 撤销 + 回收站可恢复/彻底删除，每天凌晨 3 点自动清理 30 天前记录
-- **备份导出** — 标题栏一键下载 `photo-gallery-backup-YYYY-MM-DD.tar.gz`：全部原始照片 + 数据库元数据（photos/exif/tags/categories/albums JSON，关联内嵌），Commons Compress 流式打包不占服务器内存，可选按相册/分类/日期筛选，响应禁止缓存（仅 admin）
+- **备份导出** — 标题栏一键下载 `photo-gallery-backup-YYYY-MM-DD.zip`：全部原始照片 + 数据库元数据（photos/exif/tags/categories/albums JSON，关联内嵌），java.util.zip 流式打包不占服务器内存（零第三方依赖），预生成缓存 + 数据指纹比对（数据未变直接秒回），可选按相册/分类/日期筛选，响应禁止缓存（仅 admin）
 - **前端错误边界** — 组件异常自动捕获，显示降级页面（重试 / 刷新 / 复制错误信息），切换路由自动恢复
 
 ### PWA（渐进式 Web 应用）
@@ -82,17 +83,16 @@
 - Web App Manifest + iOS `apple-mobile-web-app-capable` 独立窗口
 
 ### 国际化
-- 前端：`vue-i18n`，zh-CN / en-US 双语，浏览器语言自动检测，localStorage 可覆盖
-- 后端：Spring MessageSource，`messages.properties` 双语错误消息
+- 前端：`vue-i18n`，zh-CN / en-US 双语，浏览器语言自动检测，localStorage 持久化，顶栏按钮即时切换（antd 文案跟随）
 
 ### 其他
-- 前端组件样式分量管理：组件独有样式使用 Vue `<style scoped>`，跨组件共享样式（弹窗骨架/按钮/移动端适配）保留全局 CSS
+- 前端组件样式分量管理：组件独有样式使用 Vue `<style scoped>`，设计令牌单一来源（`theme.ts` 同时驱动 antd ConfigProvider 主题与 CSS 变量，明暗模式自动跟随系统）
 - 健康检查端点 `/actuator/health`（dev：DB + 磁盘空间，禁用 Rabbit/Redis 指示器避免误报 DOWN；prod：含 RabbitMQ/Redis）+ Prometheus 指标端点 `/actuator/prometheus`
 - Micrometer 自定义指标：`photo.upload.total`、`photo.upload.bytes`、`photo.processing.total`、`photo.processing.failures`、`@Timed("photo.processing.time")` 处理耗时
-- Toast 通知、自定义确认弹窗、Lottie 加载动画
-- 回到顶部、光标拖尾、波纹效果
-- 移动端响应式（侧边抽屉、工具栏居中、hover 降级、地图适配）
-- SpringDoc `/swagger-ui.html` 交互式 API 文档（开发环境启用）
+- Toast 通知、错误边界（组件级 ErrorBoundary + 全局 errorHandler 兜底页）
+- 移动端响应式（底部导航、工具栏居中、hover 降级、地图适配）
+- 安全响应头：CSP / HSTS / nosniff / frame-deny
+- SpringDoc `/swagger-ui.html` 交互式 API 文档（开发环境启用，prod 关闭）
 
 ---
 
@@ -112,8 +112,8 @@ photo-gallery/
 │   │   │   ├── CategoryController.java         # 分类 CRUD
 │   │   │   ├── AlbumController.java            # 相册 CRUD
 │   │   │   ├── TrashController.java            # 回收站 API
-│   │   │   ├── BackupController.java           # 备份导出（POST /api/v1/backup/export）
-│   │   │   └── HelloController.java            # 根端点
+│   │   │   ├── BackupController.java           # 备份导出（POST /api/v1/backup/export，zip + 预生成缓存）
+│   │   │   └── StatsController.java            # 统计面板（GET /api/v1/stats）
 │   │   ├── service/
 │   │   │   ├── PhotoService.java               # 核心业务逻辑（上传/搜索/软删除/EXIF/变换/定时清理）
 │   │   │   ├── PhotoProcessor.java             # 图片处理管线（EXIF→旋转→水印→缩略图→WebP），无框架依赖
@@ -125,7 +125,7 @@ photo-gallery/
 │   │   │   ├── ExifService.java                # metadata-extractor 集成
 │   │   │   ├── StorageService.java             # 存储接口（可扩展不同后端）
 │   │   │   ├── LocalStorageService.java        # 本地文件系统存储实现（路径穿越防护）
-│   │   │   └── BackupService.java              # 备份导出（事务内收集元数据 + 流式 tar.gz 打包）
+│   │   │   └── BackupService.java              # 备份导出（事务内收集元数据 + 流式 zip 打包 + 预生成缓存）
 │   │   ├── messaging/
 │   │   │   ├── ProcessingMessageSender.java    # 处理消息发送者接口
 │   │   │   ├── ProcessingMessage.java          # 消息体 POJO（photoId/路径/水印）
@@ -178,72 +178,49 @@ photo-gallery/
 │   │   ├── application-prod.yml                # 生产环境 (ddl-auto: validate)
 │   │   ├── application-local.yml.example       # 本地敏感配置模板（密码/JWT 密钥）
 │   │   ├── logback-spring.xml                  # 控制台 + 按天滚动文件（30/90 天保留）
-│   │   ├── i18n/
-│   │   │   ├── messages.properties             # 中文错误消息
-│   │   │   └── messages_en_US.properties       # 英文错误消息
 │   │   ├── db/migration/                       # Flyway 迁移脚本 V1–V9（含 file_hash 去重 + FULLTEXT 索引）
-│   │   └── static/                             # 前端构建产物 (SPA)
+│   │   └── static/                             # 前端构建产物 (SPA，构建时自动复制，不入库)
 │   ├── Dockerfile                              # JRE 17 Alpine + 文泉驿字体 + curl
 │   └── pom.xml                                 # Maven 配置
 │
 ├── frontend/
-│   ├── vite.config.js                          # Vite + PWA + 手动分包
+│   ├── vite.config.js                          # Vite + PWA + 手动分包 + 产物复制脚本
+│   ├── vitest.config.ts                        # Vitest（happy-dom + 覆盖率）
+│   ├── playwright.config.ts                    # Playwright E2E
 │   ├── tsconfig.json                           # TypeScript 严格模式
 │   ├── index.html                              # 入口 + iOS PWA meta 标签
 │   ├── public/
 │   │   └── pwa-icon.svg                        # PWA 图标
 │   └── src/
 │       ├── main.ts                             # 入口（Pinia + Router + i18n + 全局错误处理）
-│       ├── App.vue                             # 根组件（错误边界 + RouterView）
-│       ├── api.ts                              # fetch 封装 + JWT 注入
-│       ├── i18n.ts                             # vue-i18n 配置（浏览器语言检测）
+│       ├── App.vue                             # 根组件（错误边界 + RouterView + 语言切换）
+│       ├── theme.ts                            # 设计令牌单一来源（antd 主题 + CSS 变量）
+│       ├── api.ts                              # fetch 封装 + JWT 注入 + 短时签名拼接
+│       ├── i18n.ts                             # vue-i18n 配置（浏览器语言检测 + localStorage）
 │       ├── upload.ts                           # 客户端压缩 + XHR 进度上传
-│       ├── webp.ts                             # WebP 检测 + 响应式缩略图 srcset
-│       ├── style.css                           # 全局样式（CSS 变量 + 跨组件共享样式）
-│       ├── useConfirm.ts                       # 确认弹窗 composable
-│       ├── router/
-│       │   └── index.ts                        # Vue Router（SPA + MainLayout 子路由）
-│       ├── stores/
-│       │   ├── photo.ts                        # 照片数据 + 分页 + 排序 + 搜索
-│       │   ├── ui.ts                           # JWT + 解锁状态 + 弹窗状态
-│       │   ├── toast.ts                        # Toast 通知队列
-│       │   └── data.ts                         # 标签/分类/相册缓存
+│       ├── webp.ts                             # WebP 检测 + 缩略图 URL
+│       ├── router/index.ts                     # Vue Router（AppShell 子路由 + 404 兜底）
+│       ├── stores/                             # photo / ui / toast / data（Pinia）
 │       ├── types/                              # TypeScript 类型定义
-│       ├── utils/
-│       │   ├── format.ts                       # 格式化工具函数
-│       │   └── token.ts                        # JWT 解析工具
-│       ├── composables/
-│       │   ├── useAppEffects.ts                # 背景光球 + 光标拖尾 + 入场动画
-│       │   └── usePhotoActions.ts              # 照片操作（删除/批量/分享/复制）
+│       ├── locales/                            # zh-CN / en-US 语言文件
+│       ├── utils/                              # token / format / error / escape / clipboard / logger
+│       ├── composables/                        # usePhotoActions / useViewerControls / useKeyboardShortcuts / useImageEditorCanvas
 │       ├── layouts/
-│       │   └── MainLayout.vue                  # 主布局（Konami 门禁 / 侧边栏 / 事件）
-│       ├── pages/
-│       │   ├── GalleryPage.vue                 # 网格主页面（虚拟滚动 + 骨架屏）
-│       │   ├── AlbumsPage.vue                  # 相册页面
-│       │   ├── TimelinePage.vue                # 时间线页面
-│       │   ├── MapPage.vue                     # 地图页面
-│       │   └── TrashPage.vue                   # 回收站页面
+│       │   └── AppShell.vue                    # 主布局（Konami 门禁 / 顶栏 / 路由出口）
 │       └── components/
-│           ├── KonamiGate.vue                  # Konami 密码门禁（键盘 + 触摸）
-│           ├── AppHeader.vue                   # 渐变标题
-│           ├── UploadCard.vue                  # 上传区域（进度条/压缩/拖拽/粘贴）
-│           ├── PhotoCard.vue                   # 3D 倾斜卡片 + srcset
-│           ├── ViewModal.vue                   # 大图查看（WebP 优先）
-│           ├── EditModal.vue                   # 编辑信息 + 分配分类/标签/相册
-│           ├── FilterSidebar.vue               # 分类/标签筛选侧边栏
-│           ├── AlbumView.vue                   # 相册网格 + 详情
-│           ├── AlbumEditModal.vue              # 相册编辑 + 照片选择器
-│           ├── TimelineView.vue                # EXIF 时间线
-│           ├── MapView.vue                     # 地图聚合标注（ResizeObserver 自适应）
-│           ├── ImageEditor.vue                 # Canvas 图片编辑器
-│           ├── ShareModal.vue                  # 分享弹窗
-│           ├── ShareViewer.vue                 # 分享落地面
-│           ├── SortSwitch.vue                  # 排序切换器
-│           ├── ViewSwitcher.vue                # 视图切换器
-│           ├── ToastProvider.vue               # Toast 容器
-│           ├── ConfirmDialog.vue               # 确认弹窗
-│           ├── LottieLoader.vue                # Lottie 动画
-│           └── ErrorFallback.vue               # 错误降级页面
+│           ├── auth/                           # KonamiGate（红白机解锁屏）+ ArcadePanel
+│           ├── gallery/                        # PhotosView + PhotoGrid（虚拟滚动）+ PhotoTile + SelectionBar
+│           ├── viewer/                         # PhotoViewer + ViewerStage + ViewerBottom + ExifPanel
+│           ├── upload/                         # UploadDrawer（拖拽/粘贴/压缩/去重）
+│           ├── editor/                         # ImageEditor + EditorToolbar + PhotoEditDrawer + BatchEditDrawer
+│           ├── albums/                         # AlbumsView + AlbumDetail + AlbumEditDrawer
+│           ├── timeline/                       # TimelineView
+│           ├── map/                            # MapView（Leaflet 聚合 + 高德瓦片）
+│           ├── stats/                          # StatsView + useTrendChart（uPlot）
+│           ├── trash/                          # TrashView
+│           ├── share/                          # ShareViewer（公开落地面）
+│           ├── topbar/                         # TopBar + ModeTabs + MobileTabBar + FilterPanel + CornerMenu + HelpModal
+│           └── common/                         # ErrorBoundary + ToastStack + ShareDialog + EmptyState
 │
 ├── prometheus/
 │   └── prometheus.yml                          # Prometheus 采集配置（15s scrape）
@@ -478,7 +455,7 @@ certbot --nginx -d 你的域名   # 免费 SSL
 | `GET /api/v1/share/view` | `ROLE_admin` 或 `ROLE_viewer`（仅返回 JWT 中 `photoIds` 白名单内的照片） |
 | `GET /api/v1/photos/{id}/thumbnail\|webp\|file` | `ROLE_admin` 或 `ROLE_viewer`（viewer 需图片 ID 在 JWT 白名单内，否则 403） |
 | `GET /api/v1/**`（其他） | `ROLE_admin`（viewer 无权访问列表、时间线、地图等） |
-| `POST /api/v1/backup/export` | `ROLE_admin`（流式下载 tar.gz 备份，禁止缓存） |
+| `POST /api/v1/backup/export` | `ROLE_admin`（流式下载 zip 备份，禁止缓存） |
 | `POST/PUT/DELETE /api/v1/**`（其他） | `ROLE_admin` |
 | `GET /api/v1/auth/challenge`、`POST /api/v1/auth/unlock` | 公开（认证端点 10 次/s/IP 限流；unlock 另有 5 次失败封禁 15 分钟） |
 | `GET /share/**` | 公开（转发到 SPA 落地面） |
@@ -507,10 +484,10 @@ Docker 容器通过 `curl http://localhost:8080/actuator/health` 每 15 秒探�
 
 ### 应用内备份导出（推荐）
 
-解锁后点击标题栏右侧 **⤓** 按钮，一键下载 `photo-gallery-backup-YYYY-MM-DD.tar.gz`，包含全部原始照片和数据库元数据：
+解锁后点击标题栏右侧 **⤓** 按钮，一键下载 `photo-gallery-backup-YYYY-MM-DD.zip`，包含全部原始照片和数据库元数据：
 
 ```
-photo-gallery-backup-2026-08-02.tar.gz
+photo-gallery-backup-2026-08-02.zip
 ├── database/                 # 数据库元数据（JSON，可离线查看/恢复）
 │   ├── metadata.json         #   导出版本、时间、照片数、筛选参数
 │   ├── photos.json           #   照片 + 分类/标签/相册关联
@@ -533,7 +510,8 @@ curl -X POST http://localhost:8080/api/v1/backup/export \
 
 ### 手动备份脚本
 
-数据库层面建议定期 `mysqldump`（应用导出不含数据库原始表结构）：
+> 应用内**不集成** mysqldump 定时任务（应用级 BackupScheduler 已覆盖每日预生成 + 指纹缓存），
+> 此段为手工示例仅供参考。数据库层面建议定期 `mysqldump`（应用导出不含数据库原始表结构）：
 
 ```bash
 #!/bin/bash

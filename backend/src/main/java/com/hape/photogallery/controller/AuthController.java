@@ -3,6 +3,7 @@ package com.hape.photogallery.controller;
 import java.util.List;
 import java.util.Map;
 
+import io.swagger.v3.oas.annotations.Operation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -44,6 +45,7 @@ public class AuthController {
     }
 
     /** 获取一次性 nonce，60 秒有效 */
+    @Operation(summary = "获取解锁一次性 nonce", description = "60s 有效，一次性消费（Challenge-Response 第一步）")
     @GetMapping("/api/v1/auth/challenge")
     public ApiResponse<Map<String, String>> challenge() {
         String nonce = nonceStore.generate();
@@ -51,6 +53,16 @@ public class AuthController {
     }
 
     /** Konami 解锁 —— 前端传来 nonce + 按键序列，后端验证 */
+    @Operation(summary = "Konami 解锁",
+            description = "提交 nonce + 12 键序列，后端比对配置中的序列；错误计数 5 次封禁 15 分钟；签发 24h admin JWT",
+            responses = {
+                    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400",
+                            description = "nonce 失效或按键不完整"),
+                    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401",
+                            description = "序列不正确"),
+                    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403",
+                            description = "IP 已被封禁（15 分钟）")
+            })
     @SuppressWarnings("unchecked")
     @PostMapping("/api/v1/auth/unlock")
     public ResponseEntity<ApiResponse<Map<String, Object>>> unlock(@RequestBody Map<String, Object> body,
@@ -98,6 +110,8 @@ public class AuthController {
     }
 
     /** 管理员生成分享链接 */
+    @Operation(summary = "生成分享链接",
+            description = "签发 7 天 viewer JWT（photoIds 白名单 + permission view/download，非法 permission 400）")
     @PostMapping("/api/v1/share/generate")
     public ApiResponse<Map<String, String>> generateShare(@Valid @RequestBody ShareGenerateRequest req) {
         String token = jwtService.issueShare(req.getPhotoIds(), req.getPermission(),

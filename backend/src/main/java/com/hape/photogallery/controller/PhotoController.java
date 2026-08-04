@@ -14,6 +14,7 @@ import com.hape.photogallery.exception.DuplicateException;
 import com.hape.photogallery.service.AlbumService;
 import com.hape.photogallery.service.PhotoService;
 
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 
 import java.io.IOException;
@@ -48,6 +49,8 @@ public class PhotoController {
 
     // === 照片 ===
 
+    @Operation(summary = "分页查询照片",
+            description = "支持 sort 排序（createdAt/fileSize/name 白名单）、标签/分类筛选、FULLTEXT 全文搜索（单字走 LIKE fallback）；albumId=0 表示未分配相册")
     @GetMapping("/photos")
     public ApiResponse<Page<PhotoResponse>> list(
             @RequestParam(required = false) List<Long> tagIds,
@@ -68,11 +71,18 @@ public class PhotoController {
         return ApiResponse.success(service.listAllResponses(tagIds, categoryIds, pageable));
     }
 
+    @Operation(summary = "照片详情", description = "含 EXIF、标签、分类、相册与媒体签名")
     @GetMapping("/photos/{id}")
     public ApiResponse<PhotoResponse> get(@PathVariable Long id) {
         return ApiResponse.success(service.getPhotoResponse(id));
     }
 
+    @Operation(summary = "上传单张照片",
+            description = "SHA-256 去重（重复返回 409 + 已有照片数据）；魔数校验；异步图片处理管线",
+            responses = {
+                    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409",
+                            description = "文件已存在，data 中携带已有照片")
+            })
     @PostMapping("/photos")
     public ResponseEntity<?> upload(@RequestParam("file") MultipartFile file,
                         @RequestParam(value = "name", required = false) String name,
@@ -107,12 +117,15 @@ public class PhotoController {
         return ApiResponse.success(result);
     }
 
+    @Operation(summary = "更新照片",
+            description = "null = 不修改；categoryId=0 清除分类；tagIds/albumIds 传数组表示整体替换")
     @PutMapping("/photos/{id}")
     public ApiResponse<PhotoResponse> update(@PathVariable Long id,
                                  @Valid @RequestBody PhotoUpdateRequest body) {
         return ApiResponse.success(service.update(id, body));
     }
 
+    @Operation(summary = "软删除照片", description = "删除后进入回收站（30 天后自动清理），fileHash 清空可重新上传")
     @DeleteMapping("/photos/{id}")
     public ApiResponse<String> delete(@PathVariable Long id) {
         service.delete(id);
@@ -195,6 +208,7 @@ public class PhotoController {
         return ApiResponse.success(Map.of("generated", count));
     }
 
+    @Operation(summary = "EXIF 拍摄时间线", description = "按拍摄日期年月分组分页")
     @GetMapping("/photos/timeline")
     public ApiResponse<Page<TimelineItem>> timeline(
             @RequestParam(defaultValue = "desc") String sortOrder,

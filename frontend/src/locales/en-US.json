@@ -1,7 +1,6 @@
 {
   "app": {
-    "name": "Photo Wall",
-    "tagline": "A photo wall for friends"
+    "name": "Photo Wall"
   },
   "auth": {
     "expired": "Session expired, please unlock again",
@@ -38,14 +37,10 @@
     "cancel": "Cancel",
     "edit": "Edit",
     "delete": "Delete",
-    "share": "Share",
-    "copy": "Copy",
     "download": "Download",
     "restore": "Restore",
     "confirm": "OK",
-    "retry": "Retry",
     "selectAll": "Select all",
-    "create": "Create",
     "rename": "Rename",
     "deleted": "Deleted",
     "undo": "Undo",
@@ -56,8 +51,7 @@
     "time": "Time",
     "name": "Name",
     "size": "Size",
-    "asc": "Ascending",
-    "desc": "Descending"
+    "asc": "Ascending"
   },
   "gallery": {
     "title": "Photo gallery",
@@ -99,21 +93,16 @@
     "tagColor": "Tag color",
     "emptyCategories": "No categories yet",
     "emptyTags": "No tags yet",
-    "deleteConfirm": "Delete \"{name}\"?",
-    "deleted": "Deleted"
+    "deleteConfirm": "Delete \"{name}\"?"
   },
   "viewer": {
     "exif": "Details",
-    "slideshow": "Slideshow",
     "previous": "Previous",
     "next": "Next",
     "fullscreen": "Fullscreen",
     "noExif": "No capture details for this photo",
     "pause": "Pause",
     "play": "Play",
-    "camera": "Camera",
-    "shoot": "Settings",
-    "location": "Location",
     "close": "Close"
   },
   "exif": {
@@ -133,12 +122,10 @@
     "title": "Upload photos",
     "dropzone": "Drag photos here, or click to choose",
     "pasteHint": "You can also paste from clipboard with Ctrl+V",
-    "chooseFiles": "Choose photos",
     "compressing": "Compressing…",
     "uploading": "Uploading {pct}%",
     "success": "Uploaded",
     "failed": "Upload failed",
-    "duplicate": "This photo already exists",
     "viewExisting": "View existing",
     "skipped": "{n} duplicates skipped",
     "tooMany": "Up to 50 photos at a time",
@@ -147,7 +134,6 @@
     "category": "Category",
     "tags": "Tags",
     "watermark": "Add watermark",
-    "none": "None",
     "editing": "Edit image",
     "timeout": "Upload timed out, please retry"
   },
@@ -162,7 +148,6 @@
     "addTag": "New tag",
     "addAlbum": "New album",
     "addCategory": "New category",
-    "newName": "New name",
     "saved": "Saved",
     "nameRequired": "Photo name is required"
   },
@@ -174,13 +159,11 @@
     "removeAlbums": "Remove from albums",
     "category": "Category",
     "categoryKeep": "Keep unchanged",
-    "categorySet": "Set to",
     "categoryClear": "Clear category",
     "saved": "Batch changes saved",
     "tooMany": "Up to 50 photos per batch edit"
   },
   "albums": {
-    "title": "Albums",
     "create": "New album",
     "edit": "Edit album",
     "delete": "Delete album",
@@ -192,7 +175,6 @@
     "description": "Album description",
     "pickPhotos": "Pick photos",
     "searchInPicker": "Search photos",
-    "picked": "{n} picked",
     "saved": "Album saved",
     "deleteConfirm": "Delete album \"{name}\"? Photos will not be deleted",
     "nameRequired": "Album name is required",
@@ -200,15 +182,10 @@
     "emptyFiltered": "No albums match your search"
   },
   "timeline": {
-    "title": "Timeline",
     "empty": "No photos with capture dates yet",
-    "noExif": "No capture date for this photo",
-    "otherPhotos": "Other photos",
     "monthLabel": "{month}/{year}"
   },
   "map": {
-    "title": "Map",
-    "empty": "No photos with location info yet",
     "attribution": "Map data © AMap"
   },
   "stats": {
@@ -251,7 +228,6 @@
     "generateFailed": "Failed to create share link"
   },
   "backup": {
-    "exporting": "Exporting backup…",
     "done": "Backup exported",
     "failed": "Export failed"
   },
@@ -318,13 +294,11 @@
     "mirrorH": "Flip horizontal",
     "mirrorV": "Flip vertical",
     "crop": "Crop",
-    "reset": "Reset",
-    "done": "Changes saved"
+    "reset": "Reset"
   },
   "common": {
     "unknownError": "Something went wrong, please try again",
     "networkError": "Network error, please check your connection",
-    "copied": "Copied",
     "errorTitle": "Something went wrong",
     "errorReload": "Reload page",
     "errorCopyDiagnostics": "Copy diagnostics",

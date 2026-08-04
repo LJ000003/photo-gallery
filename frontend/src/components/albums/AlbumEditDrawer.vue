@@ -7,6 +7,7 @@ import { api } from '../../api'
 import { useDataStore } from '../../stores/data'
 import { useToastStore } from '../../stores/toast'
 import { appendMediaParams } from '../../utils/token'
+import { logError } from '../../utils/logger'
 import type { Photo } from '../../types/photo'
 import type { Album } from '../../types/album'
 import type { ApiResponse, PageResponse } from '../../types/api'
@@ -61,7 +62,7 @@ async function loadPickerPage(reset = false): Promise<void> {
     hasMore.value = !(data.data?.last ?? true)
     page.value += 1
   } catch (e) {
-    console.error('加载照片选择器失败', e)
+    logError(e, '加载照片选择器失败')
   } finally {
     loadingPicker.value = false
   }

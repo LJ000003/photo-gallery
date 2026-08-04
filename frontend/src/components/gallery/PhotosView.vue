@@ -32,7 +32,7 @@ const { deletePhoto, deletePhotos, generateShare } = usePhotoActions()
 /** 批量编辑上限（后端语义一致；超过则提示并截取前 50 张） */
 const BATCH_EDIT_LIMIT = 50
 
-/* ---------- 选择状态（照片流局部，store 的 selectedPhotoIds 为兼容保留） ---------- */
+/* ---------- 选择状态（照片流局部） ---------- */
 const selectedIds = ref(new Set<number>())
 
 function toggleSelect(id: number): void {

@@ -508,6 +508,7 @@ public class PhotoService {
     }
 
     @PostConstruct
+    @SuppressWarnings("RV_RETURN_VALUE_IGNORED_NO_SIDE_EFFECT") // 刻意触发懒加载初始化
     public void recoverStuckOnStartup() {
         List<Photo> stuck = transactionTemplate.execute(status -> {
             List<Photo> result = repo.findByProcessingStatus("PROCESSING");
@@ -751,6 +752,8 @@ public class PhotoService {
 
     // === DTO 转换 ===
 
+    // 刻意忽略返回值：仅触发 JPA 懒加载集合/字段初始化（P4-#45 待改为 JOIN FETCH 时移除）
+    @SuppressWarnings("RV_RETURN_VALUE_IGNORED_NO_SIDE_EFFECT")
     private void eagerLoad(Photo photo) {
         if (photo.getTags() != null) photo.getTags().size();
         if (photo.getAlbums() != null) photo.getAlbums().size();

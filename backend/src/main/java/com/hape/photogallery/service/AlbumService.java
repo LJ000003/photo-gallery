@@ -21,6 +21,10 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AlbumService {
 
+    // evict 对照表（聚合根 → 依赖缓存）：
+    //   addPhotos/removePhotos 会改 coverPhotoId（首次加入设封面 / 移除封面照片）→ albums 列表
+    //   展示的封面会变，必须连带失效 albums（曾只 evict photos，封面最长 30s 显示旧图）
+    //   syncPhotoAlbums 无自 evict，依赖 PhotoService.update 的 4-5 缓存 evict 兜底——收紧 update 清单时勿忘
     private final AlbumRepository albumRepo;
     private final PhotoRepository photoRepo;
 
@@ -138,7 +142,7 @@ public class AlbumService {
     }
 
     @Transactional
-    @CacheEvict(value = "photos", allEntries = true)
+    @CacheEvict(value = {"photos", "albums"}, allEntries = true)
     public void addPhotos(Long albumId, List<Long> photoIds) {
         Album a = albumRepo.findById(albumId).orElseThrow(() -> new BusinessException(404, "相册不存在"));
         for (Long pid : photoIds) {
@@ -156,7 +160,7 @@ public class AlbumService {
     }
 
     @Transactional
-    @CacheEvict(value = "photos", allEntries = true)
+    @CacheEvict(value = {"photos", "albums"}, allEntries = true)
     public void removePhotos(Long albumId, List<Long> photoIds) {
         Album a = albumRepo.findById(albumId).orElseThrow(() -> new BusinessException(404, "相册不存在"));
         for (Long pid : photoIds) {

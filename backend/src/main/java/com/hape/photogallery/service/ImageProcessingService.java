@@ -11,6 +11,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Locale;
 
 import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
@@ -255,7 +256,7 @@ public class ImageProcessingService {
     }
 
     public void generateWebp(Path original, String dateDir, String baseName) {
-        String lower = baseName.toLowerCase();
+        String lower = baseName.toLowerCase(Locale.ROOT);
         Path webpDir = uploadDir.resolve(dateDir).resolve("webp");
         try {
             Files.createDirectories(webpDir);
@@ -337,7 +338,9 @@ public class ImageProcessingService {
     }
 
     public String getFormat(Path path) {
-        String name = path.getFileName().toString().toLowerCase();
+        // getFileName 可能为 null（路径以分隔符结尾），先取局部变量避免二次调用
+        var fileName = path.getFileName();
+        String name = fileName != null ? fileName.toString().toLowerCase(Locale.ROOT) : "";
         if (name.endsWith(".png")) return "PNG";
         if (name.endsWith(".gif")) return "GIF";
         if (name.endsWith(".bmp")) return "BMP";

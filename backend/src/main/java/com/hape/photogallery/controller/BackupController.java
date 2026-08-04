@@ -4,6 +4,8 @@ import com.hape.photogallery.dto.BackupExportRequest;
 import com.hape.photogallery.service.BackupService;
 import com.hape.photogallery.service.BackupService.BackupBundle;
 
+import io.swagger.v3.oas.annotations.Operation;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.CacheControl;
@@ -38,6 +40,8 @@ public class BackupController {
         this.backupService = backupService;
     }
 
+    @Operation(summary = "导出备份",
+            description = "全量导出命中预生成缓存（数据指纹比对，毫秒级）；筛选导出实时打包；返回 zip（原 tar.gz 已改 zip，零第三方依赖）")
     @PostMapping("/backup/export")
     public ResponseEntity<StreamingResponseBody> export(
             @RequestBody(required = false) BackupExportRequest req) throws IOException {

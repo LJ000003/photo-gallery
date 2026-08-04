@@ -8,18 +8,18 @@ import java.io.Serializable;
  */
 public class ProcessingMessage implements Serializable {
 
+    private static final long serialVersionUID = 1L;
+
     private Long photoId;
-    private String targetPath;   // relative path, e.g. "2024/08/uuid_name.jpg"
     private String dateDir;      // "2024/08"
     private String baseName;     // "uuid_name.jpg"
     private String watermark;    // nullable
 
     public ProcessingMessage() {}
 
-    public ProcessingMessage(Long photoId, String targetPath, String dateDir,
+    public ProcessingMessage(Long photoId, String dateDir,
                              String baseName, String watermark) {
         this.photoId = photoId;
-        this.targetPath = targetPath;
         this.dateDir = dateDir;
         this.baseName = baseName;
         this.watermark = watermark;
@@ -27,9 +27,6 @@ public class ProcessingMessage implements Serializable {
 
     public Long getPhotoId() { return photoId; }
     public void setPhotoId(Long photoId) { this.photoId = photoId; }
-
-    public String getTargetPath() { return targetPath; }
-    public void setTargetPath(String targetPath) { this.targetPath = targetPath; }
 
     public String getDateDir() { return dateDir; }
     public void setDateDir(String dateDir) { this.dateDir = dateDir; }

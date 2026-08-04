@@ -9,6 +9,5 @@ public interface StorageService {
     Path resolveSafe(String relativePath);
     void store(MultipartFile file, Path target) throws IOException;
     void deleteFile(String relativePath);
-    boolean exists(String relativePath);
     void createDirectories(Path dir) throws IOException;
 }

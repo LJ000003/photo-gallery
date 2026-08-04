@@ -4,6 +4,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { api, AuthError } from '../api'
 import i18n from '../i18n'
 import { useToastStore } from './toast'
+import { logError } from '../utils/logger'
 import type { Photo } from '../types/photo'
 import type { ApiResponse, PageResponse } from '../types/api'
 import type { SortField, SortOrder } from '../types/view'
@@ -26,7 +27,6 @@ export const usePhotoStore = defineStore('photo', () => {
   const selectedCategoryIds: Ref<number[]> = ref(
     route.query.cats ? String(route.query.cats).split(',').filter(Boolean).map(Number) : [],
   )
-  const selectedPhotoIds: Ref<Set<number>> = ref(new Set())
   const searchQuery = ref((route.query.q as string) || '')
   /** 已删除照片 id（时间线/地图等持有本地列表的视图据此清理） */
   const deletedIds: Ref<Set<number>> = ref(new Set())
@@ -77,7 +77,7 @@ export const usePhotoStore = defineStore('photo', () => {
       return true
     } catch (err) {
       if (!(err instanceof AuthError)) {
-        console.error('加载照片失败:', err)
+        logError(err, '加载照片失败')
       }
       return false
     } finally {
@@ -178,7 +178,10 @@ export const usePhotoStore = defineStore('photo', () => {
             }),
           )
         } catch (err) {
-          console.warn(`[photo store] 轮询照片处理状态失败: ${processingPhotos.map((p) => p.id).join(',')}`, err)
+          console.warn(
+            `[photo store] 轮询照片处理状态失败: ${processingPhotos.map((p) => p.id).join(',')}`,
+            err,
+          )
         }
         poll()
       }, 3000)
@@ -205,7 +208,6 @@ export const usePhotoStore = defineStore('photo', () => {
     sortOrder,
     selectedTagIds,
     selectedCategoryIds,
-    selectedPhotoIds,
     searchQuery,
     deletedIds,
     loadMore,

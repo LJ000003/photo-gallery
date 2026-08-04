@@ -5,6 +5,8 @@ import com.hape.photogallery.dto.PhotoResponse;
 import com.hape.photogallery.exception.BusinessException;
 import com.hape.photogallery.service.PhotoService;
 
+import io.swagger.v3.oas.annotations.Operation;
+
 import java.util.List;
 
 import org.springframework.data.domain.Page;
@@ -30,6 +32,8 @@ public class ShareController {
     }
 
     /** 分享页 API — 返回 JWT claims 中指定的照片 */
+    @Operation(summary = "分享照片列表",
+            description = "viewer JWT 白名单校验（JwtAuthFilter 写入 sharePhotoIds）；响应剥离媒体签名（防 view 权限借签名下载原图）")
     @GetMapping("/api/v1/share/view")
     public ApiResponse<Page<PhotoResponse>> view(
             @RequestParam(defaultValue = "0") int page,

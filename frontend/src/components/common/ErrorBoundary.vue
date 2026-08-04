@@ -2,6 +2,7 @@
 import { onErrorCaptured, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Button, Result } from 'ant-design-vue'
+import { copyText } from '../../utils/clipboard'
 
 /**
  * 全局错误边界：渲染子树抛错时展示错误页（替代旧 ErrorFallback）
@@ -19,23 +20,14 @@ function reload(): void {
   window.location.reload()
 }
 
-function copyDiagnostics(): void {
+async function copyDiagnostics(): Promise<void> {
   const text = [
     `URL: ${window.location.href}`,
     `Time: ${new Date().toLocaleString()}`,
     `Error: ${error.value?.message || 'unknown'}`,
     `Stack: ${error.value?.stack || 'n/a'}`,
   ].join('\n')
-  if (navigator.clipboard && window.isSecureContext) {
-    navigator.clipboard.writeText(text)
-  } else {
-    const ta = document.createElement('textarea')
-    ta.value = text
-    document.body.appendChild(ta)
-    ta.select()
-    document.execCommand('copy')
-    document.body.removeChild(ta)
-  }
+  await copyText(text)
 }
 </script>
 

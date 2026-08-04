@@ -2,6 +2,9 @@
   "name": "photo-gallery",
   "private": true,
   "scripts": {
-    "prepare": "cd frontend && npx husky"
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7"
   }
 }

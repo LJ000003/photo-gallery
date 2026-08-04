@@ -54,6 +54,12 @@ const router = createRouter({
         },
       ],
     },
+    {
+      // 404 兜底：未知路径重定向首页（此前白屏）。仅覆盖客户端内导航；
+      // 后端静态资源无 SPA fallback，硬导航未知路径仍返回后端 404（现状）
+      path: '/:pathMatch(.*)*',
+      redirect: '/',
+    },
   ],
 })
 

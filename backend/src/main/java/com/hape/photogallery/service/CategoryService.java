@@ -20,6 +20,9 @@ public class CategoryService {
         this.catRepo = catRepo;
     }
 
+    // evict 对照表（聚合根 → 依赖缓存）：
+    //   create 不改变已有照片 → 只失效 categories
+    //   delete/update 会改变 PhotoResponse 内嵌的 category → 必须连带失效 photos（最长 30s 显示旧分类）
     @Cacheable("categories")
     public List<Category> listAll() {
         return catRepo.findAll();
@@ -32,13 +35,13 @@ public class CategoryService {
     }
 
     @Transactional
-    @CacheEvict(value = "categories", allEntries = true)
+    @CacheEvict(value = {"categories", "photos"}, allEntries = true)
     public void delete(Long id) {
         catRepo.deleteById(id);
     }
 
     @Transactional
-    @CacheEvict(value = "categories", allEntries = true)
+    @CacheEvict(value = {"categories", "photos"}, allEntries = true)
     public Category update(Long id, String name) {
         Category cat = catRepo.findById(id).orElseThrow(() -> new BusinessException(404, "分类不存在"));
         if (name != null) cat.setName(name);

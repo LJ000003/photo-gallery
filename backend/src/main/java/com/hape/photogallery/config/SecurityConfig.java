@@ -39,6 +39,23 @@ public class SecurityConfig {
                     .includeSubDomains(true).maxAgeInSeconds(31536000))
                 .contentTypeOptions(cto -> {})  // X-Content-Type-Options: nosniff
                 .frameOptions(frame -> frame.deny())  // X-Frame-Options: DENY
+                // CSP：style-src 需 'unsafe-inline'（antd cssinjs 注入 <style> + 内联 style 属性）；
+                // img-src 允许高德瓦片（Leaflet 底图 webst0-4/webrd0-4.is.autonavi.com）；
+                // static/index.html 无内联 script，script-src 'self' 即可。
+                // 注意 dev swagger-ui 的 CSS 引用 fonts.gstatic.com，font-src 未放行 → 仅字体降级（prod 已禁用 springdoc）
+                .contentSecurityPolicy(csp -> csp
+                    .policyDirectives("default-src 'self'; "
+                        + "img-src 'self' data: blob: https://*.is.autonavi.com; "
+                        + "style-src 'self' 'unsafe-inline'; "
+                        + "script-src 'self'; "
+                        + "connect-src 'self'; "
+                        + "font-src 'self' data:; "
+                        + "worker-src 'self' blob:; "
+                        + "object-src 'none'; "
+                        + "base-uri 'self'; "
+                        + "form-action 'self'; "
+                        + "frame-ancestors 'none'")
+                )
             )
             .csrf(csrf -> csrf.disable())
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

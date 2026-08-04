@@ -1,0 +1,19 @@
+version: 2
+updates:
+  # 前端依赖（工程规范依赖均声明在 frontend，根 package.json 无依赖条目）
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+
+  # 后端 Maven 依赖
+  - package-ecosystem: "maven"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

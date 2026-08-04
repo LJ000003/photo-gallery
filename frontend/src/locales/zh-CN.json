@@ -1,7 +1,6 @@
 {
   "app": {
-    "name": "照片墙",
-    "tagline": "朋友们的照片墙"
+    "name": "照片墙"
   },
   "auth": {
     "expired": "登录已过期，请重新解锁",
@@ -38,14 +37,10 @@
     "cancel": "取消",
     "edit": "编辑",
     "delete": "删除",
-    "share": "分享",
-    "copy": "复制",
     "download": "下载",
     "restore": "恢复",
     "confirm": "确定",
-    "retry": "重试",
     "selectAll": "全选",
-    "create": "新建",
     "rename": "重命名",
     "deleted": "删除成功",
     "undo": "撤销",
@@ -56,8 +51,7 @@
     "time": "时间",
     "name": "名称",
     "size": "大小",
-    "asc": "升序",
-    "desc": "降序"
+    "asc": "升序"
   },
   "gallery": {
     "title": "照片流",
@@ -103,16 +97,12 @@
   },
   "viewer": {
     "exif": "拍摄信息",
-    "slideshow": "幻灯片播放",
     "previous": "上一张",
     "next": "下一张",
     "fullscreen": "全屏",
     "noExif": "这张照片没有拍摄信息",
     "pause": "暂停",
     "play": "播放",
-    "camera": "相机",
-    "shoot": "拍摄参数",
-    "location": "位置",
     "close": "关闭"
   },
   "exif": {
@@ -132,12 +122,10 @@
     "title": "上传照片",
     "dropzone": "拖拽照片到这里，或点击选择",
     "pasteHint": "也可以直接 Ctrl+V 粘贴剪贴板图片",
-    "chooseFiles": "选择照片",
     "compressing": "压缩处理中…",
     "uploading": "上传中 {pct}%",
     "success": "上传成功",
     "failed": "上传失败",
-    "duplicate": "这张照片已经存在",
     "viewExisting": "查看已有",
     "skipped": "已有 {n} 张照片重复，已跳过",
     "tooMany": "一次最多上传 50 张",
@@ -146,7 +134,6 @@
     "category": "分类",
     "tags": "标签",
     "watermark": "添加水印",
-    "none": "无",
     "editing": "编辑图片",
     "timeout": "上传超时，请重试"
   },
@@ -161,7 +148,6 @@
     "addTag": "新建标签",
     "addAlbum": "新建相册",
     "addCategory": "新建分类",
-    "newName": "新名称",
     "saved": "已保存",
     "nameRequired": "照片名称不能为空"
   },
@@ -173,13 +159,11 @@
     "removeAlbums": "移出相册",
     "category": "分类",
     "categoryKeep": "保持不变",
-    "categorySet": "设置为",
     "categoryClear": "清除分类",
     "saved": "批量修改已保存",
     "tooMany": "一次最多批量编辑 50 张"
   },
   "albums": {
-    "title": "相册",
     "create": "新建相册",
     "edit": "编辑相册",
     "delete": "删除相册",
@@ -191,7 +175,6 @@
     "description": "相册描述",
     "pickPhotos": "选择照片",
     "searchInPicker": "搜索照片",
-    "picked": "已选 {n} 张",
     "saved": "相册已保存",
     "deleteConfirm": "删除相册「{name}」？照片不会被删除",
     "nameRequired": "相册名称不能为空",
@@ -199,15 +182,10 @@
     "emptyFiltered": "没有符合搜索条件的相册"
   },
   "timeline": {
-    "title": "时间线",
     "empty": "还没有带拍摄时间的照片",
-    "noExif": "这张照片没有拍摄时间",
-    "otherPhotos": "其他照片",
     "monthLabel": "{year} 年 {month} 月"
   },
   "map": {
-    "title": "地图",
-    "empty": "还没有带位置信息的照片",
     "attribution": "© 高德地图"
   },
   "stats": {
@@ -250,7 +228,6 @@
     "generateFailed": "生成分享失败"
   },
   "backup": {
-    "exporting": "正在导出备份…",
     "done": "备份已导出",
     "failed": "导出失败"
   },
@@ -317,13 +294,11 @@
     "mirrorH": "水平镜像",
     "mirrorV": "垂直镜像",
     "crop": "裁剪",
-    "reset": "重置",
-    "done": "已保存修改"
+    "reset": "重置"
   },
   "common": {
     "unknownError": "出错了，请稍后重试",
     "networkError": "网络异常，请检查连接",
-    "copied": "已复制",
     "errorTitle": "页面出错了",
     "errorReload": "刷新页面",
     "errorCopyDiagnostics": "复制诊断信息",

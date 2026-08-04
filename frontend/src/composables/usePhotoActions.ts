@@ -4,6 +4,7 @@ import i18n from '../i18n'
 import { usePhotoStore } from '../stores/photo'
 import { useToastStore } from '../stores/toast'
 import { extractErrorMessage } from '../utils/error'
+import { copyText } from '../utils/clipboard'
 import type { ApiResponse } from '../types/api'
 
 /**
@@ -78,7 +79,9 @@ export function usePhotoActions() {
       })
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : i18n.global.t('actions.deleteFailed', { count: ids.length }),
+        err instanceof Error
+          ? err.message
+          : i18n.global.t('actions.deleteFailed', { count: ids.length }),
       )
     }
   }
@@ -108,37 +111,14 @@ export function usePhotoActions() {
   }
 
   function copyShareLink(): void {
-    const text = shareUrl.value
-    if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard
-        .writeText(text)
-        .then(() => {
-          toast.success(i18n.global.t('share.copied'))
-          shareModal.value = null
-        })
-        .catch(() => fallbackCopy(text))
-    } else {
-      fallbackCopy(text)
-    }
-  }
-
-  function fallbackCopy(text: string): void {
-    const ta = document.createElement('textarea')
-    ta.value = text
-    ta.style.position = 'fixed'
-    ta.style.left = '-9999px'
-    ta.style.top = '-9999px'
-    document.body.appendChild(ta)
-    ta.focus()
-    ta.select()
-    try {
-      document.execCommand('copy')
-      toast.success(i18n.global.t('share.copied'))
-      shareModal.value = null
-    } catch {
-      toast.error(i18n.global.t('share.copyFailed'))
-    }
-    document.body.removeChild(ta)
+    void copyText(shareUrl.value).then((ok) => {
+      if (ok) {
+        toast.success(i18n.global.t('share.copied'))
+        shareModal.value = null
+      } else {
+        toast.error(i18n.global.t('share.copyFailed'))
+      }
+    })
   }
 
   return {

@@ -21,6 +21,7 @@ jobs:
           distribution: 'temurin'
           cache: maven
       - run: mvn test --batch-mode
+      - run: mvn spotbugs:check --batch-mode
       - run: mvn package -DskipTests --batch-mode
 
   frontend:

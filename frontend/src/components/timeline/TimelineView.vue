@@ -5,6 +5,7 @@ import { CalendarOutlined } from '@ant-design/icons-vue'
 import { useUiStore } from '../../stores/ui'
 import { usePhotoStore } from '../../stores/photo'
 import { appendMediaParams } from '../../utils/token'
+import { logError } from '../../utils/logger'
 import { api } from '../../api'
 import EmptyState from '../common/EmptyState.vue'
 import type { TimelineExifItem } from '../../types/view'
@@ -78,7 +79,7 @@ async function loadMore(): Promise<boolean> {
     hasMore.value = page.value < data.totalPages
     return true
   } catch (e) {
-    console.error('Failed to load timeline', e)
+    logError(e, 'Failed to load timeline')
     lastFailAt = Date.now()
     return false
   } finally {

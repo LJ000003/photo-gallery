@@ -5,6 +5,7 @@ import { useUiStore } from '../../stores/ui'
 import { usePhotoStore } from '../../stores/photo'
 import { appendMediaParams } from '../../utils/token'
 import { escapeHtml } from '../../utils/escape'
+import { logError } from '../../utils/logger'
 import { api } from '../../api'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -104,14 +105,18 @@ async function fetchMarkers(): Promise<void> {
       )
       marker.on('click', () => {
         // mediaToken 必须带上：灯箱大图鉴权用 per-photo 签名，残缺对象不带会 401
-        const partial = { id: exif.photoId, name: exif.photoName, mediaToken: exif.mediaToken } as Photo
+        const partial = {
+          id: exif.photoId,
+          name: exif.photoName,
+          mediaToken: exif.mediaToken,
+        } as Photo
         ui.openViewer(partial, [partial])
       })
       markersById.set(exif.photoId, marker)
       clusterGroup.addLayer(marker)
     }
   } catch (e) {
-    console.error('Failed to load map data', e)
+    logError(e, 'Failed to load map data')
   } finally {
     if (myId === fetchId) loading.value = false
   }

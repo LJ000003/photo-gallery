@@ -126,6 +126,8 @@ public class RedisConfig {
      * 必须使用公有的 Sort.by() 工厂方法。
      */
     static class SortDeserializer extends StdDeserializer<Sort> {
+        private static final long serialVersionUID = 1L;
+
         SortDeserializer() { super(Sort.class); }
 
         @Override
