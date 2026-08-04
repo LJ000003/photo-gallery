@@ -36,22 +36,10 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(ex.getStatus(), ex.getMessage()));
     }
 
-    @ExceptionHandler(InvalidFileTypeException.class)
-    public ResponseEntity<ApiResponse<Void>> handleInvalidFileType(InvalidFileTypeException ex) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.error(400, ex.getMessage()));
-    }
-
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ApiResponse<Void>> handleMaxUploadSize(MaxUploadSizeExceededException ex) {
         return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
                 .body(ApiResponse.error(413, "文件过大，请上传小于 10MB 的图片"));
-    }
-
-    @ExceptionHandler(FileSizeExceededException.class)
-    public ResponseEntity<ApiResponse<Void>> handleFileSizeExceeded(FileSizeExceededException ex) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.error(400, ex.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

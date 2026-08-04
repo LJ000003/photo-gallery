@@ -7,6 +7,7 @@ import com.hape.photogallery.dto.BackupExportRequest;
 import com.hape.photogallery.entity.Album;
 import com.hape.photogallery.entity.Category;
 import com.hape.photogallery.entity.Photo;
+import com.hape.photogallery.entity.ProcessingStatus;
 import com.hape.photogallery.entity.Tag;
 import com.hape.photogallery.exception.BusinessException;
 import com.hape.photogallery.repository.AlbumRepository;
@@ -82,7 +83,7 @@ class BackupServiceTest {
         p1.setFileSize(5L);
         p1.setContentType("image/jpeg");
         p1.setCreatedAt(LocalDateTime.of(2026, 7, 15, 10, 0));
-        p1.setProcessingStatus("DONE");
+        p1.setProcessingStatus(ProcessingStatus.DONE);
         p1.setFileHash("abc123");
         p1.setCategory(cat);
         p1.getTags().add(tag);
@@ -99,7 +100,7 @@ class BackupServiceTest {
         p2.setName("照片B");
         p2.setFileName("2024/01/uuid_b.jpg");
         p2.setCreatedAt(LocalDateTime.of(2026, 7, 20, 12, 0));
-        p2.setProcessingStatus("DONE");
+        p2.setProcessingStatus(ProcessingStatus.DONE);
         photoRepo.save(p2);
     }
 
@@ -260,7 +261,7 @@ class BackupServiceTest {
         p3.setName("照片C");
         p3.setFileName("2024/01/uuid_c.jpg");
         p3.setCreatedAt(LocalDateTime.now());
-        p3.setProcessingStatus("DONE");
+        p3.setProcessingStatus(ProcessingStatus.DONE);
         photoRepo.save(p3);
 
         assertThat(service.isCacheFresh()).isFalse();

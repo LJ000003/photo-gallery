@@ -1,18 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import {
-  DeleteOutlined,
-  DownloadOutlined,
-  EditOutlined,
-  LinkOutlined,
-} from '@ant-design/icons-vue'
+import { DeleteOutlined, DownloadOutlined, EditOutlined, LinkOutlined } from '@ant-design/icons-vue'
 import { Button, Modal } from 'ant-design-vue'
 
 import ExifPanel from './ExifPanel.vue'
 import ViewerStage from './ViewerStage.vue'
 import ViewerBottom from './ViewerBottom.vue'
-import { webpUrl } from '../../webp'
+import { webpUrl } from '../../utils/webp'
 import { appendMediaParams } from '../../utils/token'
 import { formatSize } from '../../utils/format'
 import { useUiStore } from '../../stores/ui'

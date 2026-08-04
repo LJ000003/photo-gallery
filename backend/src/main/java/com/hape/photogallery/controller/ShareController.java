@@ -46,7 +46,10 @@ public class ShareController {
             throw new BusinessException(404, "分享链接无效或已过期");
         }
 
-        Page<PhotoResponse> result = photoService.findByIds(photoIds, PageRequest.of(page, size))
+        // P4-#48③：page/size 钳制——size=-1 曾直接 500（PageRequest 校验抛 IllegalArgumentException）
+        int clampedPage = Math.max(0, page);
+        int clampedSize = Math.max(1, Math.min(100, size));
+        Page<PhotoResponse> result = photoService.findByIds(photoIds, PageRequest.of(clampedPage, clampedSize))
                 .map(photoService::toResponse);
         // 分享上下文不得签发管理员短时签名（否则 view 权限可借签名下载原图），统一剥离
         result.getContent().forEach(r -> r.setMediaToken(null));

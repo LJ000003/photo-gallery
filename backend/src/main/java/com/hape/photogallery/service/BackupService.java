@@ -95,7 +95,7 @@ public class BackupService {
         static BackupPhoto from(Photo p) {
             return new BackupPhoto(p.getId(), p.getName(), p.getDescription(), p.getFileName(),
                     p.getOriginalFileName(), p.getFileSize(), p.getContentType(), p.getCreatedAt(),
-                    p.getProcessingStatus(), p.getFileHash(),
+                    p.getProcessingStatus().name(), p.getFileHash(),
                     p.getCategory() != null ? p.getCategory().getId() : null,
                     p.getTags().stream().map(Tag::getId).sorted().toList(),
                     p.getAlbums().stream().map(Album::getId).sorted().toList());

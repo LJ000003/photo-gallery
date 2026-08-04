@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { supportsWebp, webpUrl } from '../webp'
+import { supportsWebp, webpUrl } from '../utils/webp'
 
 describe('webp', () => {
   it('supportsWebp returns a boolean', () => {

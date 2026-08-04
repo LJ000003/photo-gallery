@@ -1,9 +1,11 @@
 package com.hape.photogallery.repository;
 
 import com.hape.photogallery.entity.Photo;
+import com.hape.photogallery.entity.ProcessingStatus;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -191,7 +193,19 @@ public interface PhotoRepository extends JpaRepository<Photo, Long> {
     Page<Photo> findDeleted(Pageable pageable);
 
     @Query("SELECT p FROM Photo p WHERE p.processingStatus = :status")
-    List<Photo> findByProcessingStatus(@Param("status") String status);
+    List<Photo> findByProcessingStatus(@Param("status") ProcessingStatus status);
+
+    /** 按文件哈希查详情（tags/albums/exifData 预取）——dedup 路径需要完整 DTO 序列化，
+     *  单行查询无分页风险，替代手工 eagerLoad hack（P4-#45） */
+    @EntityGraph(attributePaths = {"tags", "albums", "exifData"})
+    Optional<Photo> findWithDetailsByFileHash(String fileHash);
+
+    /**
+     * 各相册照片数（P4-#38）：一次分组查询替代 Album.getPhotoCount() 的整集合懒加载 N+1。
+     * @SQLRestriction 自动排除软删照片；已知局限：回收站相册不计已删照片（回收站 UI 不显示计数）。
+     */
+    @Query("SELECT a.id, COUNT(p.id) FROM Album a LEFT JOIN a.photos p GROUP BY a.id")
+    List<Object[]> countByAlbum();
 
     Optional<Photo> findByFileHash(String fileHash);
 

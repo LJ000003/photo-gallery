@@ -7,12 +7,16 @@ import com.hape.photogallery.dto.PhotoResponse;
 import com.hape.photogallery.dto.PhotoUpdateRequest;
 import com.hape.photogallery.dto.TimelineItem;
 import com.hape.photogallery.dto.TransformRequest;
+import com.hape.photogallery.dto.UploadParams;
 import com.hape.photogallery.entity.ExifData;
 import com.hape.photogallery.entity.Photo;
 import com.hape.photogallery.exception.BusinessException;
 import com.hape.photogallery.exception.DuplicateException;
 import com.hape.photogallery.service.AlbumService;
+import com.hape.photogallery.service.FilePathResolver;
+import com.hape.photogallery.service.MigrationService;
 import com.hape.photogallery.service.PhotoService;
+import com.hape.photogallery.service.PhotoTransformService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
@@ -41,10 +45,18 @@ public class PhotoController {
 
     private final PhotoService service;
     private final AlbumService albumService;
+    private final MigrationService migrationService;
+    private final FilePathResolver filePathResolver;
+    private final PhotoTransformService transformService;
 
-    public PhotoController(PhotoService service, AlbumService albumService) {
+    public PhotoController(PhotoService service, AlbumService albumService,
+                           MigrationService migrationService, FilePathResolver filePathResolver,
+                           PhotoTransformService transformService) {
         this.service = service;
         this.albumService = albumService;
+        this.migrationService = migrationService;
+        this.filePathResolver = filePathResolver;
+        this.transformService = transformService;
     }
 
     // === 照片 ===
@@ -92,7 +104,8 @@ public class PhotoController {
                         @RequestParam(value = "watermark", required = false) String watermark)
             throws IOException {
         try {
-            return ResponseEntity.ok(ApiResponse.success(service.toResponse(service.upload(file, name, description, tagIds, categoryId, watermark))));
+            UploadParams params = new UploadParams(name, description, tagIds, categoryId, watermark);
+            return ResponseEntity.ok(ApiResponse.success(service.toResponse(service.upload(file, params))));
         } catch (DuplicateException e) {
             return ResponseEntity.status(409).body(ApiResponse.error(409, e.getMessage(), e.getExisting()));
         }
@@ -112,7 +125,8 @@ public class PhotoController {
         if (files.size() > MAX_BATCH_SIZE) {
             throw new BusinessException(400, "单次最多上传 " + MAX_BATCH_SIZE + " 张图片");
         }
-        List<PhotoResponse> result = service.batchUpload(files, name, description, tagIds, categoryId, watermark)
+        UploadParams params = new UploadParams(name, description, tagIds, categoryId, watermark);
+        List<PhotoResponse> result = service.batchUpload(files, params)
                 .stream().map(service::toResponse).toList();
         return ApiResponse.success(result);
     }
@@ -151,11 +165,11 @@ public class PhotoController {
 
     @GetMapping("/photos/{id}/file")
     public ResponseEntity<Resource> getFile(@PathVariable Long id) {
-        Photo photo = service.getByIdIncludeDeleted(id);
+        Photo photo = filePathResolver.getByIdIncludeDeleted(id);
         if (photo.getDeletedAt() != null && !isAdmin()) {
             throw new BusinessException(404, "该照片已被删除");
         }
-        Resource resource = new FileSystemResource(service.getFilePath(id));
+        Resource resource = new FileSystemResource(filePathResolver.getFilePath(id));
         if (!resource.exists()) {
             throw new BusinessException(404, "文件不存在");
         }
@@ -166,11 +180,11 @@ public class PhotoController {
 
     @GetMapping("/photos/{id}/webp")
     public ResponseEntity<Resource> getWebp(@PathVariable Long id) {
-        Photo photo = service.getByIdIncludeDeleted(id);
+        Photo photo = filePathResolver.getByIdIncludeDeleted(id);
         if (photo.getDeletedAt() != null && !isAdmin()) {
             throw new BusinessException(404, "该照片已被删除");
         }
-        Resource resource = new FileSystemResource(service.getWebpPath(id));
+        Resource resource = new FileSystemResource(filePathResolver.getWebpPath(id));
         if (!resource.exists()) {
             throw new BusinessException(404, "文件不存在");
         }
@@ -182,11 +196,11 @@ public class PhotoController {
     @GetMapping("/photos/{id}/thumbnail")
     public ResponseEntity<Resource> getThumbnail(@PathVariable Long id,
                                                  @RequestParam(defaultValue = "400") int w) {
-        Photo photo = service.getByIdIncludeDeleted(id);
+        Photo photo = filePathResolver.getByIdIncludeDeleted(id);
         if (photo.getDeletedAt() != null && !isAdmin()) {
             throw new BusinessException(404, "该照片已被删除");
         }
-        Resource resource = new FileSystemResource(service.getThumbnailPath(id, w));
+        Resource resource = new FileSystemResource(filePathResolver.getThumbnailPath(id, w));
         if (!resource.exists()) {
             throw new BusinessException(404, "文件不存在");
         }
@@ -198,13 +212,13 @@ public class PhotoController {
 
     @PostMapping("/photos/migrate-thumbnails")
     public ApiResponse<Map<String, Integer>> migrateThumbnails() {
-        int count = service.migrateThumbnails();
+        int count = migrationService.migrateThumbnails();
         return ApiResponse.success(Map.of("generated", count));
     }
 
     @PostMapping("/photos/migrate-webp")
     public ApiResponse<Map<String, Integer>> migrateWebp() {
-        int count = service.migrateWebp();
+        int count = migrationService.migrateWebp();
         return ApiResponse.success(Map.of("generated", count));
     }
 
@@ -227,7 +241,7 @@ public class PhotoController {
 
     @PostMapping("/photos/extract-exif")
     public ApiResponse<Map<String, Integer>> extractExifBatch() {
-        int count = service.extractExifForExisting();
+        int count = migrationService.extractExifForExisting();
         return ApiResponse.success(Map.of("extracted", count));
     }
 
@@ -239,7 +253,7 @@ public class PhotoController {
     @PostMapping("/photos/{id}/transform")
     public ApiResponse<String> transform(@PathVariable Long id,
                                          @Valid @RequestBody TransformRequest body) throws IOException {
-        service.transformPhoto(id, body.getRotate(), body.getMirror(),
+        transformService.transformPhoto(id, body.getRotate(), body.getMirror(),
                 body.getCx(), body.getCy(), body.getCw(), body.getCh());
         return ApiResponse.success("ok");
     }

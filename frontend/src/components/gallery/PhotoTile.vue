@@ -10,7 +10,7 @@ import {
   WarningOutlined,
 } from '@ant-design/icons-vue'
 import { Modal } from 'ant-design-vue'
-import { thumbUrl } from '../../webp'
+import { thumbUrl } from '../../utils/webp'
 import { appendMediaParams, appendTokenParam } from '../../utils/token'
 import { formatSize } from '../../utils/format'
 import { api } from '../../api'

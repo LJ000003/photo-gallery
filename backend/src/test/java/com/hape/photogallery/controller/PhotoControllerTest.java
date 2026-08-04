@@ -7,7 +7,10 @@ import com.hape.photogallery.dto.PhotoUpdateRequest;
 import com.hape.photogallery.dto.TimelineItem;
 import com.hape.photogallery.entity.Photo;
 import com.hape.photogallery.service.AlbumService;
+import com.hape.photogallery.service.FilePathResolver;
+import com.hape.photogallery.service.MigrationService;
 import com.hape.photogallery.service.PhotoService;
+import com.hape.photogallery.service.PhotoTransformService;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,6 +42,9 @@ class PhotoControllerTest {
     @Autowired private MockMvc mockMvc;
     @MockBean private PhotoService service;
     @MockBean private AlbumService albumService;
+    @MockBean private MigrationService migrationService;
+    @MockBean private FilePathResolver filePathResolver;
+    @MockBean private PhotoTransformService transformService;
 
     // ==================== list ====================
 
@@ -275,7 +281,7 @@ class PhotoControllerTest {
 
     @Test
     void extractExifBatch_shouldReturnCount() throws Exception {
-        when(service.extractExifForExisting()).thenReturn(5);
+        when(migrationService.extractExifForExisting()).thenReturn(5);
 
         mockMvc.perform(post("/api/v1/photos/extract-exif"))
                 .andExpect(status().isOk())

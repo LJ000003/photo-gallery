@@ -3,7 +3,7 @@ import { onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { LeftOutlined, RightOutlined } from '@ant-design/icons-vue'
-import { webpUrl } from '../../webp'
+import { webpUrl } from '../../utils/webp'
 import { formatSize } from '../../utils/format'
 import { appendTokenParam } from '../../utils/token'
 import { api } from '../../api'
@@ -106,8 +106,24 @@ onUnmounted(() => {
 
     <EmptyState
       v-else-if="!loading && photos.length === 0"
-      :title="t(errorKind === 'auth' ? 'share.invalidTitle' : errorKind === 'server' ? 'share.serverErrorTitle' : 'gallery.emptyTitle')"
-      :hint="t(errorKind === 'auth' ? 'share.invalidHint' : errorKind === 'server' ? 'share.serverErrorHint' : 'share.expire')"
+      :title="
+        t(
+          errorKind === 'auth'
+            ? 'share.invalidTitle'
+            : errorKind === 'server'
+              ? 'share.serverErrorTitle'
+              : 'gallery.emptyTitle',
+        )
+      "
+      :hint="
+        t(
+          errorKind === 'auth'
+            ? 'share.invalidHint'
+            : errorKind === 'server'
+              ? 'share.serverErrorHint'
+              : 'share.expire',
+        )
+      "
     />
 
     <PhotoGrid

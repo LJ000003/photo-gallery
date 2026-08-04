@@ -10,7 +10,7 @@ import {
 import { Button, Modal } from 'ant-design-vue'
 import { useRouter } from 'vue-router'
 import { api } from '../../api'
-import { thumbUrl } from '../../webp'
+import { thumbUrl } from '../../utils/webp'
 import { appendMediaParams } from '../../utils/token'
 import { useToastStore } from '../../stores/toast'
 import { useUiStore } from '../../stores/ui'

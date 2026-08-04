@@ -6,8 +6,8 @@ import java.util.Map;
 import com.hape.photogallery.ApiResponse;
 import com.hape.photogallery.config.MediaSignatureService;
 import com.hape.photogallery.dto.AlbumRequest;
+import com.hape.photogallery.dto.AlbumResponse;
 import com.hape.photogallery.dto.PhotoResponse;
-import com.hape.photogallery.entity.Album;
 import com.hape.photogallery.service.AlbumService;
 import com.hape.photogallery.service.PhotoService;
 
@@ -34,10 +34,10 @@ public class AlbumController {
     }
 
     @GetMapping("/albums")
-    public ApiResponse<List<Album>> listAlbums() {
-        List<Album> albums = albumService.listAll();
+    public ApiResponse<List<AlbumResponse>> listAlbums() {
+        List<AlbumResponse> albums = albumService.listAll();
         // 封面图短时签名：仅列表渲染需要，创建/更新响应不需要
-        for (Album a : albums) {
+        for (AlbumResponse a : albums) {
             if (a.getCoverPhotoId() != null) {
                 a.setMediaToken(mediaSignature.sign(a.getCoverPhotoId()));
             }
@@ -46,12 +46,12 @@ public class AlbumController {
     }
 
     @PostMapping("/albums")
-    public ApiResponse<Album> createAlbum(@Valid @RequestBody AlbumRequest req) {
+    public ApiResponse<AlbumResponse> createAlbum(@Valid @RequestBody AlbumRequest req) {
         return ApiResponse.success(albumService.create(req.getName(), req.getDescription(), req.getPhotoIds()));
     }
 
     @PutMapping("/albums/{id}")
-    public ApiResponse<Album> updateAlbum(@PathVariable Long id, @Valid @RequestBody AlbumRequest req) {
+    public ApiResponse<AlbumResponse> updateAlbum(@PathVariable Long id, @Valid @RequestBody AlbumRequest req) {
         return ApiResponse.success(albumService.update(id, req.getName(), req.getDescription(), req.getPhotoIds()));
     }
 

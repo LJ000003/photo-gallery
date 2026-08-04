@@ -36,7 +36,8 @@ class JwtAuthFilterTest {
     @BeforeEach
     void setUp() {
         sigService = new MediaSignatureService("test-secret-0123456789abcdef0123456789abcdef", 300);
-        filter = new JwtAuthFilter(jwtService, sigService);
+        // P4-#48③：错误响应改 ApiResponse JSON，注入 ObjectMapper
+        filter = new JwtAuthFilter(jwtService, sigService, new com.fasterxml.jackson.databind.ObjectMapper());
         chainCalled = false;
         SecurityContextHolder.clearContext();
     }
@@ -67,6 +68,7 @@ class JwtAuthFilterTest {
         stubViewer("view", List.of(1L));
         MockHttpServletResponse res = apply("/api/v1/photos/1/file", "tok");
         assertThat(res.getStatus()).isEqualTo(403);
+        assertThat(res.getContentAsString()).contains("\"code\":403", "message");
         assertThat(chainCalled).isFalse();
     }
 
@@ -83,6 +85,7 @@ class JwtAuthFilterTest {
         stubViewer(null, List.of(1L));
         MockHttpServletResponse res = apply("/api/v1/photos/1/file", "tok");
         assertThat(res.getStatus()).isEqualTo(403);
+        assertThat(res.getContentAsString()).contains("\"code\":403", "message");
     }
 
     @Test
@@ -105,6 +108,7 @@ class JwtAuthFilterTest {
         stubViewer("download", List.of(2L));
         MockHttpServletResponse res = apply("/api/v1/photos/1/file", "tok");
         assertThat(res.getStatus()).isEqualTo(403);
+        assertThat(res.getContentAsString()).contains("\"code\":403", "message");
         assertThat(chainCalled).isFalse();
     }
 
@@ -152,6 +156,7 @@ class JwtAuthFilterTest {
     void sig_forDifferentPhotoId_shouldBe403() throws Exception {
         MockHttpServletResponse res = applySig("/api/v1/photos/41/file", sigService.sign(42));
         assertThat(res.getStatus()).isEqualTo(403);
+        assertThat(res.getContentAsString()).contains("\"code\":403", "message");
         assertThat(chainCalled).isFalse();
     }
 
@@ -159,6 +164,7 @@ class JwtAuthFilterTest {
     void tamperedSig_shouldBe403() throws Exception {
         MockHttpServletResponse res = applySig("/api/v1/photos/42/file", sigService.sign(42) + "x");
         assertThat(res.getStatus()).isEqualTo(403);
+        assertThat(res.getContentAsString()).contains("\"code\":403", "message");
         assertThat(chainCalled).isFalse();
     }
 
@@ -166,6 +172,7 @@ class JwtAuthFilterTest {
     void garbageSig_shouldBe403() throws Exception {
         MockHttpServletResponse res = applySig("/api/v1/photos/42/file", "not-a-signature");
         assertThat(res.getStatus()).isEqualTo(403);
+        assertThat(res.getContentAsString()).contains("\"code\":403", "message");
         assertThat(chainCalled).isFalse();
     }
 

@@ -23,6 +23,7 @@ import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageProperties;
 
 import com.hape.photogallery.entity.Photo;
+import com.hape.photogallery.entity.ProcessingStatus;
 import com.hape.photogallery.repository.PhotoRepository;
 import com.hape.photogallery.service.PhotoProcessor;
 import com.hape.photogallery.service.StorageService;
@@ -117,7 +118,7 @@ class PhotoProcessingConsumerTest {
         verify(channel).basicNack(42L, false, false);
         ArgumentCaptor<Photo> captor = ArgumentCaptor.forClass(Photo.class);
         verify(photoRepo, times(1)).save(captor.capture());
-        assertThat(captor.getValue().getProcessingStatus()).isEqualTo("FAILED");
+        assertThat(captor.getValue().getProcessingStatus()).isEqualTo(ProcessingStatus.FAILED);
         assertThat(captor.getValue().getErrorMessage()).contains("处理失败");
     }
 }

@@ -4,9 +4,8 @@ import java.util.List;
 import java.util.Map;
 
 import com.hape.photogallery.ApiResponse;
+import com.hape.photogallery.dto.AlbumResponse;
 import com.hape.photogallery.dto.PhotoResponse;
-import com.hape.photogallery.entity.Album;
-import com.hape.photogallery.entity.Photo;
 import com.hape.photogallery.service.AlbumService;
 import com.hape.photogallery.service.PhotoService;
 
@@ -45,7 +44,8 @@ public class TrashController {
     }
 
     @GetMapping("/albums")
-    public ApiResponse<List<Album>> listAlbums() {
+    public ApiResponse<List<AlbumResponse>> listAlbums() {
+        // P4-#38：DTO 化（photoCount 恒 0，回收站 UI 不显示计数）
         return ApiResponse.success(albumService.listDeleted());
     }
 

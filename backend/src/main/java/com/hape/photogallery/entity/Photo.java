@@ -36,13 +36,15 @@ public class Photo {
     @JoinTable(name = "photo_tags",
         joinColumns = @JoinColumn(name = "photo_id"),
         inverseJoinColumns = @JoinColumn(name = "tag_id"))
+    @org.hibernate.annotations.BatchSize(size = 20) // P4-#44：列表页 N+1 → 每页 20 张照片批量 1-2 次查询
     private Set<Tag> tags = new HashSet<>();
 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY) // P4-#44：EAGER → LAZY，由 Category 类级 @BatchSize 批取代理
     @JoinColumn(name = "category_id")
     private Category category;
 
     @ManyToMany(mappedBy = "photos")
+    @org.hibernate.annotations.BatchSize(size = 20)
     private Set<Album> albums = new HashSet<>();
 
     @OneToOne(mappedBy = "photo", fetch = FetchType.LAZY)
@@ -50,7 +52,8 @@ public class Photo {
 
     private LocalDateTime deletedAt;
 
-    private String processingStatus = "DONE";
+    @Enumerated(EnumType.STRING)
+    private ProcessingStatus processingStatus = ProcessingStatus.DONE;
     private String errorMessage;
     private String fileHash;
 
@@ -87,8 +90,8 @@ public class Photo {
     public void setAlbums(Set<Album> albums) { this.albums = albums; }
     public LocalDateTime getDeletedAt() { return deletedAt; }
     public void setDeletedAt(LocalDateTime deletedAt) { this.deletedAt = deletedAt; }
-    public String getProcessingStatus() { return processingStatus; }
-    public void setProcessingStatus(String processingStatus) { this.processingStatus = processingStatus; }
+    public ProcessingStatus getProcessingStatus() { return processingStatus; }
+    public void setProcessingStatus(ProcessingStatus processingStatus) { this.processingStatus = processingStatus; }
     public String getErrorMessage() { return errorMessage; }
     public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
     public String getFileHash() { return fileHash; }

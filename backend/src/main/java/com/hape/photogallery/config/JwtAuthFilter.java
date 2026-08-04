@@ -12,6 +12,10 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import org.springframework.stereotype.Component;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import com.hape.photogallery.ApiResponse;
+
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -23,10 +27,20 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final MediaSignatureService mediaSignatureService;
+    private final ObjectMapper objectMapper;
 
-    public JwtAuthFilter(JwtService jwtService, MediaSignatureService mediaSignatureService) {
+    public JwtAuthFilter(JwtService jwtService, MediaSignatureService mediaSignatureService,
+                         ObjectMapper objectMapper) {
         this.jwtService = jwtService;
         this.mediaSignatureService = mediaSignatureService;
+        this.objectMapper = objectMapper;
+    }
+
+    /** 错误响应统一走 ApiResponse JSON（P4-#48③：此前 sendError 是纯 Servlet 错误体，与接口契约不一致） */
+    private void writeError(HttpServletResponse response, int status, String message) throws IOException {
+        response.setStatus(status);
+        response.setContentType("application/json;charset=UTF-8");
+        objectMapper.writeValue(response.getWriter(), ApiResponse.error(status, message));
     }
 
     @Override
@@ -51,7 +65,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 Long requestedPhotoId = extractPhotoIdFromImagePath(uri);
                 long verifiedPhotoId = mediaSignatureService.verify(sig);
                 if (requestedPhotoId == null || verifiedPhotoId != requestedPhotoId) {
-                    response.sendError(HttpServletResponse.SC_FORBIDDEN, "图片签名无效或已过期");
+                    writeError(response, HttpServletResponse.SC_FORBIDDEN, "图片签名无效或已过期");
                     return;
                 }
                 SecurityContextHolder.getContext().setAuthentication(
@@ -91,13 +105,13 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                     Long requestedPhotoId = extractPhotoIdFromImagePath(request.getRequestURI());
                     if (requestedPhotoId != null) {
                         if (photoIds == null || !photoIds.contains(requestedPhotoId)) {
-                            response.sendError(HttpServletResponse.SC_FORBIDDEN, "无权限访问该照片");
+                            writeError(response, HttpServletResponse.SC_FORBIDDEN, "无权限访问该照片");
                             return;
                         }
                         // 强制执行分享权限：view 仅可查看缩略图/WebP，禁止下载原图；
                         // permission claim 缺失时按最保守处理（同样拒绝下载）
                         if (isFileRequest(request.getRequestURI()) && !"download".equals(permission)) {
-                            response.sendError(HttpServletResponse.SC_FORBIDDEN, "该分享链接仅可查看，不可下载");
+                            writeError(response, HttpServletResponse.SC_FORBIDDEN, "该分享链接仅可查看，不可下载");
                             return;
                         }
                     }

@@ -2,7 +2,7 @@
 import { useI18n } from 'vue-i18n'
 import { LeftOutlined, RightOutlined } from '@ant-design/icons-vue'
 import { appendMediaParams } from '../../utils/token'
-import { webpUrl } from '../../webp'
+import { webpUrl } from '../../utils/webp'
 import type { Photo } from '../../types/photo'
 
 /**

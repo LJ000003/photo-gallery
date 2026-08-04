@@ -1,6 +1,5 @@
 package com.hape.photogallery.dto;
 
-import com.hape.photogallery.entity.Album;
 import com.hape.photogallery.entity.Category;
 import com.hape.photogallery.entity.ExifData;
 import com.hape.photogallery.entity.Photo;
@@ -18,7 +17,8 @@ public class PhotoResponse {
     private Long fileSize;
     private Category category;
     private Set<Tag> tags;
-    private Set<Album> albums;
+    /** 轻量 DTO（仅 id/name）——P4-#38：避免序列化 Album 实体触发 getPhotoCount() 的整集合懒加载 N+1 */
+    private Set<AlbumResponse> albums;
     private LocalDateTime createdAt;
     private LocalDateTime deletedAt;
     private String processingStatus;
@@ -35,10 +35,12 @@ public class PhotoResponse {
         r.fileSize = photo.getFileSize();
         r.category = photo.getCategory();
         r.tags = photo.getTags() != null ? new HashSet<>(photo.getTags()) : new HashSet<>();
-        r.albums = photo.getAlbums() != null ? new HashSet<>(photo.getAlbums()) : new HashSet<>();
+        r.albums = photo.getAlbums() != null
+                ? photo.getAlbums().stream().map(AlbumResponse::summary).collect(java.util.stream.Collectors.toSet())
+                : new HashSet<>();
         r.createdAt = photo.getCreatedAt();
         r.deletedAt = photo.getDeletedAt();
-        r.processingStatus = photo.getProcessingStatus();
+        r.processingStatus = photo.getProcessingStatus().name();
         r.errorMessage = photo.getErrorMessage();
         r.exifData = photo.getExifData();
         return r;
@@ -50,7 +52,7 @@ public class PhotoResponse {
     public Long getFileSize() { return fileSize; }
     public Category getCategory() { return category; }
     public Set<Tag> getTags() { return tags; }
-    public Set<Album> getAlbums() { return albums; }
+    public Set<AlbumResponse> getAlbums() { return albums; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getDeletedAt() { return deletedAt; }
     public String getProcessingStatus() { return processingStatus; }

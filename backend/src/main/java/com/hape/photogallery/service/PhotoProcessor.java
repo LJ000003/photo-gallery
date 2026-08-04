@@ -16,6 +16,7 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Metrics;
 
 import com.hape.photogallery.entity.Photo;
+import com.hape.photogallery.entity.ProcessingStatus;
 import com.hape.photogallery.repository.PhotoRepository;
 
 /**
@@ -85,7 +86,7 @@ public class PhotoProcessor {
             BufferedImage img = ImageIO.read(target.toFile());
             if (img == null) {
                 log.warn("  无法解码图片 photo={}", photoId);
-                photo.setProcessingStatus("FAILED");
+                photo.setProcessingStatus(ProcessingStatus.FAILED);
                 photo.setErrorMessage("无法解码图片文件");
                 photoRepo.save(photo);
                 return;
@@ -118,7 +119,7 @@ public class PhotoProcessor {
             log.debug("  [5/5] WebP 转换 photo={}", photoId);
             imageService.generateWebp(display, dateDir, baseName);
 
-            photo.setProcessingStatus("DONE");
+            photo.setProcessingStatus(ProcessingStatus.DONE);
             photo.setErrorMessage(null);
             photoRepo.save(photo);
             log.info("处理完成 photo={}", photoId);
@@ -128,7 +129,7 @@ public class PhotoProcessor {
             try {
                 String msg = e.getMessage() != null ? e.getMessage() : "未知错误";
                 if (msg.length() > 500) msg = msg.substring(0, 497) + "...";
-                photo.setProcessingStatus("FAILED");
+                photo.setProcessingStatus(ProcessingStatus.FAILED);
                 photo.setErrorMessage(msg);
                 photoRepo.save(photo);
             } catch (Throwable inner) {

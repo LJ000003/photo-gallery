@@ -59,46 +59,52 @@ function toggleAlbum(id: number): void {
   else selectedAlbumIds.value.push(id)
 }
 
+// api() 在非 2xx 时直接 throw ApiError——失败必须 try/catch 才有反馈（P4-#47：此前失败静默为未处理 rejection）
 async function addTag(): Promise<void> {
   if (!newTagName.value.trim()) return
-  const res = await api('/api/tags', {
-    method: 'POST',
-    body: JSON.stringify({ name: newTagName.value.trim(), color: newTagColor.value }),
-  })
-  if (res.ok) {
+  try {
+    const res = await api('/api/tags', {
+      method: 'POST',
+      body: JSON.stringify({ name: newTagName.value.trim(), color: newTagColor.value }),
+    })
     const json: ApiResponse<Tag> = await res.json()
     selectedTagIds.value.push(json.data.id)
     newTagName.value = ''
     void data.refreshTags()
+  } catch (err) {
+    toast.error(err instanceof Error ? err.message : t('common.unknownError'))
   }
 }
 
 async function addCat(): Promise<void> {
   if (!newCatName.value.trim()) return
-  const res = await api('/api/categories', {
-    method: 'POST',
-    body: JSON.stringify({ name: newCatName.value.trim() }),
-  })
-  if (res.ok) {
+  try {
+    const res = await api('/api/categories', {
+      method: 'POST',
+      body: JSON.stringify({ name: newCatName.value.trim() }),
+    })
     const json: ApiResponse<Category> = await res.json()
     selectedCatId.value = json.data.id
     newCatName.value = ''
     void data.refreshCategories()
-    void data.refreshCategories()
+  } catch (err) {
+    toast.error(err instanceof Error ? err.message : t('common.unknownError'))
   }
 }
 
 async function addAlbum(): Promise<void> {
   if (!newAlbumName.value.trim()) return
-  const res = await api('/api/albums', {
-    method: 'POST',
-    body: JSON.stringify({ name: newAlbumName.value.trim() }),
-  })
-  if (res.ok) {
+  try {
+    const res = await api('/api/albums', {
+      method: 'POST',
+      body: JSON.stringify({ name: newAlbumName.value.trim() }),
+    })
     const json: ApiResponse<Album> = await res.json()
     selectedAlbumIds.value.push(json.data.id)
     newAlbumName.value = ''
     void data.refreshAlbums()
+  } catch (err) {
+    toast.error(err instanceof Error ? err.message : t('common.unknownError'))
   }
 }
 
