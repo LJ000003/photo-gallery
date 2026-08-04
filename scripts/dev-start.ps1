@@ -3,7 +3,11 @@
 # Frontend: Vite dev server (port 5173)
 
 $ErrorActionPreference = "Stop"
+# Resolve project root: walk up until frontend/package.json is found (script may live anywhere)
 $ROOT = $PSScriptRoot
+while (-not (Test-Path (Join-Path $ROOT "frontend\package.json")) -and $ROOT -ne [System.IO.Path]::GetPathRoot($ROOT)) {
+  $ROOT = Split-Path $ROOT -Parent
+}
 $BACKEND = Join-Path $ROOT "backend"
 $FRONTEND = Join-Path $ROOT "frontend"
 $ORIGIN = Get-Location

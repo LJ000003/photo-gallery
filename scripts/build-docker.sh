@@ -3,7 +3,12 @@
 # Output: Docker image + running containers
 set -e
 
-ROOT="$(cd "$(dirname "$0")" && pwd)"
+# Resolve project root: walk up until frontend/package.json is found (script may live anywhere)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$SCRIPT_DIR"
+while [ ! -f "$ROOT/frontend/package.json" ] && [ "$ROOT" != "/" ]; do
+  ROOT="$(dirname "$ROOT")"
+done
 FRONTEND="$ROOT/frontend"
 BACKEND="$ROOT/backend"
 

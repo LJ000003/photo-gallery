@@ -4,9 +4,14 @@
 # Frontend: Vite dev server (port 5173)
 set -e
 
+# Resolve project root: walk up until frontend/package.json is found (script may live anywhere)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-BACKEND="$SCRIPT_DIR/backend"
-FRONTEND="$SCRIPT_DIR/frontend"
+ROOT="$SCRIPT_DIR"
+while [ ! -f "$ROOT/frontend/package.json" ] && [ "$ROOT" != "/" ]; do
+  ROOT="$(dirname "$ROOT")"
+done
+BACKEND="$ROOT/backend"
+FRONTEND="$ROOT/frontend"
 
 echo -e "\033[36m========================================"
 echo "  Photo Gallery - Dev Mode"
@@ -18,11 +23,11 @@ echo ""
 echo -e "\033[90m--- Checking prerequisites ---\033[0m"
 
 if [ ! -f "$BACKEND/pom.xml" ]; then
-    echo -e "\033[31m[FAIL] backend/pom.xml not found - run from project root\033[0m"
+    echo -e "\033[31m[FAIL] backend/pom.xml not found - is this a photo-gallery checkout?\033[0m"
     exit 1
 fi
 if [ ! -f "$FRONTEND/package.json" ]; then
-    echo -e "\033[31m[FAIL] frontend/package.json not found\033[0m"
+    echo -e "\033[31m[FAIL] frontend/package.json not found - is this a photo-gallery checkout?\033[0m"
     exit 1
 fi
 if [ ! -d "$FRONTEND/node_modules" ]; then

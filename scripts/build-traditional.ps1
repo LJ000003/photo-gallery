@@ -2,7 +2,11 @@
 # Output: backend/target/photo-gallery-*.jar (with frontend embedded)
 
 $ErrorActionPreference = "Stop"
+# Resolve project root: walk up until frontend/package.json is found (script may live anywhere)
 $ROOT = $PSScriptRoot
+while (-not (Test-Path (Join-Path $ROOT "frontend\package.json")) -and $ROOT -ne [System.IO.Path]::GetPathRoot($ROOT)) {
+  $ROOT = Split-Path $ROOT -Parent
+}
 $FRONTEND = Join-Path $ROOT "frontend"
 $BACKEND = Join-Path $ROOT "backend"
 
