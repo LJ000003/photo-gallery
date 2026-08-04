@@ -62,7 +62,7 @@ public class PhotoController {
     // === 照片 ===
 
     @Operation(summary = "分页查询照片",
-            description = "支持 sort 排序（createdAt/fileSize/name 白名单）、标签/分类筛选、FULLTEXT 全文搜索（单字走 LIKE fallback）；albumId=0 表示未分配相册")
+            description = "支持 sort 排序（createdAt/fileSize/name 白名单）、标签/分类筛选、FULLTEXT 全文搜索（单字或非 MySQL 数据库走 LIKE fallback）；albumId=0 表示未分配相册")
     @GetMapping("/photos")
     public ApiResponse<Page<PhotoResponse>> list(
             @RequestParam(required = false) List<Long> tagIds,

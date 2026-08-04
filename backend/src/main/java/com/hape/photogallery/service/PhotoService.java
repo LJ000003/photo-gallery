@@ -20,6 +20,8 @@ import java.util.HexFormat;
 import java.util.UUID;
 
 import javax.imageio.ImageIO;
+import javax.sql.DataSource;
+import java.sql.Connection;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,6 +33,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.jdbc.datasource.DataSourceUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -87,6 +90,10 @@ public class PhotoService {
     private final TransactionTemplate transactionTemplate;
     private final MediaSignatureService mediaSignature;
     private final FilePathResolver filePathResolver;
+    private final DataSource dataSource;
+
+    /** FULLTEXT 支持探测结果（null = 未探测；惰性探测一次后缓存） */
+    private Boolean fullTextSupported;
 
     public PhotoService(PhotoRepository repo, TagRepository tagRepo, CategoryRepository catRepo,
                         ExifDataRepository exifRepo,
@@ -97,7 +104,8 @@ public class PhotoService {
                         ProcessingMessageSender processingSender,
                         TransactionTemplate transactionTemplate,
                         MediaSignatureService mediaSignature,
-                        FilePathResolver filePathResolver) {
+                        FilePathResolver filePathResolver,
+                        DataSource dataSource) {
         this.repo = repo;
         this.tagRepo = tagRepo;
         this.catRepo = catRepo;
@@ -110,6 +118,7 @@ public class PhotoService {
         this.transactionTemplate = transactionTemplate;
         this.mediaSignature = mediaSignature;
         this.filePathResolver = filePathResolver;
+        this.dataSource = dataSource;
     }
 
     public Page<Photo> listAll(List<Long> tagIds, List<Long> categoryIds, Pageable pageable) {
@@ -145,9 +154,10 @@ public class PhotoService {
         if (query.isEmpty()) return Page.empty(pageable);
         boolean hasTags = tagIds != null && !tagIds.isEmpty();
         boolean hasCats = categoryIds != null && !categoryIds.isEmpty();
-        // 单字（<2 字符）：FULLTEXT 的 ngram 双字分词无法命中，fallback 到 LIKE 子串匹配
-        if (query.length() < 2) {
-            String pattern = "%" + escapeLike(query) + "%";
+        String pattern = "%" + escapeLike(query) + "%";
+        // 单字（<2 字符）：FULLTEXT 的 ngram 双字分词无法命中，fallback 到 LIKE 子串匹配；
+        // 非 MySQL 数据库（H2 等测试环境）不支持 MATCH...AGAINST（语法错误 → 500），任意长度一律 LIKE
+        if (query.length() < 2 || !fullTextSupported()) {
             if (hasTags && hasCats) return repo.searchByLikeWithTagAndCategoryIds(pattern, tagIds, categoryIds, columnSort);
             if (hasTags) return repo.searchByLikeWithTagIds(pattern, tagIds, columnSort);
             if (hasCats) return repo.searchByLikeWithCategoryIds(pattern, categoryIds, columnSort);
@@ -162,6 +172,34 @@ public class PhotoService {
     /** LIKE 通配符转义（MySQL 默认转义字符为反斜杠） */
     private String escapeLike(String s) {
         return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+    }
+
+    /**
+     * 数据库是否支持 MySQL 风格 FULLTEXT（MATCH...AGAINST）：仅 MySQL/MariaDB。
+     * H2 等不支持（repo 的 FULLTEXT 查询在 H2 上直接语法错误 → 500），
+     * 探测结果惰性缓存；探测失败或未注入 DataSource（单元测试 mock 场景）按「支持」处理，
+     * 保证 MySQL 生产语义不变。
+     */
+    private boolean fullTextSupported() {
+        if (fullTextSupported == null) {
+            fullTextSupported = probeFullTextSupport();
+        }
+        return fullTextSupported;
+    }
+
+    private boolean probeFullTextSupport() {
+        if (dataSource == null) return true;
+        Connection conn = null;
+        try {
+            conn = DataSourceUtils.getConnection(dataSource);
+            String product = conn.getMetaData().getDatabaseProductName();
+            return product != null && (product.contains("MySQL") || product.contains("MariaDB"));
+        } catch (Exception e) {
+            log.warn("数据库类型探测失败，搜索按 FULLTEXT 处理: {}", e.getMessage());
+            return true;
+        } finally {
+            if (conn != null) DataSourceUtils.releaseConnection(conn, dataSource);
+        }
     }
 
     /** FULLTEXT BOOLEAN MODE 运算符：MySQL 将其按查询表达式解析（`-x` 排除、`"` 短语），

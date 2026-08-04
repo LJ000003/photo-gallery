@@ -48,7 +48,7 @@ Spring Boot 3 + Vue 3 单页应用——开发期前后端分离（Vite 开发�
 - **浏览** — 虚拟滚动（DOM 节点数恒定，万张照片不卡）、3D 倾斜卡片、骨架屏加载
 - **编辑** — 名称/描述修改、分类/标签/相册分配。`PUT /photos/{id}` 的可选字段语义为「null = 不修改」；需显式清除时用哨兵值 `0`（`categoryId: 0` = 清除分类，与 `albumId=0`「未分配」约定一致，不存在返回 404）
 - **批量操作** — 多选、全选、批量删除、批量编辑（`categoryOp` 枚举 NONE/SET/CLEAR 三态）、批量生成分享链接
-- **搜索** — MySQL FULLTEXT 全文索引 + ngram 中文分词（双字 token），`MATCH ... AGAINST` 布尔模式搜索名称和描述；单字搜索走降级查询
+- **搜索** — MySQL FULLTEXT 全文索引 + ngram 中文分词（双字 token），`MATCH ... AGAINST` 布尔模式搜索名称和描述；单字或非 MySQL 数据库（H2 等）自动降级为 LIKE 子串匹配
 - **排序** — 时间/名称/大小，正序倒序自由切换
 
 ### 图片处理

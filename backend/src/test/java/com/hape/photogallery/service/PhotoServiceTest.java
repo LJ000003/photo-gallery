@@ -69,6 +69,9 @@ class PhotoServiceTest {
     @Mock private StorageService storage;
     @Mock private ProcessingMessageSender processingSender;
     @Mock private TransactionTemplate transactionTemplate;
+    @Mock private javax.sql.DataSource dataSource;
+    @Mock private java.sql.Connection connection;
+    @Mock private java.sql.DatabaseMetaData metaData;
 
     @TempDir Path tempDir;
 
@@ -114,7 +117,22 @@ class PhotoServiceTest {
                 imageService, albumService, storage, processingSender, transactionTemplate,
                 new com.hape.photogallery.config.MediaSignatureService(
                         "test-secret-0123456789abcdef0123456789abcdef", 300),
-                new FilePathResolver(photoRepo, storage));
+                new FilePathResolver(photoRepo, storage), null);
+    }
+
+    /**
+     * 构造 DataSource 报告指定数据库产品的 service（FULLTEXT 支持探测用）。
+     * 默认 service 的 dataSource 为 null → 按「支持 FULLTEXT」处理（保持 MySQL 语义）。
+     */
+    private PhotoService serviceWithDbProduct(String productName) throws Exception {
+        when(dataSource.getConnection()).thenReturn(connection);
+        when(connection.getMetaData()).thenReturn(metaData);
+        when(metaData.getDatabaseProductName()).thenReturn(productName);
+        return new PhotoService(photoRepo, tagRepo, catRepo, exifRepo, exifService,
+                imageService, albumService, storage, processingSender, transactionTemplate,
+                new com.hape.photogallery.config.MediaSignatureService(
+                        "test-secret-0123456789abcdef0123456789abcdef", 300),
+                new FilePathResolver(photoRepo, storage), dataSource);
     }
 
     // ==================== listAll ====================
@@ -230,6 +248,45 @@ class PhotoServiceTest {
         when(photoRepo.search(eq("海边"), any())).thenReturn(new PageImpl<>(List.of()));
         service.search("海边", null, null, PageRequest.of(0, 20));
         verify(photoRepo).search("海边", PageRequest.of(0, 20));
+    }
+
+    // ==================== 非 MySQL 数据库退化为 LIKE（H2 无 MATCH...AGAINST，硬走 FULLTEXT 会 500） ====================
+
+    @Test
+    void search_onH2_shouldFallbackToLike() throws Exception {
+        PhotoService h2 = serviceWithDbProduct("H2");
+        when(photoRepo.searchByLike(eq("%cat%"), any())).thenReturn(new PageImpl<>(List.of()));
+        h2.search("cat", null, null, PageRequest.of(0, 20));
+        verify(photoRepo).searchByLike("%cat%", PageRequest.of(0, 20));
+        verify(photoRepo, never()).search(any(), any());
+    }
+
+    @Test
+    void search_onH2_withFilters_shouldUseLikeVariants() throws Exception {
+        PhotoService h2 = serviceWithDbProduct("H2");
+        when(photoRepo.searchByLikeWithTagIds(eq("%cat%"), eq(List.of(1L)), any()))
+                .thenReturn(new PageImpl<>(List.of()));
+        h2.search("cat", List.of(1L), null, PageRequest.of(0, 20));
+        verify(photoRepo).searchByLikeWithTagIds("%cat%", List.of(1L), PageRequest.of(0, 20));
+
+        when(photoRepo.searchByLikeWithCategoryIds(eq("%cat%"), eq(List.of(2L)), any()))
+                .thenReturn(new PageImpl<>(List.of()));
+        h2.search("cat", null, List.of(2L), PageRequest.of(0, 20));
+        verify(photoRepo).searchByLikeWithCategoryIds("%cat%", List.of(2L), PageRequest.of(0, 20));
+
+        when(photoRepo.searchByLikeWithTagAndCategoryIds(eq("%cat%"), eq(List.of(1L)), eq(List.of(2L)), any()))
+                .thenReturn(new PageImpl<>(List.of()));
+        h2.search("cat", List.of(1L), List.of(2L), PageRequest.of(0, 20));
+        verify(photoRepo).searchByLikeWithTagAndCategoryIds("%cat%", List.of(1L), List.of(2L), PageRequest.of(0, 20));
+    }
+
+    @Test
+    void search_onMySQL_shouldKeepFulltext() throws Exception {
+        PhotoService mysql = serviceWithDbProduct("MySQL");
+        when(photoRepo.search(eq("cat"), any())).thenReturn(new PageImpl<>(List.of()));
+        mysql.search("cat", null, null, PageRequest.of(0, 20));
+        verify(photoRepo).search("cat", PageRequest.of(0, 20));
+        verify(photoRepo, never()).searchByLike(any(), any());
     }
 
     // ==================== FULLTEXT 运算符剥离（P0-3） ====================
