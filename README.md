@@ -47,7 +47,7 @@
 - **排序** — 时间/名称/大小，正序倒序自由切换
 
 ### 图片处理
-- **异步处理管线** — 上传后立即返回，EXIF 提取 → 自动旋转 → 水印 → 缩略图（200px + 400px）→ WebP 由后台完成。dev 环境使用 `@Async` 线程池，prod 环境切换 RabbitMQ 消息队列（持久队列 + 3 次退避重试 + 死信队列兜底）。单次解码 + 展示级降采样优化，处理时间 ~3-5s。照片卡片自动轮询状态更新，无需手动刷新。失败可一键重试，启动时自动恢复卡在 PROCESSING 状态的照片
+- **异步处理管线** — 上传后立即返回，EXIF 提取 → 自动旋转 → 水印 → 缩略图（200px + 400px）→ WebP 由后台完成。dev 环境使用 `@Async` 线程池（队列满丢弃，不在请求线程同步执行），prod 环境切换 RabbitMQ 消息队列（持久队列 + 3 次退避重试 + 死信队列兜底）。单次解码 + 展示级降采样优化，处理时间 ~3-5s。照片卡片自动轮询状态更新，无需手动刷新。失败可一键重试，启动时自动恢复 + 每 5 分钟定时重扫卡在 PROCESSING 状态的照片
 - **响应式缩略图** — 上传自动生成 200 px + 400 px 双档，前端 `srcset` + `sizes` 按视口和 DPR 自动选择
 - **编辑器** — Canvas 全分辨率旋转（任意角度）/镜像（水平/垂直）/裁剪
 - **水印** — 右下角半透明白色文字，字号自适应图片宽度，字体/大小/透明度可配置
@@ -70,6 +70,8 @@
 - **暴力破解防护** — IP 失败计数（Caffeine），5 次错误封禁 15 分钟
 - **JWT 双角色** — admin（24h，管理）/ viewer（7 天，分享查看）
 - **限时分享链接** — 选中照片生成分享链接，朋友无需密码即可查看。viewer JWT 编码照片白名单（`photoIds`）+ 权限范围（`permission`，仅 `view`/`download`，非法值 400），服务端双重校验：SecurityConfig 限制 viewer 仅能访问 `/api/v1/share/view` + 图片文件端点，JwtAuthFilter 对每个图片请求校验 `photoId ∈ sharePhotoIds`，防止越权访问
+- **图片短时签名 URL** — `<img>` 无法携带 Authorization 头，图片地址改用 HMAC 短时签名（`photoId.时间桶.hmac`，滑动窗口约 10 分钟，密钥从 JWT_SECRET 单向派生），会话 JWT 不再出现在 URL query string（防日志/历史/Referer 泄漏）；分享响应剥离签名防止借签名越权下载
+- **分享权限强制执行** — `/api/v1/photos/{id}/file` 端点强制 `permission=download`：view 权限或缺失一律 403（缩略图/WebP 不受影响，查看需渲染）
 - **SHA-256 去重** — 上传时计算文件哈希，检测重复上传，单张返回 409 + 已有照片数据，批量静默跳过
 - **统一参数校验** — 缺必填参数、参数类型错误、非法枚举统一返回 400 + 参数名（`GlobalExceptionHandler` 兜底，不落 500）
 - **缓存策略** — dev 使用 Caffeine 本地缓存（30s TTL），prod 切换 Redis 分布式缓存（JSON 序列化 + PageImpl mixin 反序列化），所有写操作自动驱逐列表缓存
@@ -115,8 +117,14 @@ photo-gallery/
 │   │   │   ├── BackupController.java           # 备份导出（POST /api/v1/backup/export，zip + 预生成缓存）
 │   │   │   └── StatsController.java            # 统计面板（GET /api/v1/stats）
 │   │   ├── service/
-│   │   │   ├── PhotoService.java               # 核心业务逻辑（上传/搜索/软删除/EXIF/变换/定时清理）
+│   │   │   ├── PhotoService.java               # 核心业务逻辑（上传/搜索/软删除/批量/去重）
 │   │   │   ├── PhotoProcessor.java             # 图片处理管线（EXIF→旋转→水印→缩略图→WebP），无框架依赖
+│   │   │   ├── PhotoTransformService.java      # 图片变换（事务边界 + 失败备份补偿）
+│   │   │   ├── FilePathResolver.java           # 文件路径解析/产物路径/物理删除
+│   │   │   ├── MigrationService.java           # 数据迁移（缩略图/WebP 补转，分页游标）
+│   │   │   ├── AuthService.java                # 解锁校验/分享签发（Controller 瘦身）
+│   │   │   ├── StatsService.java               # 统计聚合（4 查询 + 30s 缓存）
+│   │   │   ├── BackupScheduler.java            # 备份预生成定时任务（默认每天 3:05）
 │   │   │   ├── TagService.java                 # 标签服务
 │   │   │   ├── CategoryService.java            # 分类服务
 │   │   │   ├── AlbumService.java               # 相册服务
@@ -138,7 +146,8 @@ photo-gallery/
 │   │   │   ├── AlbumRepository.java
 │   │   │   └── ExifDataRepository.java
 │   │   ├── entity/
-│   │   │   ├── Photo.java                      # 照片实体（软删除）
+│   │   │   ├── Photo.java                      # 照片实体（软删除，LAZY 关联 + @BatchSize）
+│   │   │   ├── ProcessingStatus.java           # 处理状态枚举（PROCESSING/DONE/FAILED）
 │   │   │   ├── Tag.java                        # 标签实体
 │   │   │   ├── Category.java                   # 分类实体
 │   │   │   ├── Album.java                      # 相册实体（软删除）
@@ -151,14 +160,21 @@ photo-gallery/
 │   │   │   ├── ShareGenerateRequest.java       # 分享链接生成请求
 │   │   │   ├── TransformRequest.java           # 图片变换参数
 │   │   │   ├── BackupExportRequest.java        # 备份导出筛选参数
-│   │   │   └── AlbumRequest.java               # 相册创建/更新请求
+│   │   │   ├── AlbumRequest.java               # 相册创建/更新请求
+│   │   │   ├── AlbumResponse.java              # 相册响应 DTO（含 photoCount/mediaToken）
+│   │   │   ├── BatchPhotoUpdateRequest.java    # 批量编辑请求（添加/移除 + categoryOp 三态）
+│   │   │   ├── StatsResponse.java              # 统计面板响应
+│   │   │   └── UploadParams.java               # 上传参数封装（record）
 │   │   ├── config/
 │   │   │   ├── AsyncConfig.java                # @EnableAsync + 图片处理线程池 + MDC 传播
 │   │   │   ├── RedisConfig.java                # Redis 缓存配置（JSON 序列化 + PageImpl mixin）
 │   │   │   ├── RabbitMQConfig.java             # Queue/Exchange/DLQ 拓扑 + MANUAL ack
-│   │   │   ├── SecurityConfig.java             # SecurityFilterChain + CORS 白名单
-│   │   │   ├── JwtService.java                 # HS256 JWT 签发（admin/viewer）与验签
-│   │   │   ├── JwtAuthFilter.java              # OncePerRequestFilter + viewer 图片白名单校验
+│   │   │   ├── SecurityConfig.java             # SecurityFilterChain + CORS 白名单 + CSP
+│   │   │   ├── JwtService.java                 # HS256 JWT 签发（admin/viewer）与验签（≥32 字节校验）
+│   │   │   ├── MediaSignatureService.java      # 图片短时签名（HMAC 时间桶，JWT 不进 URL）
+│   │   │   ├── ClientIpResolver.java           # 受信头 IP 解析（Cf-Connecting-Ip，XFF 永不信任）
+│   │   │   ├── ProdSecurityValidator.java      # prod 启动强校验（Redis/Rabbit 密码非空）
+│   │   │   ├── JwtAuthFilter.java              # OncePerRequestFilter + 图片签名优先 / JWT 白名单回落
 │   │   │   ├── RateLimitFilter.java            # IP 固定窗口限流（Caffeine，10 req/s）
 │   │   │   ├── NonceStore.java                 # 一次性 nonce（Caffeine 60s TTL）
 │   │   │   ├── FailedAttemptStore.java         # IP 失败计数（5次封15分钟）
@@ -224,10 +240,13 @@ photo-gallery/
 │
 ├── prometheus/
 │   └── prometheus.yml                          # Prometheus 采集配置（15s scrape）
+├── scripts/                                    # 构建/开发脚本（任意位置可运行）
+│   ├── build-docker.sh / .ps1                  # Docker 一键构建
+│   ├── build-traditional.sh / .ps1             # 传统 JAR 一键构建
+│   ├── dev-start.sh / .ps1                     # 一键启动前后端开发环境
+│   └── k6/                                     # k6 压测脚本（4 场景）
 ├── .env.example                                # Docker Compose 环境变量模板
-├── docker-compose.yml                          # App + MySQL + Redis + RabbitMQ + Prometheus
-├── build-docker.ps1 / build-docker.sh          # Docker 一键构建
-└── build-traditional.ps1 / build-traditional.sh  # 传统 JAR 一键构建
+└── docker-compose.yml                          # App + MySQL + Redis + RabbitMQ + Prometheus
 ```
 
 ---
@@ -302,11 +321,19 @@ npm run dev
 ### 一键构建
 
 ```bash
-./build-traditional.sh     # 传统 JAR
-./build-docker.sh          # Docker 镜像
+./scripts/build-traditional.sh     # 传统 JAR
+./scripts/build-docker.sh          # Docker 镜像
 ```
 
-构建脚本自动完成：`npm ci` → 前端构建 → 复制到 `backend/static` → Maven 打包 → Docker 启动。
+构建脚本自动完成：`npm ci` → 前端构建 → 复制到 `backend/static` → Maven 打包 → Docker 启动。Windows 用户用同名的 `.ps1` 版本。
+
+开发环境一键启动前后端（后端 :8080 + 前端 :5173）：
+
+```bash
+./scripts/dev-start.sh     # 或 Windows: ./scripts/dev-start.ps1
+```
+
+> 所有脚本自动向上查找项目根目录（以 `frontend/package.json` 为准），可在任意位置调用。
 
 ### 手动构建
 
@@ -453,7 +480,7 @@ certbot --nginx -d 你的域名   # 免费 SSL
 | 请求 | 权限 |
 |------|------|
 | `GET /api/v1/share/view` | `ROLE_admin` 或 `ROLE_viewer`（仅返回 JWT 中 `photoIds` 白名单内的照片） |
-| `GET /api/v1/photos/{id}/thumbnail\|webp\|file` | `ROLE_admin` 或 `ROLE_viewer`（viewer 需图片 ID 在 JWT 白名单内，否则 403） |
+| `GET /api/v1/photos/{id}/thumbnail\|webp\|file` | 图片短时签名优先（无效/photoId 不符 403），无签名回落 `ROLE_admin` 或 `ROLE_viewer`（viewer 需 ID 在 JWT 白名单内；`/file` 另强制 `permission=download`） |
 | `GET /api/v1/**`（其他） | `ROLE_admin`（viewer 无权访问列表、时间线、地图等） |
 | `POST /api/v1/backup/export` | `ROLE_admin`（流式下载 zip 备份，禁止缓存） |
 | `POST/PUT/DELETE /api/v1/**`（其他） | `ROLE_admin` |
