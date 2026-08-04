@@ -57,7 +57,7 @@ const grouped = computed(() => groupByMonth(items.value))
 
 function monthLabel(month: string): string {
   const [y, m] = month.split('-')
-  return `${y} 年 ${Number(m)} 月`
+  return t('timeline.monthLabel', { year: y, month: String(Number(m)) })
 }
 
 /** @returns 是否成功加载了一页（失败时调用方不触发连环重试） */
@@ -109,12 +109,11 @@ onMounted(() => {
     },
     { rootMargin: '200px' },
   )
-  const bind = setInterval(() => {
-    if (sentinel.value) {
-      observer!.observe(sentinel.value)
-      clearInterval(bind)
-    }
-  }, 100)
+})
+
+// sentinel 渲染后（数据到达）再 observe；组件卸载时 watch 自动停止 + onUnmounted disconnect
+watch(sentinel, (el) => {
+  if (el && observer) observer.observe(el)
 })
 
 onUnmounted(() => {

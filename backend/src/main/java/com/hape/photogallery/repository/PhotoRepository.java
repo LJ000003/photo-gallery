@@ -209,4 +209,35 @@ public interface PhotoRepository extends JpaRepository<Photo, Long> {
                               @Param("categoryId") Long categoryId,
                               @Param("dateFrom") LocalDateTime dateFrom,
                               @Param("dateTo") LocalDateTime dateTo);
+
+    /* ---------- 统计聚合（@SQLRestriction 自动排除软删除；JPQL YEAR/MONTH H2/MySQL 均兼容） ---------- */
+
+    @Query("SELECT COUNT(p) FROM Photo p")
+    long countAll();
+
+    @Query("SELECT COALESCE(SUM(p.fileSize), 0) FROM Photo p")
+    long sumFileSize();
+
+    /** 按月上传趋势：返回 [年, 月, 张数] 行，按时间升序 */
+    @Query("SELECT YEAR(p.createdAt), MONTH(p.createdAt), COUNT(p) FROM Photo p "
+            + "GROUP BY YEAR(p.createdAt), MONTH(p.createdAt) "
+            + "ORDER BY YEAR(p.createdAt), MONTH(p.createdAt)")
+    List<Object[]> countGroupedByMonth();
+
+    /** 热门标签：返回 [名称, 颜色, 照片数] 行，按照片数降序 */
+    @Query("SELECT t.name, t.color, COUNT(p.id) FROM Tag t JOIN t.photos p "
+            + "GROUP BY t.id ORDER BY COUNT(p.id) DESC")
+    List<Object[]> countByTag(Pageable pageable);
+
+    /** 相册内照片 id 列表（只投影主键列，零关系加载——相册选择器预选初始化用） */
+    @Query("SELECT p.id FROM Photo p JOIN p.albums a WHERE a.id = :albumId")
+    List<Long> findPhotoIdsByAlbumId(@Param("albumId") Long albumId);
+
+    /** 备份指纹聚合：[照片数, 最大 id, 最大创建时间]（@SQLRestriction 自动排除软删除） */
+    @Query("SELECT COUNT(p), MAX(p.id), MAX(p.createdAt) FROM Photo p")
+    Object[] backupAggregate();
+
+    /** 备份指纹：回收站最新删除时间（恢复操作会改变它，native 绕过 @SQLRestriction） */
+    @Query(nativeQuery = true, value = "SELECT MAX(deleted_at) FROM photos")
+    LocalDateTime maxDeletedAt();
 }

@@ -127,6 +127,12 @@ public class AlbumService {
         return photoRepo.findByAlbumId(albumId, pageable);
     }
 
+    /** 相册内照片 id 列表（轻量投影，编辑抽屉预选初始化用） */
+    public List<Long> listPhotoIds(Long albumId) {
+        albumRepo.findById(albumId).orElseThrow(() -> new BusinessException(404, "相册不存在"));
+        return photoRepo.findPhotoIdsByAlbumId(albumId);
+    }
+
     public Page<Photo> listUnassigned(Pageable pageable) {
         return photoRepo.findUnassigned(pageable);
     }

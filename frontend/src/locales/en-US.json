@@ -6,14 +6,17 @@
   "auth": {
     "expired": "Session expired, please unlock again",
     "failed": "Unlock failed, please retry",
-    "locked": "Locked"
+    "locked": "Locked",
+    "keyboardHint": "Keyboard also works: ▲ ▼ ◀ ▶ arrow keys + B / A"
   },
   "nav": {
     "photos": "Photos",
     "albums": "Albums",
     "timeline": "Timeline",
     "map": "Map",
-    "trash": "Trash"
+    "trash": "Trash",
+    "mobile": "Bottom navigation",
+    "mode": "Browse modes"
   },
   "topbar": {
     "searchPlaceholder": "Search photos",
@@ -25,7 +28,8 @@
     "backupExport": "Export backup",
     "backupExporting": "Exporting…",
     "help": "Help & shortcuts",
-    "relock": "Lock again"
+    "relock": "Lock again",
+    "language": "Switch language"
   },
   "actions": {
     "back": "Back",
@@ -42,7 +46,11 @@
     "retry": "Retry",
     "selectAll": "Select all",
     "create": "Create",
-    "rename": "Rename"
+    "rename": "Rename",
+    "deleted": "Deleted",
+    "undo": "Undo",
+    "deleteFailed": "Delete failed",
+    "backToTop": "Back to top"
   },
   "sort": {
     "time": "Time",
@@ -52,6 +60,8 @@
     "desc": "Descending"
   },
   "gallery": {
+    "title": "Photo gallery",
+    "photoAria": "Photo #{id}",
     "count": "{n} photos",
     "loading": "Loading",
     "end": "You've reached the end",
@@ -63,14 +73,18 @@
     "retryProcessing": "Retry processing",
     "loadFailed": "Failed to load, please try again later",
     "processingTimeout": "Some photos timed out during processing and were marked as failed; you can retry",
-    "processingTimeoutMessage": "Processing timed out, you can retry"
+    "processingTimeoutMessage": "Processing timed out, you can retry",
+    "loadMore": "Load more"
   },
   "selection": {
     "selected": "{n} selected",
     "batchEdit": "Batch edit",
     "batchDelete": "Delete",
     "batchShare": "Share",
-    "batchDeleteConfirm": "Delete the {n} selected photos?"
+    "batchDeleteConfirm": "Delete the {n} selected photos?",
+    "deletedCount": "Deleted {count} photos",
+    "select": "Select",
+    "deselect": "Deselect"
   },
   "filter": {
     "title": "Filter",
@@ -95,6 +109,8 @@
     "next": "Next",
     "fullscreen": "Fullscreen",
     "noExif": "No capture details for this photo",
+    "pause": "Pause",
+    "play": "Play",
     "camera": "Camera",
     "shoot": "Settings",
     "location": "Location",
@@ -132,7 +148,8 @@
     "tags": "Tags",
     "watermark": "Add watermark",
     "none": "None",
-    "editing": "Edit image"
+    "editing": "Edit image",
+    "timeout": "Upload timed out, please retry"
   },
   "edit": {
     "title": "Edit photo",
@@ -159,7 +176,8 @@
     "categoryKeep": "Keep unchanged",
     "categorySet": "Set to",
     "categoryClear": "Clear category",
-    "saved": "Batch changes saved"
+    "saved": "Batch changes saved",
+    "tooMany": "Up to 50 photos per batch edit"
   },
   "albums": {
     "title": "Albums",
@@ -185,11 +203,24 @@
     "title": "Timeline",
     "empty": "No photos with capture dates yet",
     "noExif": "No capture date for this photo",
-    "otherPhotos": "Other photos"
+    "otherPhotos": "Other photos",
+    "monthLabel": "{month}/{year}"
   },
   "map": {
     "title": "Map",
-    "empty": "No photos with location info yet"
+    "empty": "No photos with location info yet",
+    "attribution": "Map data © AMap"
+  },
+  "stats": {
+    "title": "Statistics",
+    "totalPhotos": "Total photos",
+    "storageUsed": "Storage used",
+    "topTags": "Top tags",
+    "uploadTrend": "Uploads per month",
+    "photoCount": "{n} photos",
+    "month": "Month",
+    "barLabel": "Uploads",
+    "empty": "Nothing to show yet"
   },
   "trash": {
     "title": "Trash",
@@ -197,6 +228,8 @@
     "albums": "Albums",
     "empty": "Trash is empty",
     "restored": "Restored",
+    "restoreFailed": "Restore failed",
+    "restoreFailedCount": "{failed} of {total} photos failed to restore",
     "deleteConfirm": "Delete forever? This cannot be undone",
     "emptyPhotos": "No deleted photos",
     "emptyAlbums": "No deleted albums",
@@ -213,7 +246,9 @@
     "invalidTitle": "Invalid share link",
     "invalidHint": "This link is invalid or expired. Ask the sharer to create a new one",
     "serverErrorTitle": "Failed to load",
-    "serverErrorHint": "The server hit an issue, please try again later"
+    "serverErrorHint": "The server hit an issue, please try again later",
+    "copyFailed": "Copy failed, please copy manually",
+    "generateFailed": "Failed to create share link"
   },
   "backup": {
     "exporting": "Exporting backup…",
@@ -289,6 +324,12 @@
   "common": {
     "unknownError": "Something went wrong, please try again",
     "networkError": "Network error, please check your connection",
-    "copied": "Copied"
+    "copied": "Copied",
+    "errorTitle": "Something went wrong",
+    "errorReload": "Reload page",
+    "errorCopyDiagnostics": "Copy diagnostics",
+    "errorPageFailed": "Failed to load page",
+    "requestFailed": "Request failed ({status})",
+    "serverError": "Server error ({status}), please try again later"
   }
 }

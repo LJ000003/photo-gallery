@@ -6,6 +6,7 @@ import { Button, Drawer, Input, Select } from 'ant-design-vue'
 import { useDataStore } from '../../stores/data'
 import { useToastStore } from '../../stores/toast'
 import { api } from '../../api'
+import { extractErrorMessage } from '../../utils/error'
 import type { Photo, BatchPhotoUpdateRequest } from '../../types/photo'
 import type { Tag } from '../../types/tag'
 import type { Category } from '../../types/category'
@@ -106,18 +107,9 @@ async function addAlbum(): Promise<void> {
   }
 }
 
-async function extractErrorMessage(res: Response): Promise<string> {
-  try {
-    const body = await res.json()
-    return body.message || t('common.unknownError')
-  } catch {
-    return t('common.unknownError')
-  }
-}
-
 async function onSubmit(): Promise<void> {
   if (props.photos.length > 50) {
-    toast.error(t('upload.tooMany'))
+    toast.error(t('batchEdit.tooMany'))
     return
   }
   if (saving.value) return

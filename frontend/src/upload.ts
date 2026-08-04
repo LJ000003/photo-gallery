@@ -127,8 +127,9 @@ export function uploadWithProgress(
       resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, data })
     }
 
-    xhr.onerror = () => reject(new Error('网络错误'))
-    xhr.ontimeout = () => reject(new Error('上传超时'))
+    xhr.timeout = 60_000
+    xhr.onerror = () => reject(new Error(i18n.global.t('common.networkError')))
+    xhr.ontimeout = () => reject(new Error(i18n.global.t('upload.timeout')))
     xhr.send(formData)
   })
 }

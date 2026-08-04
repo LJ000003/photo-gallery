@@ -1,34 +1,28 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   DeleteOutlined,
   DownloadOutlined,
   EditOutlined,
-  FullscreenOutlined,
-  InfoCircleOutlined,
-  LeftOutlined,
   LinkOutlined,
-  PauseCircleOutlined,
-  PlayCircleOutlined,
-  RightOutlined,
 } from '@ant-design/icons-vue'
 import { Button, Modal } from 'ant-design-vue'
 
 import ExifPanel from './ExifPanel.vue'
+import ViewerStage from './ViewerStage.vue'
+import ViewerBottom from './ViewerBottom.vue'
 import { webpUrl } from '../../webp'
 import { appendMediaParams } from '../../utils/token'
 import { formatSize } from '../../utils/format'
 import { useUiStore } from '../../stores/ui'
 import { usePhotoActions } from '../../composables/usePhotoActions'
+import { useViewerControls } from '../../composables/useViewerControls'
 import type { Photo } from '../../types/photo'
 
-const SLIDESHOW_INTERVAL = 5000
-
 /**
- * 全屏灯箱（沉浸式深色舞台，深浅主题下观感一致）：
- * 两段式加载（缩略图→全图淡入）、幻灯片（5s + 全屏联动）、
- * EXIF 滑出面板、编辑/分享/下载/删除、键盘 ← → Space E F Esc
+ * 全屏灯箱（沉浸式深色舞台，深浅主题下观感一致）——组装壳
+ * 舞台/底栏/控制逻辑分别在 ViewerStage / ViewerBottom / useViewerControls
  */
 const props = defineProps<{ photo: Photo }>()
 const emit = defineEmits<{ close: [] }>()
@@ -41,139 +35,9 @@ const fullLoaded = ref(false)
 const exifOpen = ref(false)
 const rootRef = ref<HTMLElement | null>(null)
 
-/* ---------- 幻灯片 ---------- */
-const currentIndex = computed(() => ui.viewPhotos.findIndex((p) => p.id === props.photo.id))
-const canSlideshow = computed(() => ui.viewPhotos.length >= 2 && currentIndex.value !== -1)
-
-let slideTimer: ReturnType<typeof setTimeout> | null = null
-function clearSlideTimer(): void {
-  if (slideTimer !== null) {
-    clearTimeout(slideTimer)
-    slideTimer = null
-  }
-}
-/** 唯一调度入口：清旧 → 满足条件再挂新（回调内不自调度） */
-function syncSlideTimer(): void {
-  clearSlideTimer()
-  if (!ui.slideshowPlaying || !canSlideshow.value) return
-  slideTimer = setTimeout(() => {
-    ui.navigateViewer(1, true)
-  }, SLIDESHOW_INTERVAL)
-}
-
-/* ---------- 全屏 ---------- */
-function isFullscreenActive(): boolean {
-  return !!(
-    document.fullscreenElement ||
-    (document as Document & { webkitFullscreenElement?: Element }).webkitFullscreenElement
-  )
-}
-function enterFullscreen(): void {
-  const el = rootRef.value
-  if (!el || isFullscreenActive()) return
-  try {
-    if (el.requestFullscreen) {
-      el.requestFullscreen().catch(() => {})
-    } else {
-      const webkit = (el as HTMLElement & { webkitRequestFullscreen?: () => void })
-        .webkitRequestFullscreen
-      webkit?.call(el)
-    }
-  } catch {
-    /* 静默 */
-  }
-}
-function exitFullscreen(): void {
-  if (!isFullscreenActive()) return
-  try {
-    if (document.exitFullscreen) {
-      document.exitFullscreen().catch(() => {})
-    } else {
-      const webkit = (document as Document & { webkitExitFullscreen?: () => void })
-        .webkitExitFullscreen
-      webkit?.call(document)
-    }
-  } catch {
-    /* 静默 */
-  }
-}
-/** 用户按 Esc 退出全屏 → 同步暂停幻灯片 */
-function onFullscreenChange(): void {
-  if (!isFullscreenActive() && ui.slideshowPlaying) {
-    ui.toggleSlideshow()
-  }
-}
-
-/* ---------- 照片切换 / 播放状态 → 重置淡入与倒计时 ---------- */
-watch(
-  () => props.photo.id,
-  () => {
-    fullLoaded.value = false
-    syncSlideTimer()
-  },
-)
-watch(
-  () => ui.slideshowPlaying,
-  (playing) => {
-    syncSlideTimer()
-    if (playing) enterFullscreen()
-    else exitFullscreen()
-  },
-)
-watch(canSlideshow, () => syncSlideTimer())
-
-/* ---------- 键盘 ---------- */
-function onKeydown(e: KeyboardEvent): void {
-  switch (e.key) {
-    case 'Escape':
-      // 分层处理：全屏中先退全屏（浏览器也拦截 Esc），不关闭灯箱
-      if (isFullscreenActive()) {
-        e.preventDefault()
-        exitFullscreen()
-      } else {
-        emit('close')
-      }
-      break
-    case 'ArrowLeft':
-      ui.navigateViewer(-1)
-      break
-    case 'ArrowRight':
-      ui.navigateViewer(1)
-      break
-    case ' ':
-      e.preventDefault()
-      ui.toggleSlideshow()
-      break
-    case 'e':
-    case 'E':
-      ui.editPhoto = props.photo
-      break
-    case 'f':
-    case 'F':
-      if (isFullscreenActive()) exitFullscreen()
-      else enterFullscreen()
-      break
-  }
-}
-
-onMounted(() => {
-  window.addEventListener('keydown', onKeydown)
-  document.addEventListener('fullscreenchange', onFullscreenChange)
-  document.addEventListener('webkitfullscreenchange', onFullscreenChange)
-  syncSlideTimer()
-})
-onUnmounted(() => {
-  window.removeEventListener('keydown', onKeydown)
-  document.removeEventListener('fullscreenchange', onFullscreenChange)
-  document.removeEventListener('webkitfullscreenchange', onFullscreenChange)
-  clearSlideTimer()
-  exitFullscreen()
-})
-
-function onClose(): void {
-  clearSlideTimer()
-  emit('close')
-}
+const viewer = useViewerControls(props, emit, rootRef, fullLoaded)
+// 顶层解构：模板自动解包 ref（composable 返回对象中的 ref 不会自动解包）
+const { currentIndex, canSlideshow } = viewer
 
 /* ---------- 操作 ---------- */
 function onDelete(): void {
@@ -198,7 +62,7 @@ const downloadUrl = computed(() => appendMediaParams(webpUrl(props.photo.id), pr
 <template>
   <div ref="rootRef" class="photo-viewer">
     <!-- 背景（点击照片外区域关闭） -->
-    <div class="viewer-backdrop" @click="onClose"></div>
+    <div class="viewer-backdrop" @click="viewer.close"></div>
 
     <!-- 顶栏：标题 + 操作 -->
     <header class="viewer-header">
@@ -251,7 +115,7 @@ const downloadUrl = computed(() => appendMediaParams(webpUrl(props.photo.id), pr
           class="vd-btn"
           :title="t('viewer.close')"
           :aria-label="t('viewer.close')"
-          @click="onClose"
+          @click="viewer.close"
         >
           <span class="close-x">×</span>
         </Button>
@@ -259,97 +123,32 @@ const downloadUrl = computed(() => appendMediaParams(webpUrl(props.photo.id), pr
     </header>
 
     <!-- 舞台：前后切换 + 图片 -->
-    <div class="viewer-stage" @click="onClose">
-      <button
-        v-if="canSlideshow"
-        class="nav-btn prev"
-        :disabled="currentIndex <= 0"
-        :aria-label="t('viewer.previous')"
-        @click.stop="ui.navigateViewer(-1)"
-      >
-        <LeftOutlined />
-      </button>
-
-      <div class="img-wrap" @click.stop>
-        <img
-          class="img-thumb"
-          :src="appendMediaParams(`/api/v1/photos/${photo.id}/thumbnail`, photo)"
-          :alt="photo.name"
-          decoding="async"
-        />
-        <img
-          class="img-full"
-          :class="{ show: fullLoaded }"
-          :src="appendMediaParams(webpUrl(photo.id), photo)"
-          :alt="photo.name"
-          decoding="async"
-          @load="fullLoaded = true"
-        />
-      </div>
-
-      <button
-        v-if="canSlideshow"
-        class="nav-btn next"
-        :disabled="currentIndex >= ui.viewPhotos.length - 1"
-        :aria-label="t('viewer.next')"
-        @click.stop="ui.navigateViewer(1)"
-      >
-        <RightOutlined />
-      </button>
-    </div>
+    <ViewerStage
+      :photo="photo"
+      :full-loaded="fullLoaded"
+      :can-slideshow="canSlideshow"
+      :current-index="currentIndex"
+      :total="ui.viewPhotos.length"
+      @close="viewer.close"
+      @prev="ui.navigateViewer(-1)"
+      @next="ui.navigateViewer(1)"
+      @loaded="fullLoaded = true"
+    />
 
     <!-- 底栏：幻灯片控制 + EXIF/全屏 -->
-    <footer class="viewer-bottom">
-      <div v-if="canSlideshow" class="slideshow-controls">
-        <button
-          class="ss-btn"
-          :disabled="currentIndex <= 0"
-          :aria-label="t('viewer.previous')"
-          @click="ui.navigateViewer(-1)"
-        >
-          <LeftOutlined />
-        </button>
-        <button
-          class="ss-btn ss-play"
-          :aria-label="ui.slideshowPlaying ? 'pause' : 'play'"
-          @click="ui.toggleSlideshow()"
-        >
-          <PlayCircleOutlined v-if="!ui.slideshowPlaying" />
-          <PauseCircleOutlined v-else />
-        </button>
-        <button
-          class="ss-btn"
-          :disabled="currentIndex >= ui.viewPhotos.length - 1"
-          :aria-label="t('viewer.next')"
-          @click="ui.navigateViewer(1)"
-        >
-          <RightOutlined />
-        </button>
-        <span class="ss-counter">{{ currentIndex + 1 }} / {{ ui.viewPhotos.length }}</span>
-      </div>
-
-      <div class="bottom-actions">
-        <Button
-          type="text"
-          class="vd-btn"
-          :class="{ active: exifOpen }"
-          :title="t('viewer.exif')"
-          :aria-label="t('viewer.exif')"
-          @click="exifOpen = !exifOpen"
-        >
-          <InfoCircleOutlined />
-        </Button>
-        <Button
-          type="text"
-          class="vd-btn"
-          :title="t('viewer.fullscreen')"
-          :aria-label="t('viewer.fullscreen')"
-          @click="isFullscreenActive() ? exitFullscreen() : enterFullscreen()"
-        >
-          <FullscreenOutlined />
-        </Button>
-      </div>
-    </footer>
+    <ViewerBottom
+      :can-slideshow="canSlideshow"
+      :playing="ui.slideshowPlaying"
+      :current-index="currentIndex"
+      :total="ui.viewPhotos.length"
+      :exif-open="exifOpen"
+      :fullscreen-active="viewer.isFullscreenActive()"
+      @navigate-prev="ui.navigateViewer(-1)"
+      @navigate-next="ui.navigateViewer(1)"
+      @toggle-slideshow="ui.toggleSlideshow()"
+      @toggle-exif="exifOpen = !exifOpen"
+      @toggle-fullscreen="viewer.toggleFullscreen"
+    />
 
     <ExifPanel :photo="photo" :open="exifOpen" />
   </div>
@@ -424,10 +223,6 @@ const downloadUrl = computed(() => appendMediaParams(webpUrl(props.photo.id), pr
   color: #fff;
   background: rgba(255, 255, 255, 0.12);
 }
-.vd-btn.active {
-  color: var(--c-accent);
-  background: rgba(37, 99, 235, 0.18);
-}
 .vd-btn.danger:hover {
   color: #ff8a94;
   background: rgba(255, 80, 90, 0.16);
@@ -441,139 +236,15 @@ const downloadUrl = computed(() => appendMediaParams(webpUrl(props.photo.id), pr
   line-height: 1;
 }
 
-/* 舞台 */
-.viewer-stage {
-  position: relative;
-  z-index: 4;
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 12px 80px;
-}
-.img-wrap {
-  position: relative;
-  max-width: 100%;
-  max-height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.img-wrap img {
-  max-width: 100%;
-  max-height: calc(100dvh - 160px);
-  border-radius: 8px;
-  object-fit: contain;
-}
-.img-thumb {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  filter: blur(2px);
-  opacity: 0.5;
-}
-.img-full {
-  opacity: 0;
-  transition: opacity 0.35s ease;
-  position: relative;
-}
-.img-full.show {
-  opacity: 1;
-}
-.nav-btn {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 5;
-  width: 44px;
-  height: 44px;
-  border: none;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-.nav-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.18);
-  color: #fff;
-}
-.nav-btn:disabled {
-  opacity: 0.25;
-  cursor: default;
-}
-.nav-btn.prev {
-  left: 20px;
-}
-.nav-btn.next {
-  right: 20px;
-}
-
-/* 底栏 */
-.viewer-bottom {
-  position: relative;
-  z-index: 6;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 20px;
-  padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
-}
-.slideshow-controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.ss-btn {
-  width: 38px;
-  height: 38px;
-  border: none;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 15px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-.ss-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.18);
-  color: #fff;
-}
-.ss-btn:disabled {
-  opacity: 0.25;
-  cursor: default;
-}
-.ss-play {
-  width: 44px;
-  height: 44px;
-  background: rgba(255, 255, 255, 0.14);
-}
-.ss-counter {
-  margin-left: 8px;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.55);
-  font-variant-numeric: tabular-nums;
-}
-.bottom-actions {
-  display: flex;
-  gap: 2px;
-}
-
 /* 全屏模式 */
 .photo-viewer:fullscreen {
   background: #000;
 }
-.photo-viewer:fullscreen .viewer-header,
-.photo-viewer:fullscreen .viewer-bottom {
+.photo-viewer:fullscreen .viewer-header {
+  padding-left: 32px;
+  padding-right: 32px;
+}
+.photo-viewer:fullscreen :deep(.viewer-bottom) {
   padding-left: 32px;
   padding-right: 32px;
 }
@@ -589,22 +260,6 @@ const downloadUrl = computed(() => appendMediaParams(webpUrl(props.photo.id), pr
   .viewer-actions .vd-btn {
     width: 32px;
     height: 32px;
-  }
-  .viewer-stage {
-    padding: 8px 0;
-  }
-  .img-wrap img {
-    max-height: calc(100dvh - 190px);
-  }
-  .nav-btn {
-    width: 36px;
-    height: 36px;
-  }
-  .nav-btn.prev {
-    left: 8px;
-  }
-  .nav-btn.next {
-    right: 8px;
   }
 }
 </style>

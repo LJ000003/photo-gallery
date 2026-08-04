@@ -23,7 +23,7 @@ function go(mode: string): void {
 </script>
 
 <template>
-  <nav class="mode-tabs" role="tablist" aria-label="浏览模式">
+  <nav class="mode-tabs" role="tablist" :aria-label="t('nav.mode')">
     <button
       v-for="m in modes"
       :key="m.name"

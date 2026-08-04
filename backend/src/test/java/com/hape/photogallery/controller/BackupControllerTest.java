@@ -60,7 +60,7 @@ class BackupControllerTest {
                 .andExpect(header().string("Content-Disposition",
                         org.hamcrest.Matchers.containsString("photo-gallery-backup-")))
                 .andExpect(header().string("Content-Disposition",
-                        org.hamcrest.Matchers.containsString(".tar.gz")))
+                        org.hamcrest.Matchers.containsString(".zip")))
                 .andExpect(header().string("Cache-Control",
                         org.hamcrest.Matchers.containsString("no-store")));
     }
@@ -98,6 +98,48 @@ class BackupControllerTest {
         assertThat(req.getCategoryId()).isEqualTo(5L);
         assertThat(req.getDateFrom()).isEqualTo("2026-01-01");
         assertThat(req.getDateTo()).isEqualTo("2026-07-31");
+    }
+
+    @Test
+    void export_fullWithFreshCache_shouldStreamCacheFileWithoutCollect() throws Exception {
+        // 预置缓存文件（内容固定，用于断言返回的就是它）
+        java.nio.file.Path cache = java.nio.file.Files.createTempFile("backup-cache", ".zip");
+        java.nio.file.Files.write(cache, new byte[]{0x50, 0x4B, 0x03, 0x04, 1, 2, 3});
+        when(backupService.isCacheFresh()).thenReturn(true);
+        when(backupService.getCacheFile()).thenReturn(cache);
+
+        MvcResult result = mockMvc.perform(post("/api/v1/backup/export")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        mockMvc.perform(asyncDispatch(result))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition",
+                        org.hamcrest.Matchers.containsString(".zip")))
+                .andExpect(content().bytes(new byte[]{0x50, 0x4B, 0x03, 0x04, 1, 2, 3}));
+
+        // 缓存命中时不做实时收集
+        verify(backupService, org.mockito.Mockito.never()).collect(any());
+    }
+
+    @Test
+    void export_withFilters_shouldIgnoreCacheEvenIfFresh() throws Exception {
+        java.nio.file.Path cache = java.nio.file.Files.createTempFile("backup-cache", ".zip");
+        when(backupService.isCacheFresh()).thenReturn(true);
+        when(backupService.getCacheFile()).thenReturn(cache);
+        when(backupService.collect(any())).thenReturn(anyBundle());
+
+        MvcResult result = mockMvc.perform(post("/api/v1/backup/export")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"albumId\":3}"))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+        mockMvc.perform(asyncDispatch(result)).andExpect(status().isOk());
+
+        // 带筛选 → 不走缓存，实时收集
+        verify(backupService).collect(any());
     }
 
     @Test

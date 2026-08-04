@@ -141,7 +141,7 @@ function initMap(): void {
   })
 
   L.tileLayer('https://webst0{s}.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}', {
-    attribution: '&copy; 高德地图',
+    attribution: t('map.attribution'),
     subdomains: '1234',
     maxZoom: 18,
   }).addTo(map)

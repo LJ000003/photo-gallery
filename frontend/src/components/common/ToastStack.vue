@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { CheckCircleFilled, CloseCircleFilled, InfoCircleFilled } from '@ant-design/icons-vue'
+import { useI18n } from 'vue-i18n'
 import { useToastStore } from '../../stores/toast'
 
 /**
  * 全局 toast 队列渲染（支持撤销类操作按钮）
  * 右上角堆叠，语义色图标 + 毛玻璃卡片
  */
+const { t } = useI18n()
 const toast = useToastStore()
 
 const icons = {
@@ -39,7 +41,7 @@ function runAction(id: number): void {
         <button v-if="item.action" class="toast-action" @click="runAction(item.id)">
           {{ item.action.label }}
         </button>
-        <button class="toast-close" aria-label="关闭" @click="dismiss(item.id)">×</button>
+        <button class="toast-close" :aria-label="t('actions.close')" @click="dismiss(item.id)">×</button>
       </div>
     </TransitionGroup>
   </div>

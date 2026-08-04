@@ -8,6 +8,7 @@ import {
   ColumnHeightOutlined,
   FieldTimeOutlined,
   FontSizeOutlined,
+  GlobalOutlined,
   PlusOutlined,
   SearchOutlined,
 } from '@ant-design/icons-vue'
@@ -25,9 +26,16 @@ import type { SortField, SortOrder } from '../../types/view'
  * 左：品牌 | 中：模式分段导航 | 右：搜索 · 排序 · 筛选 · 上传 · 角落菜单
  * sticky + 毛玻璃；移动端搜索收起为图标，点开变为第二行
  */
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const photo = usePhotoStore()
 const ui = useUiStore()
+
+/** 中英切换：写入 localStorage（与 i18n.ts detectLocale 同一 key），antd 文案由 App.vue 自动跟随 */
+function toggleLang(): void {
+  const next = locale.value === 'zh-CN' ? 'en-US' : 'zh-CN'
+  locale.value = next
+  localStorage.setItem('locale', next)
+}
 const route = useRoute()
 
 /** 排序仅对照片/相册两种模式有意义（时间线/地图/回收站无排序语义），其余模式留占位 */
@@ -203,6 +211,16 @@ const currentOrder = computed(() => effectiveOrder(photo.sortBy, photo.sortOrder
           <span class="upload-label">{{ t('topbar.upload') }}</span>
         </Button>
 
+        <Button
+          class="tool-btn lang-btn"
+          type="text"
+          :aria-label="t('topbar.language')"
+          @click="toggleLang"
+        >
+          <GlobalOutlined />
+          <span class="lang-label">{{ locale === 'zh-CN' ? '中' : 'EN' }}</span>
+        </Button>
+
         <CornerMenu />
       </div>
     </div>
@@ -299,6 +317,13 @@ const currentOrder = computed(() => effectiveOrder(photo.sortBy, photo.sortOrder
 .tool-btn:hover {
   color: var(--c-text);
   background: var(--c-surface-2);
+}
+.lang-btn {
+  gap: 4px;
+}
+.lang-label {
+  font-size: 12px;
+  line-height: 1;
 }
 .sort-label {
   font-size: 13px;

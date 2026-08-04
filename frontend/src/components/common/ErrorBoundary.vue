@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { onErrorCaptured, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Button, Result } from 'ant-design-vue'
 
 /**
  * 全局错误边界：渲染子树抛错时展示错误页（替代旧 ErrorFallback）
  * 提供 刷新 / 复制诊断信息 两个出口
  */
+const { t } = useI18n()
 const error = ref<Error | null>(null)
 
 onErrorCaptured((err) => {
@@ -39,10 +41,10 @@ function copyDiagnostics(): void {
 
 <template>
   <div v-if="error" class="error-boundary">
-    <Result status="error" title="页面出错了" :sub-title="error.message">
+    <Result status="error" :title="t('common.errorTitle')" :sub-title="error.message">
       <template #extra>
-        <Button type="primary" @click="reload">刷新页面</Button>
-        <Button @click="copyDiagnostics">复制诊断信息</Button>
+        <Button type="primary" @click="reload">{{ t('common.errorReload') }}</Button>
+        <Button @click="copyDiagnostics">{{ t('common.errorCopyDiagnostics') }}</Button>
       </template>
     </Result>
   </div>

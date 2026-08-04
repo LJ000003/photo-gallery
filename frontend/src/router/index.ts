@@ -41,6 +41,12 @@ const router = createRouter({
           meta: { titleKey: 'nav.map' },
         },
         {
+          path: 'stats',
+          name: 'stats',
+          component: () => import('../components/stats/StatsView.vue'),
+          meta: { titleKey: 'stats.title' },
+        },
+        {
           path: 'trash',
           name: 'trash',
           component: () => import('../components/trash/TrashView.vue'),

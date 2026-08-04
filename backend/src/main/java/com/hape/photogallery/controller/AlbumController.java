@@ -75,6 +75,12 @@ public class AlbumController {
         return ApiResponse.success(albumService.listPhotos(id, pageable).map(photoService::toResponse));
     }
 
+    @GetMapping("/albums/{id}/photo-ids")
+    public ApiResponse<List<Long>> listAlbumPhotoIds(@PathVariable Long id) {
+        // 轻量投影（只返回 id），供编辑抽屉预选初始化，避免传输完整 PhotoResponse 的 N+1
+        return ApiResponse.success(albumService.listPhotoIds(id));
+    }
+
     @PostMapping("/albums/{id}/photos")
     public ApiResponse<String> addPhotosToAlbum(@PathVariable Long id, @RequestBody List<Long> photoIds) {
         albumService.addPhotos(id, photoIds);

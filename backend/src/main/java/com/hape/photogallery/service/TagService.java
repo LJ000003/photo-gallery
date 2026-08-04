@@ -26,19 +26,19 @@ public class TagService {
     }
 
     @Transactional
-    @CacheEvict(value = "tags", allEntries = true)
+    @CacheEvict(value = {"tags", "stats"}, allEntries = true)
     public Tag create(String name, String color) {
         return tagRepo.findByName(name).orElseGet(() -> tagRepo.save(new Tag(name, color)));
     }
 
     @Transactional
-    @CacheEvict(value = "tags", allEntries = true)
+    @CacheEvict(value = {"tags", "stats"}, allEntries = true)
     public void delete(Long id) {
         tagRepo.deleteById(id);
     }
 
     @Transactional
-    @CacheEvict(value = "tags", allEntries = true)
+    @CacheEvict(value = {"tags", "stats"}, allEntries = true)
     public Tag update(Long id, String name, String color) {
         Tag tag = tagRepo.findById(id).orElseThrow(() -> new BusinessException(404, "标签不存在"));
         if (name != null) tag.setName(name);

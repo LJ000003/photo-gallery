@@ -139,7 +139,7 @@ function onKeydown(e: KeyboardEvent): void {
     :class="{ selected, deleting, 'has-caption': searchQuery }"
     role="button"
     tabindex="0"
-    :aria-label="photo.name || `照片 #${photo.id}`"
+    :aria-label="photo.name || t('gallery.photoAria', { id: photo.id })"
     :style="{
       '--tilt-x': `${tiltX}deg`,
       '--tilt-y': `${tiltY}deg`,
@@ -222,7 +222,7 @@ function onKeydown(e: KeyboardEvent): void {
         v-if="selectable"
         class="check-bubble"
         :class="{ checked: selected }"
-        :aria-label="selected ? '取消选择' : '选择'"
+        :aria-label="t(selected ? 'selection.deselect' : 'selection.select')"
         @click.stop="emit('toggleSelect', photo.id)"
       >
         <CheckOutlined v-if="selected" class="check-mark" />

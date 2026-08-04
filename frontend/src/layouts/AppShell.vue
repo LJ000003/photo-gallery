@@ -109,7 +109,7 @@ onMounted(() => {
       <RouterView />
     </main>
 
-    <button v-show="ui.showBackTop" class="back-top" aria-label="回到顶部" @click="scrollToTop">
+    <button v-show="ui.showBackTop" class="back-top" :aria-label="t('actions.backToTop')" @click="scrollToTop">
       ↑
     </button>
 

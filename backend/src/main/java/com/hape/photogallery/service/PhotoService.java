@@ -220,7 +220,7 @@ public class PhotoService {
     }
 
     @Transactional
-    @CacheEvict(value = {"photos", "timeline", "map"}, allEntries = true)
+    @CacheEvict(value = {"photos", "timeline", "map", "stats"}, allEntries = true)
     public Photo upload(MultipartFile file, String name, String description,
                         List<Long> tagIds, Long categoryId, String watermark) throws IOException {
         if (file.getSize() > MAX_FILE_SIZE) {
@@ -288,7 +288,7 @@ public class PhotoService {
         return saved;
     }
 
-    @CacheEvict(value = {"photos", "timeline", "map"}, allEntries = true)
+    @CacheEvict(value = {"photos", "timeline", "map", "stats"}, allEntries = true)
     @Transactional
     public PhotoResponse update(Long id, PhotoUpdateRequest req) {
         Photo photo = getById(id);
@@ -370,7 +370,7 @@ public class PhotoService {
     // === 删除（软删除） ===
 
     @Transactional
-    @CacheEvict(value = {"photos", "timeline", "map"}, allEntries = true)
+    @CacheEvict(value = {"photos", "timeline", "map", "stats"}, allEntries = true)
     public void delete(Long id) {
         Photo photo = getById(id);
         photo.setDeletedAt(LocalDateTime.now());
@@ -379,7 +379,7 @@ public class PhotoService {
     }
 
     @Transactional
-    @CacheEvict(value = {"photos", "timeline", "map"}, allEntries = true)
+    @CacheEvict(value = {"photos", "timeline", "map", "stats"}, allEntries = true)
     public int batchDelete(List<Long> ids) {
         List<Photo> photos = repo.findAllById(ids);
         if (photos.isEmpty()) return 0;
@@ -399,7 +399,7 @@ public class PhotoService {
      * 绝不静默清空（单张 update 的旧行为不复制）。不存在的照片 ID 静默跳过。
      */
     @Transactional
-    @CacheEvict(value = {"photos", "timeline", "map", "albums"}, allEntries = true)
+    @CacheEvict(value = {"photos", "timeline", "map", "albums", "stats"}, allEntries = true)
     public List<PhotoResponse> batchUpdate(BatchPhotoUpdateRequest req) {
         List<Photo> photos = repo.findAllById(req.getPhotoIds());
         if (photos.isEmpty()) return List.of();
@@ -442,7 +442,7 @@ public class PhotoService {
     }
 
     @Transactional
-    @CacheEvict(value = {"photos", "timeline", "map"}, allEntries = true)
+    @CacheEvict(value = {"photos", "timeline", "map", "stats"}, allEntries = true)
     public void restore(Long id) {
         Photo photo = repo.findDeletedById(id)
                 .orElseThrow(() -> new BusinessException(404, "未找到可恢复的照片"));
@@ -488,7 +488,7 @@ public class PhotoService {
     // === 异步处理重试与恢复 ===
 
     @Transactional
-    @CacheEvict(value = {"photos", "timeline", "map"}, allEntries = true)
+    @CacheEvict(value = {"photos", "timeline", "map", "stats"}, allEntries = true)
     public void retryProcessing(Long id) {
         Photo photo = getById(id);
         photo.setProcessingStatus("PROCESSING");
@@ -547,7 +547,7 @@ public class PhotoService {
 
     // === 批量上传 ===
     @Transactional
-    @CacheEvict(value = {"photos", "timeline", "map"}, allEntries = true)
+    @CacheEvict(value = {"photos", "timeline", "map", "stats"}, allEntries = true)
     public List<Photo> batchUpload(List<MultipartFile> files, String name, String description,
                                     List<Long> tagIds, Long categoryId, String watermark) throws IOException {
         List<Photo> results = new ArrayList<>();
@@ -667,7 +667,7 @@ public class PhotoService {
     // === 变换 ===
 
     @Transactional
-    @CacheEvict(value = {"photos", "timeline", "map"}, allEntries = true)
+    @CacheEvict(value = {"photos", "timeline", "map", "stats"}, allEntries = true)
     public void transformPhoto(Long id, int rotate, String mirror, Double cx, Double cy, Double cw, Double ch) throws IOException {
         Photo photo = getById(id);
         Path filePath = storage.getUploadDir().resolve(photo.getFileName());

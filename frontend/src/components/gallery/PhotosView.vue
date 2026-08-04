@@ -29,6 +29,9 @@ const ui = useUiStore()
 const toast = useToastStore()
 const { deletePhoto, deletePhotos, generateShare } = usePhotoActions()
 
+/** 批量编辑上限（后端语义一致；超过则提示并截取前 50 张） */
+const BATCH_EDIT_LIMIT = 50
+
 /* ---------- 选择状态（照片流局部，store 的 selectedPhotoIds 为兼容保留） ---------- */
 const selectedIds = ref(new Set<number>())
 
@@ -82,6 +85,12 @@ function batchEdit(): void {
   if (selectedIds.value.size === 0) return
   const selected = photo.photos.filter((p) => selectedIds.value.has(p.id))
   if (selected.length === 0) return
+  // 超过 50 张：提示并截取前 50 张（限制提前到进入时，避免提交时才报错）
+  if (selected.length > BATCH_EDIT_LIMIT) {
+    toast.info(t('batchEdit.tooMany'))
+    ui.batchEditPhotos = selected.slice(0, BATCH_EDIT_LIMIT)
+    return
+  }
   // 保留选择：取消弹窗不丢多选状态
   ui.batchEditPhotos = selected
 }
@@ -188,7 +197,7 @@ const showEmpty = computed(() => !photo.loading && !photo.hasMore && photo.photo
 </script>
 
 <template>
-  <section class="photos-view" aria-label="照片流">
+  <section class="photos-view" :aria-label="t('gallery.title')">
     <!-- 照片计数（克制的一行） -->
     <p v-if="photo.totalCount > 0" class="count-line">
       {{ t('gallery.count', { n: photo.totalCount }) }}

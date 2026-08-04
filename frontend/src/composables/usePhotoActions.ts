@@ -1,7 +1,9 @@
 import { ref } from 'vue'
 import { api } from '../api'
+import i18n from '../i18n'
 import { usePhotoStore } from '../stores/photo'
 import { useToastStore } from '../stores/toast'
+import { extractErrorMessage } from '../utils/error'
 import type { ApiResponse } from '../types/api'
 
 /**
@@ -16,23 +18,14 @@ export function usePhotoActions() {
   const photo = usePhotoStore()
   const toast = useToastStore()
 
-  async function extractErrorMessage(res: Response): Promise<string> {
-    try {
-      const data = await res.json()
-      return data.message || `请求失败（${res.status}）`
-    } catch {
-      return `服务器返回异常（${res.status}），请稍后重试`
-    }
-  }
-
   async function restorePhoto(id: number): Promise<void> {
     try {
       const res = await api(`/api/photos/${id}/restore`, { method: 'POST' })
       if (!res.ok) throw new Error(await extractErrorMessage(res))
       await photo.resetAndReload()
-      toast.success('已恢复')
+      toast.success(i18n.global.t('trash.restored'))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '恢复失败')
+      toast.error(err instanceof Error ? err.message : i18n.global.t('trash.restoreFailed'))
     }
   }
 
@@ -41,9 +34,12 @@ export function usePhotoActions() {
       const res = await api(`/api/photos/${id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error(await extractErrorMessage(res))
       photo.removePhoto(id)
-      toast.add('删除成功', 'success', 5000, { label: '撤销', onClick: () => restorePhoto(id) })
+      toast.add(i18n.global.t('actions.deleted'), 'success', 5000, {
+        label: i18n.global.t('actions.undo'),
+        onClick: () => restorePhoto(id),
+      })
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '删除失败')
+      toast.error(err instanceof Error ? err.message : i18n.global.t('actions.deleteFailed'))
     }
   }
 
@@ -55,8 +51,8 @@ export function usePhotoActions() {
       })
       if (!res.ok) throw new Error(await extractErrorMessage(res))
       photo.removePhotos(ids)
-      toast.add(`已删除 ${ids.length} 张照片`, 'success', 5000, {
-        label: '撤销',
+      toast.add(i18n.global.t('selection.deletedCount', { count: ids.length }), 'success', 5000, {
+        label: i18n.global.t('actions.undo'),
         onClick: async () => {
           const failed: number[] = []
           for (const id of ids) {
@@ -69,14 +65,21 @@ export function usePhotoActions() {
           }
           await photo.resetAndReload()
           if (failed.length > 0) {
-            toast.error(`${failed.length}/${ids.length} 张照片恢复失败`)
+            toast.error(
+              i18n.global.t('trash.restoreFailedCount', {
+                failed: failed.length,
+                total: ids.length,
+              }),
+            )
           } else {
-            toast.success('已恢复')
+            toast.success(i18n.global.t('trash.restored'))
           }
         },
       })
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '批量删除失败')
+      toast.error(
+        err instanceof Error ? err.message : i18n.global.t('actions.deleteFailed', { count: ids.length }),
+      )
     }
   }
 
@@ -97,7 +100,7 @@ export function usePhotoActions() {
       const json: ApiResponse<{ url: string }> = await res.json()
       shareUrl.value = window.location.origin + json.data.url
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '生成分享失败')
+      toast.error(err instanceof Error ? err.message : i18n.global.t('share.generateFailed'))
       shareModal.value = null
     } finally {
       shareLoading.value = false
@@ -110,7 +113,7 @@ export function usePhotoActions() {
       navigator.clipboard
         .writeText(text)
         .then(() => {
-          toast.success('链接已复制，分享给朋友吧')
+          toast.success(i18n.global.t('share.copied'))
           shareModal.value = null
         })
         .catch(() => fallbackCopy(text))
@@ -130,10 +133,10 @@ export function usePhotoActions() {
     ta.select()
     try {
       document.execCommand('copy')
-      toast.success('链接已复制，分享给朋友吧')
+      toast.success(i18n.global.t('share.copied'))
       shareModal.value = null
     } catch {
-      toast.error('复制失败，请手动复制')
+      toast.error(i18n.global.t('share.copyFailed'))
     }
     document.body.removeChild(ta)
   }

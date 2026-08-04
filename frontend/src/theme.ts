@@ -96,7 +96,11 @@ export function applyCssVars(isDark: boolean): void {
   const c = palette(isDark)
   const root = document.documentElement
   for (const name of CSS_VARS) {
-    root.style.setProperty(name, c[name.replace('--c-', '') as keyof ThemePalette])
+    // palette 键是 camelCase（accentHover），CSS 变量名是 kebab-case（--c-accent-hover）：
+    // 直接 replace 前缀会得到 'accent-hover' 查不到值 → 注入字符串 "undefined"（既有 bug，
+    // 曾使所有带连字符的变量失效——danger-soft 等）。统一转 camelCase 再取。
+    const key = name.replace('--c-', '').replace(/-([a-z])/g, (_, ch: string) => ch.toUpperCase())
+    root.style.setProperty(name, c[key as keyof ThemePalette])
   }
   root.style.setProperty(
     '--shadow-photo',

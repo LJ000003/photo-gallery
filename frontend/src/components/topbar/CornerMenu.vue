@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import {
+  BarChartOutlined,
   DeleteOutlined,
   DownloadOutlined,
   LockOutlined,
@@ -35,7 +36,7 @@ async function exportBackup(): Promise<void> {
     const cd = res.headers.get('Content-Disposition') || ''
     const match = /filename="?([^"]+)"?/.exec(cd)
     const filename =
-      match?.[1] ?? `photo-gallery-backup-${new Date().toISOString().slice(0, 10)}.tar.gz`
+      match?.[1] ?? `photo-gallery-backup-${new Date().toISOString().slice(0, 10)}.zip`
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -59,6 +60,9 @@ function onMenuClick({ key }: { key: string | number }): void {
       break
     case 'backup':
       void exportBackup()
+      break
+    case 'stats':
+      router.push({ name: 'stats' })
       break
     case 'help':
       ui.helpOpen = true
@@ -84,6 +88,10 @@ function onMenuClick({ key }: { key: string | number }): void {
         <MenuItem key="backup" :disabled="exporting">
           <DownloadOutlined />
           {{ exporting ? t('topbar.backupExporting') : t('topbar.backupExport') }}
+        </MenuItem>
+        <MenuItem key="stats">
+          <BarChartOutlined />
+          {{ t('stats.title') }}
         </MenuItem>
         <MenuItem key="help">
           <QuestionCircleOutlined />
