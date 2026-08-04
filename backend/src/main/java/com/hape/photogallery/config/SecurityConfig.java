@@ -1,5 +1,6 @@
 package com.hape.photogallery.config;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
@@ -7,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -18,16 +20,33 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import com.hape.photogallery.ApiResponse;
+
+import jakarta.servlet.http.HttpServletResponse;
+
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
     private final RateLimitFilter rateLimitFilter;
     private final JwtAuthFilter jwtAuthFilter;
+    private final ObjectMapper objectMapper;
 
-    public SecurityConfig(RateLimitFilter rateLimitFilter, JwtAuthFilter jwtAuthFilter) {
+    public SecurityConfig(RateLimitFilter rateLimitFilter, JwtAuthFilter jwtAuthFilter,
+                          ObjectMapper objectMapper) {
         this.rateLimitFilter = rateLimitFilter;
         this.jwtAuthFilter = jwtAuthFilter;
+        this.objectMapper = objectMapper;
+    }
+
+    /** 认证失败响应统一 ApiResponse JSON（P4-#48③：默认 entry point 返回空体 403） */
+    private void writeAuthError(HttpServletResponse response, int status, String message) throws IOException {
+        response.setStatus(status);
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.setCharacterEncoding("UTF-8");
+        objectMapper.writeValue(response.getWriter(), ApiResponse.error(status, message));
     }
 
     @Bean
@@ -39,9 +58,33 @@ public class SecurityConfig {
                     .includeSubDomains(true).maxAgeInSeconds(31536000))
                 .contentTypeOptions(cto -> {})  // X-Content-Type-Options: nosniff
                 .frameOptions(frame -> frame.deny())  // X-Frame-Options: DENY
+                // CSP：style-src 需 'unsafe-inline'（antd cssinjs 注入 <style> + 内联 style 属性）；
+                // img-src 允许高德瓦片（Leaflet 底图 webst0-4/webrd0-4.is.autonavi.com）；
+                // static/index.html 无内联 script，script-src 'self' 即可。
+                // 注意 dev swagger-ui 的 CSS 引用 fonts.gstatic.com，font-src 未放行 → 仅字体降级（prod 已禁用 springdoc）
+                .contentSecurityPolicy(csp -> csp
+                    .policyDirectives("default-src 'self'; "
+                        + "img-src 'self' data: blob: https://*.is.autonavi.com; "
+                        + "style-src 'self' 'unsafe-inline'; "
+                        + "script-src 'self'; "
+                        + "connect-src 'self'; "
+                        + "font-src 'self' data:; "
+                        + "worker-src 'self' blob:; "
+                        + "object-src 'none'; "
+                        + "base-uri 'self'; "
+                        + "form-action 'self'; "
+                        + "frame-ancestors 'none'")
+                )
             )
             .csrf(csrf -> csrf.disable())
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            // P4-#48③：未认证 401 / 权限不足 403 统一 ApiResponse JSON（此前默认空体；前端对 401/403 同样登出处理，无影响）
+            .exceptionHandling(eh -> eh
+                .authenticationEntryPoint((req, res, ex) ->
+                        writeAuthError(res, HttpServletResponse.SC_UNAUTHORIZED, "未登录或登录已过期"))
+                .accessDeniedHandler((req, res, ex) ->
+                        writeAuthError(res, HttpServletResponse.SC_FORBIDDEN, "无权限执行该操作"))
+            )
             .addFilterBefore(new TraceIdFilter(), SecurityContextHolderFilter.class)
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(rateLimitFilter, JwtAuthFilter.class)

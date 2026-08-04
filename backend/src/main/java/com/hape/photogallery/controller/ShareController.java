@@ -5,6 +5,8 @@ import com.hape.photogallery.dto.PhotoResponse;
 import com.hape.photogallery.exception.BusinessException;
 import com.hape.photogallery.service.PhotoService;
 
+import io.swagger.v3.oas.annotations.Operation;
+
 import java.util.List;
 
 import org.springframework.data.domain.Page;
@@ -30,6 +32,8 @@ public class ShareController {
     }
 
     /** 分享页 API — 返回 JWT claims 中指定的照片 */
+    @Operation(summary = "分享照片列表",
+            description = "viewer JWT 白名单校验（JwtAuthFilter 写入 sharePhotoIds）；响应剥离媒体签名（防 view 权限借签名下载原图）")
     @GetMapping("/api/v1/share/view")
     public ApiResponse<Page<PhotoResponse>> view(
             @RequestParam(defaultValue = "0") int page,
@@ -42,8 +46,13 @@ public class ShareController {
             throw new BusinessException(404, "分享链接无效或已过期");
         }
 
-        Page<PhotoResponse> result = photoService.findByIds(photoIds, PageRequest.of(page, size))
+        // P4-#48③：page/size 钳制——size=-1 曾直接 500（PageRequest 校验抛 IllegalArgumentException）
+        int clampedPage = Math.max(0, page);
+        int clampedSize = Math.max(1, Math.min(100, size));
+        Page<PhotoResponse> result = photoService.findByIds(photoIds, PageRequest.of(clampedPage, clampedSize))
                 .map(photoService::toResponse);
+        // 分享上下文不得签发管理员短时签名（否则 view 权限可借签名下载原图），统一剥离
+        result.getContent().forEach(r -> r.setMediaToken(null));
         return ApiResponse.success(result);
     }
 }

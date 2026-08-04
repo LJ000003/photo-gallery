@@ -9,8 +9,6 @@ import java.util.List;
 import java.util.Optional;
 
 public interface AlbumRepository extends JpaRepository<Album, Long> {
-    Optional<Album> findByName(String name);
-
     @Query(nativeQuery = true, value = "SELECT * FROM albums WHERE id = ?1 AND deleted_at IS NOT NULL")
     Optional<Album> findDeletedById(Long id);
 

@@ -100,6 +100,38 @@ class PhotoRepositoryTest {
         assertThat(page.getTotalElements()).isEqualTo(0);
     }
 
+    // —— LIKE fallback（单字搜索 <2 字符时 PhotoService 走此分支；H2 可真实执行）——
+    // 注意 H2 的 LIKE 默认大小写敏感（MySQL collation 不敏感），pattern 一律小写
+    @Test
+    void searchByLike_shouldFindByName() {
+        Page<Photo> page = photoRepo.searchByLike("%a%", PageRequest.of(0, 10));
+        assertThat(page.getTotalElements()).isEqualTo(1);
+        assertThat(page.getContent().get(0).getName()).isEqualTo("a");
+    }
+
+    @Test
+    void searchByLikeWithTagIds_shouldFilterByTag() {
+        Page<Photo> page = photoRepo.searchByLikeWithTagIds(
+                "%a%", List.of(tag1.getId()), PageRequest.of(0, 10));
+        // p1(name=a) 含 tag1；p2(name=b) 也含 tag1 但不匹配 pattern
+        assertThat(page.getTotalElements()).isEqualTo(1);
+    }
+
+    @Test
+    void searchByLikeWithCategoryIds_shouldFilterByCategory() {
+        Page<Photo> page = photoRepo.searchByLikeWithCategoryIds(
+                "%a%", List.of(cat1.getId()), PageRequest.of(0, 10));
+        assertThat(page.getTotalElements()).isEqualTo(1);
+    }
+
+    @Test
+    void searchByLikeWithTagAndCategoryIds_shouldIntersect() {
+        Page<Photo> page = photoRepo.searchByLikeWithTagAndCategoryIds(
+                "%a%", List.of(tag2.getId()), List.of(cat1.getId()), PageRequest.of(0, 10));
+        // cat1 内含 tag2 的只有 p2(name=b)，不匹配 "%a%"
+        assertThat(page.getTotalElements()).isEqualTo(0);
+    }
+
     // ==================== soft delete ====================
 
     @Test

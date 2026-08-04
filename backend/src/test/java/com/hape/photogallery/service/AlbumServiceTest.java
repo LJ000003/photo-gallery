@@ -37,9 +37,22 @@ class AlbumServiceTest {
     // ==================== listAll ====================
 
     @Test
-    void listAll_shouldReturnAllAlbums() {
+    void listAll_shouldReturnAllAlbumsWithCounts() {
+        Album a1 = new Album("a1");
+        a1.setId(1L);
+        when(albumRepo.findAll()).thenReturn(List.of(a1));
+        when(photoRepo.countByAlbum()).thenReturn(List.<Object[]>of(new Object[]{1L, 3L}));
+        var result = service.listAll();
+        assertThat(result).hasSize(1);
+        // P4-#38：photoCount 来自分组计数查询（一次查询填全量），不再逐相册懒加载
+        assertThat(result.get(0).getPhotoCount()).isEqualTo(3);
+    }
+
+    @Test
+    void listAll_countQueryMiss_shouldDefaultZero() {
         when(albumRepo.findAll()).thenReturn(List.of(new Album("a1")));
-        assertThat(service.listAll()).hasSize(1);
+        when(photoRepo.countByAlbum()).thenReturn(List.of());
+        assertThat(service.listAll().get(0).getPhotoCount()).isZero();
     }
 
     // ==================== create ====================
@@ -49,8 +62,9 @@ class AlbumServiceTest {
         Album a = new Album("new"); a.setId(1L);
         when(albumRepo.save(any(Album.class))).thenReturn(a);
 
-        Album result = service.create("new", "desc", null);
+        var result = service.create("new", "desc", null);
         assertThat(result.getName()).isEqualTo("new");
+        assertThat(result.getPhotoCount()).isZero();
     }
 
     @Test
@@ -75,7 +89,7 @@ class AlbumServiceTest {
         when(albumRepo.findById(1L)).thenReturn(Optional.of(a));
         when(albumRepo.save(any())).thenReturn(a);
 
-        Album result = service.update(1L, "newName", "newDesc", null);
+        var result = service.update(1L, "newName", "newDesc", null);
         assertThat(result.getName()).isEqualTo("newName");
         assertThat(result.getDescription()).isEqualTo("newDesc");
     }

@@ -28,7 +28,9 @@ public class CacheControlFilter extends OncePerRequestFilter {
 
         if ("GET".equalsIgnoreCase(request.getMethod())) {
             if (path.matches(".*/photos/\\d+/file$")) {
-                response.setHeader("Cache-Control", "max-age=2592000");
+                // P4-#48②：30 天无 private 的共享缓存会在 transform 后最长 30 天显示旧图；
+                // 签名时间桶窗口 2×300s=600s，取半窗口 300s 留余量（private 禁止共享缓存介入）
+                response.setHeader("Cache-Control", "private, max-age=300");
             } else if (!response.containsHeader("Cache-Control")) {
                 response.setHeader("Cache-Control", "max-age=0, must-revalidate, private");
             }

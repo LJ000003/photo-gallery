@@ -1,22 +1,25 @@
 {
   "app": {
-    "name": "Photo Wall",
-    "tagline": "A photo wall for friends"
+    "name": "Photo Wall"
   },
   "auth": {
     "expired": "Session expired, please unlock again",
     "failed": "Unlock failed, please retry",
-    "locked": "Locked"
+    "locked": "Locked",
+    "keyboardHint": "Keyboard also works: ▲ ▼ ◀ ▶ arrow keys + B / A"
   },
   "nav": {
     "photos": "Photos",
     "albums": "Albums",
     "timeline": "Timeline",
     "map": "Map",
-    "trash": "Trash"
+    "trash": "Trash",
+    "mobile": "Bottom navigation",
+    "mode": "Browse modes"
   },
   "topbar": {
     "searchPlaceholder": "Search photos",
+    "searchAlbumsPlaceholder": "Search albums",
     "sort": "Sort",
     "filter": "Filter",
     "upload": "Upload",
@@ -24,7 +27,8 @@
     "backupExport": "Export backup",
     "backupExporting": "Exporting…",
     "help": "Help & shortcuts",
-    "relock": "Lock again"
+    "relock": "Lock again",
+    "language": "Switch language"
   },
   "actions": {
     "back": "Back",
@@ -33,24 +37,25 @@
     "cancel": "Cancel",
     "edit": "Edit",
     "delete": "Delete",
-    "share": "Share",
-    "copy": "Copy",
     "download": "Download",
     "restore": "Restore",
     "confirm": "OK",
-    "retry": "Retry",
     "selectAll": "Select all",
-    "create": "Create",
-    "rename": "Rename"
+    "rename": "Rename",
+    "deleted": "Deleted",
+    "undo": "Undo",
+    "deleteFailed": "Delete failed",
+    "backToTop": "Back to top"
   },
   "sort": {
     "time": "Time",
     "name": "Name",
     "size": "Size",
-    "asc": "Ascending",
-    "desc": "Descending"
+    "asc": "Ascending"
   },
   "gallery": {
+    "title": "Photo gallery",
+    "photoAria": "Photo #{id}",
     "count": "{n} photos",
     "loading": "Loading",
     "end": "You've reached the end",
@@ -59,13 +64,21 @@
     "emptyHintFiltered": "No photos match the current filters, try another combination",
     "processing": "Processing",
     "processFailed": "Processing failed",
-    "retryProcessing": "Retry processing"
+    "retryProcessing": "Retry processing",
+    "loadFailed": "Failed to load, please try again later",
+    "processingTimeout": "Some photos timed out during processing and were marked as failed; you can retry",
+    "processingTimeoutMessage": "Processing timed out, you can retry",
+    "loadMore": "Load more"
   },
   "selection": {
     "selected": "{n} selected",
     "batchEdit": "Batch edit",
     "batchDelete": "Delete",
-    "batchShare": "Share"
+    "batchShare": "Share",
+    "batchDeleteConfirm": "Delete the {n} selected photos?",
+    "deletedCount": "Deleted {count} photos",
+    "select": "Select",
+    "deselect": "Deselect"
   },
   "filter": {
     "title": "Filter",
@@ -80,19 +93,16 @@
     "tagColor": "Tag color",
     "emptyCategories": "No categories yet",
     "emptyTags": "No tags yet",
-    "deleteConfirm": "Delete \"{name}\"?",
-    "deleted": "Deleted"
+    "deleteConfirm": "Delete \"{name}\"?"
   },
   "viewer": {
     "exif": "Details",
-    "slideshow": "Slideshow",
     "previous": "Previous",
     "next": "Next",
     "fullscreen": "Fullscreen",
     "noExif": "No capture details for this photo",
-    "camera": "Camera",
-    "shoot": "Settings",
-    "location": "Location",
+    "pause": "Pause",
+    "play": "Play",
     "close": "Close"
   },
   "exif": {
@@ -112,12 +122,10 @@
     "title": "Upload photos",
     "dropzone": "Drag photos here, or click to choose",
     "pasteHint": "You can also paste from clipboard with Ctrl+V",
-    "chooseFiles": "Choose photos",
     "compressing": "Compressing…",
     "uploading": "Uploading {pct}%",
     "success": "Uploaded",
     "failed": "Upload failed",
-    "duplicate": "This photo already exists",
     "viewExisting": "View existing",
     "skipped": "{n} duplicates skipped",
     "tooMany": "Up to 50 photos at a time",
@@ -126,8 +134,8 @@
     "category": "Category",
     "tags": "Tags",
     "watermark": "Add watermark",
-    "none": "None",
-    "editing": "Edit image"
+    "editing": "Edit image",
+    "timeout": "Upload timed out, please retry"
   },
   "edit": {
     "title": "Edit photo",
@@ -140,8 +148,8 @@
     "addTag": "New tag",
     "addAlbum": "New album",
     "addCategory": "New category",
-    "newName": "New name",
-    "saved": "Saved"
+    "saved": "Saved",
+    "nameRequired": "Photo name is required"
   },
   "batchEdit": {
     "title": "Batch edit",
@@ -151,12 +159,11 @@
     "removeAlbums": "Remove from albums",
     "category": "Category",
     "categoryKeep": "Keep unchanged",
-    "categorySet": "Set to",
     "categoryClear": "Clear category",
-    "saved": "Batch changes saved"
+    "saved": "Batch changes saved",
+    "tooMany": "Up to 50 photos per batch edit"
   },
   "albums": {
-    "title": "Albums",
     "create": "New album",
     "edit": "Edit album",
     "delete": "Delete album",
@@ -168,19 +175,29 @@
     "description": "Album description",
     "pickPhotos": "Pick photos",
     "searchInPicker": "Search photos",
-    "picked": "{n} picked",
     "saved": "Album saved",
-    "deleteConfirm": "Delete album \"{name}\"? Photos will not be deleted"
+    "deleteConfirm": "Delete album \"{name}\"? Photos will not be deleted",
+    "nameRequired": "Album name is required",
+    "deleted": "Album deleted",
+    "emptyFiltered": "No albums match your search"
   },
   "timeline": {
-    "title": "Timeline",
     "empty": "No photos with capture dates yet",
-    "noExif": "No capture date for this photo",
-    "otherPhotos": "Other photos"
+    "monthLabel": "{month}/{year}"
   },
   "map": {
-    "title": "Map",
-    "empty": "No photos with location info yet"
+    "attribution": "Map data © AMap"
+  },
+  "stats": {
+    "title": "Statistics",
+    "totalPhotos": "Total photos",
+    "storageUsed": "Storage used",
+    "topTags": "Top tags",
+    "uploadTrend": "Uploads per month",
+    "photoCount": "{n} photos",
+    "month": "Month",
+    "barLabel": "Uploads",
+    "empty": "Nothing to show yet"
   },
   "trash": {
     "title": "Trash",
@@ -188,10 +205,13 @@
     "albums": "Albums",
     "empty": "Trash is empty",
     "restored": "Restored",
+    "restoreFailed": "Restore failed",
+    "restoreFailedCount": "{failed} of {total} photos failed to restore",
     "deleteConfirm": "Delete forever? This cannot be undone",
     "emptyPhotos": "No deleted photos",
     "emptyAlbums": "No deleted albums",
-    "autoPurge": "Auto-purged after 30 days"
+    "autoPurge": "Auto-purged after 30 days",
+    "restoreConfirm": "Restore \"{name}\"?"
   },
   "share": {
     "generate": "Create share link",
@@ -199,10 +219,15 @@
     "copied": "Link copied, share it with friends",
     "expire": "Valid for 7 days",
     "generating": "Creating…",
-    "viewer": "Shared photos"
+    "viewer": "Shared photos",
+    "invalidTitle": "Invalid share link",
+    "invalidHint": "This link is invalid or expired. Ask the sharer to create a new one",
+    "serverErrorTitle": "Failed to load",
+    "serverErrorHint": "The server hit an issue, please try again later",
+    "copyFailed": "Copy failed, please copy manually",
+    "generateFailed": "Failed to create share link"
   },
   "backup": {
-    "exporting": "Exporting backup…",
     "done": "Backup exported",
     "failed": "Export failed"
   },
@@ -269,12 +294,16 @@
     "mirrorH": "Flip horizontal",
     "mirrorV": "Flip vertical",
     "crop": "Crop",
-    "reset": "Reset",
-    "done": "Changes saved"
+    "reset": "Reset"
   },
   "common": {
     "unknownError": "Something went wrong, please try again",
     "networkError": "Network error, please check your connection",
-    "copied": "Copied"
+    "errorTitle": "Something went wrong",
+    "errorReload": "Reload page",
+    "errorCopyDiagnostics": "Copy diagnostics",
+    "errorPageFailed": "Failed to load page",
+    "requestFailed": "Request failed ({status})",
+    "serverError": "Server error ({status}), please try again later"
   }
 }

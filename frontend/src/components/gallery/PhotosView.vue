@@ -5,15 +5,15 @@ import { useI18n } from 'vue-i18n'
 import PhotoGrid from './PhotoGrid.vue'
 import GridSkeleton from './GridSkeleton.vue'
 import SelectionBar from './SelectionBar.vue'
-import ShareDialog from '../common/ShareDialog.vue'
 import EmptyState from '../common/EmptyState.vue'
 import ImageEditor from '../editor/ImageEditor.vue'
+import { Modal } from 'ant-design-vue'
 
 import { usePhotoStore } from '../../stores/photo'
 import { useUiStore } from '../../stores/ui'
 import { usePhotoActions } from '../../composables/usePhotoActions'
-import { webpUrl } from '../../webp'
-import { tokenParam } from '../../utils/token'
+import { webpUrl } from '../../utils/webp'
+import { appendMediaParams } from '../../utils/token'
 import { api } from '../../api'
 import { useToastStore } from '../../stores/toast'
 import type { Photo } from '../../types/photo'
@@ -29,7 +29,10 @@ const ui = useUiStore()
 const toast = useToastStore()
 const { deletePhoto, deletePhotos, generateShare } = usePhotoActions()
 
-/* ---------- 选择状态（照片流局部，store 的 selectedPhotoIds 为兼容保留） ---------- */
+/** 批量编辑上限（后端语义一致；超过则提示并截取前 50 张） */
+const BATCH_EDIT_LIMIT = 50
+
+/* ---------- 选择状态（照片流局部） ---------- */
 const selectedIds = ref(new Set<number>())
 
 function toggleSelect(id: number): void {
@@ -48,22 +51,46 @@ async function toggleAll(): Promise<void> {
     selectedIds.value = new Set()
     return
   }
+  // 失败即终止循环：loadMore 返回 false 时服务器不可用，
+  // 旧实现会 while(hasMore) 无限发请求
+  let failed = false
   while (photo.hasMore && !photo.loading) {
-    await photo.loadMore()
+    if (!(await photo.loadMore())) {
+      failed = true
+      break
+    }
   }
   selectedIds.value = new Set(photo.photos.map((p) => p.id))
+  if (failed) {
+    toast.error(t('gallery.loadFailed'))
+  }
 }
 
 function batchDelete(): void {
   if (selectedIds.value.size === 0) return
-  deletePhotos([...selectedIds.value])
-  selectedIds.value = new Set()
+  Modal.confirm({
+    title: t('actions.delete'),
+    content: t('selection.batchDeleteConfirm', { n: selectedIds.value.size }),
+    okText: t('actions.delete'),
+    okButtonProps: { danger: true },
+    cancelText: t('actions.cancel'),
+    onOk: () => {
+      deletePhotos([...selectedIds.value])
+      selectedIds.value = new Set()
+    },
+  })
 }
 
 function batchEdit(): void {
   if (selectedIds.value.size === 0) return
   const selected = photo.photos.filter((p) => selectedIds.value.has(p.id))
   if (selected.length === 0) return
+  // 超过 50 张：提示并截取前 50 张（限制提前到进入时，避免提交时才报错）
+  if (selected.length > BATCH_EDIT_LIMIT) {
+    toast.info(t('batchEdit.tooMany'))
+    ui.batchEditPhotos = selected.slice(0, BATCH_EDIT_LIMIT)
+    return
+  }
   // 保留选择：取消弹窗不丢多选状态
   ui.batchEditPhotos = selected
 }
@@ -132,9 +159,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 /* ---------- 图片编辑器（裁剪/旋转，POST transform） ---------- */
 const editorPhoto = ref<Photo | null>(null)
 const editorSrc = computed(() =>
-  editorPhoto.value
-    ? `${webpUrl(editorPhoto.value.id)}${tokenParam(editorPhoto.value.fileSize)}`
-    : '',
+  editorPhoto.value ? appendMediaParams(webpUrl(editorPhoto.value.id), editorPhoto.value) : '',
 )
 
 function openImageEditor(p: Photo): void {
@@ -172,7 +197,7 @@ const showEmpty = computed(() => !photo.loading && !photo.hasMore && photo.photo
 </script>
 
 <template>
-  <section class="photos-view" aria-label="照片流">
+  <section class="photos-view" :aria-label="t('gallery.title')">
     <!-- 照片计数（克制的一行） -->
     <p v-if="photo.totalCount > 0" class="count-line">
       {{ t('gallery.count', { n: photo.totalCount }) }}
@@ -217,7 +242,6 @@ const showEmpty = computed(() => !photo.loading && !photo.hasMore && photo.photo
       @toggle-select="toggleSelect"
     />
 
-    <ShareDialog />
     <ImageEditor
       :src="editorSrc"
       :visible="!!editorPhoto"

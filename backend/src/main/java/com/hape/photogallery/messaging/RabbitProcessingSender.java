@@ -29,13 +29,9 @@ public class RabbitProcessingSender implements ProcessingMessageSender {
 
     @Override
     public void send(Long photoId, Path target, String dateDir, String baseName, String watermark) {
-        // 转 Path → String（Path 不可序列化）
-        String targetPath = target.toString();
-        // 截取相对路径（去掉 upload-dir 前缀），consumer 端拼接完整路径
-        // 这里直接用 target.toString() 会包含完整路径，需要在 consumer 端用 storageService 解析。
-        // 简单处理：取 fileName 作为相对路径标识，consumer 用 photo.fileName 找到文件。
-
-        ProcessingMessage msg = new ProcessingMessage(photoId, targetPath, dateDir, baseName, watermark);
+        // target 仅供 dev 的 AsyncImageProcessor 使用；消息体只带 photoId，
+        // consumer 端通过 photo.fileName 定位文件（targetPath 曾把服务器绝对路径塞进消息，已移除）
+        ProcessingMessage msg = new ProcessingMessage(photoId, dateDir, baseName, watermark);
 
         // 传播 traceId
         String traceId = MDC.get("traceId");

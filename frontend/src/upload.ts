@@ -5,6 +5,24 @@ const MAX_DIM = 1920
 const JPEG_QUALITY = 0.85
 const COMPRESS_SIZE_THRESHOLD = 1024 * 1024 // 1MB
 
+/**
+ * 检测画布是否含透明像素。
+ * 用于决定压缩编码：透明图必须保持 PNG——JPEG 会把透明像素填成黑色，
+ * 旧实现曾把带 alpha 的 PNG/WebP 永久压成黑底 JPEG 且扩展名与内容不符。
+ * 输出用 PNG 而非 WebP：后端 ImageIO 无法解码 WebP 原图，处理链会标 FAILED。
+ */
+export function hasTransparentPixels(
+  canvas: HTMLCanvasElement,
+  ctx: CanvasRenderingContext2D,
+): boolean {
+  const { width, height } = canvas
+  const data = ctx.getImageData(0, 0, width, height).data
+  for (let i = 3; i < data.length; i += 4) {
+    if (data[i] < 255) return true
+  }
+  return false
+}
+
 export function compressImage(file: File): Promise<File> {
   // 非图片、GIF、JPEG 不做客户端压缩，保留原始数据（尤其 JPEG 的 EXIF）
   if (!file.type.startsWith('image/')) return Promise.resolve(file)
@@ -44,16 +62,20 @@ export function compressImage(file: File): Promise<File> {
       const ctx = canvas.getContext('2d')!
       ctx.drawImage(img, 0, 0, w, h)
 
+      // 透明图保持 PNG 编码（JPEG 会填黑并永久丢失 alpha）
+      const outType = hasTransparentPixels(canvas, ctx) ? 'image/png' : 'image/jpeg'
+      const outQuality = outType === 'image/jpeg' ? JPEG_QUALITY : undefined
+
       canvas.toBlob(
         (blob) => {
           if (!blob || blob.size >= file.size) {
             resolve(file)
             return
           }
-          resolve(new File([blob], file.name, { type: 'image/jpeg' }))
+          resolve(new File([blob], file.name, { type: outType }))
         },
-        'image/jpeg',
-        JPEG_QUALITY,
+        outType,
+        outQuality,
       )
     }
 
@@ -105,8 +127,9 @@ export function uploadWithProgress(
       resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, data })
     }
 
-    xhr.onerror = () => reject(new Error('网络错误'))
-    xhr.ontimeout = () => reject(new Error('上传超时'))
+    xhr.timeout = 60_000
+    xhr.onerror = () => reject(new Error(i18n.global.t('common.networkError')))
+    xhr.ontimeout = () => reject(new Error(i18n.global.t('upload.timeout')))
     xhr.send(formData)
   })
 }

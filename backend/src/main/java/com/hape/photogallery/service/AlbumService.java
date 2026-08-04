@@ -3,8 +3,10 @@ package com.hape.photogallery.service;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
+import com.hape.photogallery.dto.AlbumResponse;
 import com.hape.photogallery.entity.Album;
 import com.hape.photogallery.entity.Photo;
 import com.hape.photogallery.exception.BusinessException;
@@ -21,6 +23,10 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AlbumService {
 
+    // evict 对照表（聚合根 → 依赖缓存）：
+    //   addPhotos/removePhotos 会改 coverPhotoId（首次加入设封面 / 移除封面照片）→ albums 列表
+    //   展示的封面会变，必须连带失效 albums（曾只 evict photos，封面最长 30s 显示旧图）
+    //   syncPhotoAlbums 无自 evict，依赖 PhotoService.update 的 4-5 缓存 evict 兜底——收紧 update 清单时勿忘
     private final AlbumRepository albumRepo;
     private final PhotoRepository photoRepo;
 
@@ -30,13 +36,19 @@ public class AlbumService {
     }
 
     @Cacheable("albums")
-    public List<Album> listAll() {
-        return albumRepo.findAll();
+    public List<AlbumResponse> listAll() {
+        // P4-#38：photoCount 用一次分组查询填充，不触发 getPhotoCount() 的整集合懒加载
+        Map<Long, Integer> counts = photoRepo.countByAlbum().stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        row -> (Long) row[0], row -> ((Number) row[1]).intValue()));
+        return albumRepo.findAll().stream()
+                .map(a -> AlbumResponse.from(a, counts.getOrDefault(a.getId(), 0)))
+                .toList();
     }
 
     @CacheEvict(value = {"albums", "photos"}, allEntries = true)
     @Transactional
-    public Album create(String name, String description, List<Long> photoIds) {
+    public AlbumResponse create(String name, String description, List<Long> photoIds) {
         Album a = new Album(name);
         a.setDescription(description);
         a = albumRepo.save(a);
@@ -53,12 +65,13 @@ public class AlbumService {
                 albumRepo.save(a);
             }
         }
-        return a;
+        // photoCount 用实际加载数（findAllById 过滤不存在/已删 id），与现状 getPhotoCount() 一致（P4-#38）
+        return AlbumResponse.from(a, a.getPhotos().size());
     }
 
     @CacheEvict(value = {"albums", "photos"}, allEntries = true)
     @Transactional
-    public Album update(Long id, String name, String description, List<Long> photoIds) {
+    public AlbumResponse update(Long id, String name, String description, List<Long> photoIds) {
         Album a = albumRepo.findById(id).orElseThrow(() -> new BusinessException(404, "相册不存在"));
         if (name != null) a.setName(name);
         if (description != null) a.setDescription(description);
@@ -85,7 +98,8 @@ public class AlbumService {
                 a.setCoverPhotoId(null);
             }
         }
-        return albumRepo.save(a);
+        albumRepo.save(a);
+        return AlbumResponse.from(a, a.getPhotos().size());
     }
 
     @Transactional
@@ -105,8 +119,11 @@ public class AlbumService {
         albumRepo.save(a);
     }
 
-    public List<Album> listDeleted() {
-        return albumRepo.findDeleted();
+    /** 回收站相册（P4-#38 已 DTO 化；分组计数不含已删相册，photoCount 一律 0——回收站 UI 不显示计数） */
+    public List<AlbumResponse> listDeleted() {
+        return albumRepo.findDeleted().stream()
+                .map(a -> AlbumResponse.from(a, 0))
+                .toList();
     }
 
     @Transactional
@@ -127,12 +144,18 @@ public class AlbumService {
         return photoRepo.findByAlbumId(albumId, pageable);
     }
 
+    /** 相册内照片 id 列表（轻量投影，编辑抽屉预选初始化用） */
+    public List<Long> listPhotoIds(Long albumId) {
+        albumRepo.findById(albumId).orElseThrow(() -> new BusinessException(404, "相册不存在"));
+        return photoRepo.findPhotoIdsByAlbumId(albumId);
+    }
+
     public Page<Photo> listUnassigned(Pageable pageable) {
         return photoRepo.findUnassigned(pageable);
     }
 
     @Transactional
-    @CacheEvict(value = "photos", allEntries = true)
+    @CacheEvict(value = {"photos", "albums"}, allEntries = true)
     public void addPhotos(Long albumId, List<Long> photoIds) {
         Album a = albumRepo.findById(albumId).orElseThrow(() -> new BusinessException(404, "相册不存在"));
         for (Long pid : photoIds) {
@@ -150,7 +173,7 @@ public class AlbumService {
     }
 
     @Transactional
-    @CacheEvict(value = "photos", allEntries = true)
+    @CacheEvict(value = {"photos", "albums"}, allEntries = true)
     public void removePhotos(Long albumId, List<Long> photoIds) {
         Album a = albumRepo.findById(albumId).orElseThrow(() -> new BusinessException(404, "相册不存在"));
         for (Long pid : photoIds) {

@@ -17,6 +17,8 @@ export const useUiStore = defineStore('ui', () => {
   const uploadOpen = ref(false)
   /** 筛选面板 */
   const filterOpen = ref(false)
+  /** 相册模式搜索词（与照片模式的 photo.searchQuery 各自独立） */
+  const albumSearch = ref('')
   /** 帮助弹窗 */
   const helpOpen = ref(false)
   const showBackTop = ref(false)
@@ -52,6 +54,20 @@ export const useUiStore = defineStore('ui', () => {
     viewPhotos.value = []
   }
 
+  /**
+   * 查看器内删除照片：从快照移除并导航到同一位置的下一张（或关闭）。
+   * 删除状态统一由 store 负责，组件只触发动作、不做自己的导航逻辑。
+   */
+  function removeViewerPhoto(id: number): void {
+    const idx = viewPhotos.value.findIndex((p) => p.id === id)
+    if (idx === -1) return
+    viewPhotos.value = viewPhotos.value.filter((p) => p.id !== id)
+    if (viewPhoto.value && viewPhoto.value.id === id) {
+      const next = viewPhotos.value[Math.min(idx, viewPhotos.value.length - 1)] ?? null
+      viewPhoto.value = next
+    }
+  }
+
   function toggleSlideshow(): void {
     slideshowPlaying.value = !slideshowPlaying.value
   }
@@ -82,6 +98,7 @@ export const useUiStore = defineStore('ui', () => {
     batchEditPhotos,
     uploadOpen,
     filterOpen,
+    albumSearch,
     helpOpen,
     showBackTop,
     unlocked,
@@ -91,6 +108,7 @@ export const useUiStore = defineStore('ui', () => {
     setToken,
     openViewer,
     closeViewer,
+    removeViewerPhoto,
     toggleSlideshow,
     navigateViewer,
   }

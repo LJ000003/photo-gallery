@@ -28,15 +28,24 @@ function mountTile(props: Record<string, unknown> = {}) {
 }
 
 describe('PhotoTile', () => {
-  it('渲染照片名称与缩略图 URL（带 token 参数）', () => {
+  it('渲染照片名称与缩略图 URL（优先短时签名，& 拼接不产生双问号）', () => {
     localStorage.setItem('jwt_token', 'test-token')
-    const wrapper = mountTile()
+    const wrapper = mountTile({ photo: mkPhoto({ mediaToken: 'MTIz.NDU2.YWJj' }) })
     const img = wrapper.find('img.tile-img')
     expect(img.exists()).toBe(true)
-    expect(img.attributes('src')).toContain('/api/v1/photos/1/thumbnail')
-    expect(img.attributes('src')).toContain('token=test-token')
+    expect(img.attributes('src')).toBe(
+      '/api/v1/photos/1/thumbnail?w=400&sig=MTIz.NDU2.YWJj',
+    )
+    expect(img.attributes('src')).not.toContain('token=test-token')
+    expect(img.attributes('src')).not.toContain('?w=400?sig')
     expect(img.attributes('alt')).toBe('海边日落')
     localStorage.clear()
+  })
+
+  it('photo 无 mediaToken 时回退显式 token prop（分享页，同样 & 拼接）', () => {
+    const wrapper = mountTile({ token: 'share-jwt' })
+    const img = wrapper.find('img.tile-img')
+    expect(img.attributes('src')).toBe('/api/v1/photos/1/thumbnail?w=400&token=share-jwt')
   })
 
   it('点击图片区域触发 view 事件', async () => {

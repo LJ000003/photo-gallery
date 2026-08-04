@@ -7,6 +7,7 @@ import com.hape.photogallery.dto.BackupExportRequest;
 import com.hape.photogallery.entity.Album;
 import com.hape.photogallery.entity.Category;
 import com.hape.photogallery.entity.Photo;
+import com.hape.photogallery.entity.ProcessingStatus;
 import com.hape.photogallery.entity.Tag;
 import com.hape.photogallery.exception.BusinessException;
 import com.hape.photogallery.repository.AlbumRepository;
@@ -15,9 +16,6 @@ import com.hape.photogallery.repository.PhotoRepository;
 import com.hape.photogallery.repository.TagRepository;
 import com.hape.photogallery.service.BackupService.BackupBundle;
 
-import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
-import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
-import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -34,13 +32,15 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * 备份导出集成测试：真实 repository（H2）+ 真实 LocalStorageService（临时目录）。
- * collect() 事务内懒加载初始化 + findForBackup 筛选；writeTo() 产出可解包的 tar.gz。
+ * collect() 事务内懒加载初始化 + findForBackup 筛选；writeTo() 产出可解包的 zip。
  */
 @DataJpaTest
 class BackupServiceTest {
@@ -62,7 +62,8 @@ class BackupServiceTest {
         ObjectMapper mapper = new ObjectMapper()
                 .registerModule(new JavaTimeModule())
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-        service = new BackupService(photoRepo, tagRepo, catRepo, albumRepo, storage, mapper);
+        service = new BackupService(photoRepo, tagRepo, catRepo, albumRepo, storage, mapper,
+                tempDir.resolve("backup-cache").toString());
 
         // 真实文件 + 元数据：p1 带分类/标签/相册，p2 无关联
         Path dir = Files.createDirectories(tempDir.resolve("2024/01"));
@@ -82,7 +83,7 @@ class BackupServiceTest {
         p1.setFileSize(5L);
         p1.setContentType("image/jpeg");
         p1.setCreatedAt(LocalDateTime.of(2026, 7, 15, 10, 0));
-        p1.setProcessingStatus("DONE");
+        p1.setProcessingStatus(ProcessingStatus.DONE);
         p1.setFileHash("abc123");
         p1.setCategory(cat);
         p1.getTags().add(tag);
@@ -99,17 +100,16 @@ class BackupServiceTest {
         p2.setName("照片B");
         p2.setFileName("2024/01/uuid_b.jpg");
         p2.setCreatedAt(LocalDateTime.of(2026, 7, 20, 12, 0));
-        p2.setProcessingStatus("DONE");
+        p2.setProcessingStatus(ProcessingStatus.DONE);
         photoRepo.save(p2);
     }
 
-    private Map<String, byte[]> unpack(byte[] tarGz) throws IOException {
+    private Map<String, byte[]> unpack(byte[] zipBytes) throws IOException {
         Map<String, byte[]> entries = new HashMap<>();
-        try (TarArchiveInputStream tar = new TarArchiveInputStream(
-                new GzipCompressorInputStream(new ByteArrayInputStream(tarGz)))) {
-            TarArchiveEntry entry;
-            while ((entry = tar.getNextEntry()) != null) {
-                entries.put(entry.getName(), tar.readAllBytes());
+        try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(zipBytes))) {
+            ZipEntry entry;
+            while ((entry = zip.getNextEntry()) != null) {
+                entries.put(entry.getName(), zip.readAllBytes());
             }
         }
         return entries;
@@ -180,7 +180,7 @@ class BackupServiceTest {
     // ==================== writeTo ====================
 
     @Test
-    void writeTo_shouldProduceTarGzWithMetadataAndFiles() throws IOException {
+    void writeTo_shouldProduceZipWithMetadataAndFiles() throws IOException {
         BackupBundle bundle = service.collect(new BackupExportRequest());
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         service.writeTo(out, bundle);
@@ -227,5 +227,50 @@ class BackupServiceTest {
         Map<String, byte[]> entries = unpack(out.toByteArray());
         String metadata = new String(entries.get("database/metadata.json"));
         assertThat(metadata).contains("\"categoryId\":" + p1.getCategory().getId());
+    }
+
+    // ==================== 预生成缓存 ====================
+
+    @Test
+    void isCacheFresh_withoutCache_shouldBeFalse() {
+        assertThat(service.isCacheFresh()).isFalse();
+    }
+
+    @Test
+    void updateCache_shouldMakeCacheFreshAndWritable() throws IOException {
+        BackupBundle bundle = service.collect(new BackupExportRequest());
+        service.updateCache(bundle);
+
+        // 指纹一致 → 缓存新鲜
+        assertThat(service.isCacheFresh()).isTrue();
+        // 缓存文件真实存在且可解包
+        assertThat(Files.isRegularFile(service.getCacheFile())).isTrue();
+        Map<String, byte[]> entries = unpack(Files.readAllBytes(service.getCacheFile()));
+        assertThat(entries).containsKey("database/photos.json");
+        assertThat(entries).containsKey("photos/2024/01/uuid_a.jpg");
+    }
+
+    @Test
+    void updateCache_thenAddPhoto_shouldNotBeFresh() throws IOException {
+        BackupBundle bundle = service.collect(new BackupExportRequest());
+        service.updateCache(bundle);
+        assertThat(service.isCacheFresh()).isTrue();
+
+        // 新照片上传 → 指纹变化 → 缓存过期
+        Photo p3 = new Photo();
+        p3.setName("照片C");
+        p3.setFileName("2024/01/uuid_c.jpg");
+        p3.setCreatedAt(LocalDateTime.now());
+        p3.setProcessingStatus(ProcessingStatus.DONE);
+        photoRepo.save(p3);
+
+        assertThat(service.isCacheFresh()).isFalse();
+    }
+
+    @Test
+    void generateCachedBackup_shouldCreateCacheFile() throws IOException {
+        assertThat(service.generateCachedBackup()).isTrue();
+        assertThat(Files.isRegularFile(service.getCacheFile())).isTrue();
+        assertThat(service.isCacheFresh()).isTrue();
     }
 }

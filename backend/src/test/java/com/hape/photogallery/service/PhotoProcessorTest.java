@@ -9,6 +9,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 
 import java.awt.image.BufferedImage;
 import java.nio.file.Files;
@@ -24,6 +26,7 @@ class PhotoProcessorTest {
     @Mock private PhotoRepository photoRepo;
     @Mock private ImageProcessingService imageService;
     @Mock private ExifService exifService;
+    @Mock private CacheManager cacheManager;
 
     private PhotoProcessor processor;
 
@@ -31,7 +34,7 @@ class PhotoProcessorTest {
 
     @BeforeEach
     void setUp() {
-        processor = new PhotoProcessor(photoRepo, imageService, exifService);
+        processor = new PhotoProcessor(photoRepo, imageService, exifService, cacheManager);
     }
 
     @Test
@@ -41,6 +44,40 @@ class PhotoProcessorTest {
         processor.process(1L, tempDir.resolve("nope.jpg"), "2024/08", "nope.jpg", null);
 
         verify(photoRepo, never()).save(any());
+    }
+
+    @Test
+    void process_failure_shouldManuallyEvictListCaches() throws Exception {
+        Photo photo = new Photo();
+        photo.setId(1L);
+        when(photoRepo.findById(1L)).thenReturn(Optional.of(photo));
+        // 解码返回 null → 走「无法解码」分支：save FAILED 后正常 return（后置 @CacheEvict 生效）
+        Path target = tempDir.resolve("bad.jpg");
+        Files.writeString(target, "not an image");
+
+        processor.process(1L, target, "2024/08", "bad.jpg", null);
+
+        verify(photoRepo, times(1)).save(any(Photo.class));
+    }
+
+    @Test
+    void process_throwable_shouldManuallyEvictListCaches() throws Exception {
+        Photo photo = new Photo();
+        photo.setId(1L);
+        when(photoRepo.findById(1L)).thenReturn(Optional.of(photo));
+        // 合法图片 → 流程走到 autoRotateIfNeeded 才抛异常（否则 ImageIO 解码失败走「无法解码」分支）
+        BufferedImage img = new BufferedImage(100, 100, BufferedImage.TYPE_INT_RGB);
+        Path target = tempDir.resolve("x.jpg");
+        javax.imageio.ImageIO.write(img, "jpg", target.toFile());
+        when(imageService.autoRotateIfNeeded(any(), any())).thenThrow(new RuntimeException("boom"));
+        Cache cache = mock(Cache.class);
+        when(cacheManager.getCache("photos")).thenReturn(cache);
+
+        org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                () -> processor.process(1L, target, "2024/08", "x.jpg", null));
+
+        // 失败路径手动清缓存（@CacheEvict 后置在异常时不生效）
+        verify(cacheManager, times(1)).getCache("photos");
     }
 
     @Test

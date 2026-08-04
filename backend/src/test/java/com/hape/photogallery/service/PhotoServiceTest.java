@@ -5,11 +5,14 @@ import com.hape.photogallery.dto.MapItem;
 import com.hape.photogallery.dto.PhotoResponse;
 import com.hape.photogallery.dto.PhotoUpdateRequest;
 import com.hape.photogallery.dto.TimelineItem;
+import com.hape.photogallery.dto.UploadParams;
 import com.hape.photogallery.entity.Category;
 import com.hape.photogallery.entity.ExifData;
 import com.hape.photogallery.entity.Photo;
+import com.hape.photogallery.entity.ProcessingStatus;
 import com.hape.photogallery.entity.Tag;
 import com.hape.photogallery.exception.BusinessException;
+import com.hape.photogallery.exception.DuplicateException;
 import com.hape.photogallery.exception.FileSizeExceededException;
 import com.hape.photogallery.messaging.ProcessingMessageSender;
 import com.hape.photogallery.repository.CategoryRepository;
@@ -30,7 +33,10 @@ import org.springframework.data.domain.Sort;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -42,6 +48,7 @@ import java.util.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -62,6 +69,9 @@ class PhotoServiceTest {
     @Mock private StorageService storage;
     @Mock private ProcessingMessageSender processingSender;
     @Mock private TransactionTemplate transactionTemplate;
+    @Mock private javax.sql.DataSource dataSource;
+    @Mock private java.sql.Connection connection;
+    @Mock private java.sql.DatabaseMetaData metaData;
 
     @TempDir Path tempDir;
 
@@ -95,8 +105,34 @@ class PhotoServiceTest {
             return null;
         }).when(storage).deleteFile(any());
 
+        // upload/batchUpload/transform 走 transactionTemplate：桩执行真实回调，
+        // mock TransactionStatus 防止回调内 setRollbackOnly()/isRollbackOnly() 对 null NPE（P4-#46）
+        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
+            @SuppressWarnings("unchecked")
+            TransactionCallback<Object> cb = inv.getArgument(0);
+            return cb.doInTransaction(mock(TransactionStatus.class));
+        });
+
         service = new PhotoService(photoRepo, tagRepo, catRepo, exifRepo, exifService,
-                imageService, albumService, storage, processingSender, transactionTemplate);
+                imageService, albumService, storage, processingSender, transactionTemplate,
+                new com.hape.photogallery.config.MediaSignatureService(
+                        "test-secret-0123456789abcdef0123456789abcdef", 300),
+                new FilePathResolver(photoRepo, storage), null);
+    }
+
+    /**
+     * 构造 DataSource 报告指定数据库产品的 service（FULLTEXT 支持探测用）。
+     * 默认 service 的 dataSource 为 null → 按「支持 FULLTEXT」处理（保持 MySQL 语义）。
+     */
+    private PhotoService serviceWithDbProduct(String productName) throws Exception {
+        when(dataSource.getConnection()).thenReturn(connection);
+        when(connection.getMetaData()).thenReturn(metaData);
+        when(metaData.getDatabaseProductName()).thenReturn(productName);
+        return new PhotoService(photoRepo, tagRepo, catRepo, exifRepo, exifService,
+                imageService, albumService, storage, processingSender, transactionTemplate,
+                new com.hape.photogallery.config.MediaSignatureService(
+                        "test-secret-0123456789abcdef0123456789abcdef", 300),
+                new FilePathResolver(photoRepo, storage), dataSource);
     }
 
     // ==================== listAll ====================
@@ -214,6 +250,45 @@ class PhotoServiceTest {
         verify(photoRepo).search("海边", PageRequest.of(0, 20));
     }
 
+    // ==================== 非 MySQL 数据库退化为 LIKE（H2 无 MATCH...AGAINST，硬走 FULLTEXT 会 500） ====================
+
+    @Test
+    void search_onH2_shouldFallbackToLike() throws Exception {
+        PhotoService h2 = serviceWithDbProduct("H2");
+        when(photoRepo.searchByLike(eq("%cat%"), any())).thenReturn(new PageImpl<>(List.of()));
+        h2.search("cat", null, null, PageRequest.of(0, 20));
+        verify(photoRepo).searchByLike("%cat%", PageRequest.of(0, 20));
+        verify(photoRepo, never()).search(any(), any());
+    }
+
+    @Test
+    void search_onH2_withFilters_shouldUseLikeVariants() throws Exception {
+        PhotoService h2 = serviceWithDbProduct("H2");
+        when(photoRepo.searchByLikeWithTagIds(eq("%cat%"), eq(List.of(1L)), any()))
+                .thenReturn(new PageImpl<>(List.of()));
+        h2.search("cat", List.of(1L), null, PageRequest.of(0, 20));
+        verify(photoRepo).searchByLikeWithTagIds("%cat%", List.of(1L), PageRequest.of(0, 20));
+
+        when(photoRepo.searchByLikeWithCategoryIds(eq("%cat%"), eq(List.of(2L)), any()))
+                .thenReturn(new PageImpl<>(List.of()));
+        h2.search("cat", null, List.of(2L), PageRequest.of(0, 20));
+        verify(photoRepo).searchByLikeWithCategoryIds("%cat%", List.of(2L), PageRequest.of(0, 20));
+
+        when(photoRepo.searchByLikeWithTagAndCategoryIds(eq("%cat%"), eq(List.of(1L)), eq(List.of(2L)), any()))
+                .thenReturn(new PageImpl<>(List.of()));
+        h2.search("cat", List.of(1L), List.of(2L), PageRequest.of(0, 20));
+        verify(photoRepo).searchByLikeWithTagAndCategoryIds("%cat%", List.of(1L), List.of(2L), PageRequest.of(0, 20));
+    }
+
+    @Test
+    void search_onMySQL_shouldKeepFulltext() throws Exception {
+        PhotoService mysql = serviceWithDbProduct("MySQL");
+        when(photoRepo.search(eq("cat"), any())).thenReturn(new PageImpl<>(List.of()));
+        mysql.search("cat", null, null, PageRequest.of(0, 20));
+        verify(photoRepo).search("cat", PageRequest.of(0, 20));
+        verify(photoRepo, never()).searchByLike(any(), any());
+    }
+
     // ==================== FULLTEXT 运算符剥离（P0-3） ====================
 
     @Test
@@ -327,11 +402,11 @@ class PhotoServiceTest {
         });
         when(tagRepo.findAllById(any())).thenReturn(List.of());
 
-        Photo result = service.upload(file, "test", "desc", List.of(1L), 5L, "watermark");
+        Photo result = service.upload(file, new UploadParams("test", "desc", List.of(1L), 5L, "watermark"));
 
         assertThat(result.getId()).isEqualTo(1L);
         assertThat(result.getName()).isEqualTo("test");
-        assertThat(result.getProcessingStatus()).isEqualTo("PROCESSING");
+        assertThat(result.getProcessingStatus()).isEqualTo(ProcessingStatus.PROCESSING);
         verify(photoRepo).save(any());
         verify(imageService).validateImageMagicBytes(any());
         // 图片处理已移至异步执行
@@ -341,7 +416,7 @@ class PhotoServiceTest {
     @Test
     void upload_fileTooLarge_shouldThrow() {
         MockMultipartFile file = new MockMultipartFile("file", "big.jpg", "image/jpeg", new byte[11 * 1024 * 1024]);
-        assertThatThrownBy(() -> service.upload(file, "big", null, null, null, null))
+        assertThatThrownBy(() -> service.upload(file, new UploadParams("big", null, null, null, null)))
                 .isInstanceOf(FileSizeExceededException.class)
                 .hasMessageContaining("10MB");
     }
@@ -356,7 +431,7 @@ class PhotoServiceTest {
         });
         when(tagRepo.findAllById(any())).thenReturn(List.of());
 
-        Photo result = service.upload(file, "test", null, null, null, null);
+        Photo result = service.upload(file, new UploadParams("test", null, null, null, null));
 
         // 存储路径必须被消毒：不含 .. 且落在上传目录内
         verify(storage).store(any(MultipartFile.class), argThat(target -> {
@@ -377,6 +452,37 @@ class PhotoServiceTest {
     }
 
     @Test
+    void upload_concurrentDuplicate_shouldReturnExistingPhotoAndCleanupFile() throws IOException {
+        // 并发同 hash 上传：check-then-insert 竞态撞唯一索引 → 删残留文件 + 重查返回 DuplicateException（P4-#42）
+        // 第一次调用是事务内查重（返回空、正常进入插入），save 抛唯一索引冲突后外层重查返回已有照片
+        MockMultipartFile file = new MockMultipartFile("file", "dup.jpg", "image/jpeg", JPEG_BYTES);
+        when(photoRepo.save(any(Photo.class))).thenThrow(new DataIntegrityViolationException("dup key"));
+        Photo existing = new Photo();
+        existing.setId(99L);
+        existing.setName("existing");
+        existing.setProcessingStatus(ProcessingStatus.DONE);
+        when(photoRepo.findWithDetailsByFileHash(any()))
+                .thenReturn(Optional.empty(), Optional.of(existing));
+
+        assertThatThrownBy(() -> service.upload(file, new UploadParams("test", null, null, null, null)))
+                .isInstanceOf(DuplicateException.class)
+                .satisfies(e -> assertThat(((DuplicateException) e).getExisting().getId()).isEqualTo(99L));
+        // 竞态失败路径必须清理已落盘文件，避免孤儿文件（内层 catch + 外层安全网共 2 次，幂等）
+        verify(storage, atLeastOnce()).deleteFile(any());
+    }
+
+    @Test
+    void upload_concurrentDuplicate_requeryMiss_shouldRethrow() throws IOException {
+        // 唯一索引冲突但重查无结果（理论不可能，防御性）：原样抛出，不吞异常
+        MockMultipartFile file = new MockMultipartFile("file", "dup.jpg", "image/jpeg", JPEG_BYTES);
+        when(photoRepo.save(any(Photo.class))).thenThrow(new DataIntegrityViolationException("dup key"));
+        when(photoRepo.findWithDetailsByFileHash(any())).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.upload(file, new UploadParams("test", null, null, null, null)))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
     void upload_emptyName_shouldUseOriginalFileName() throws IOException {
         MockMultipartFile file = new MockMultipartFile("file", "original.jpg", "image/jpeg", JPEG_BYTES);
         when(photoRepo.save(any(Photo.class))).thenAnswer(inv -> {
@@ -386,7 +492,7 @@ class PhotoServiceTest {
         });
         when(exifService.extractAndSave(any(), any())).thenReturn(null);
 
-        Photo result = service.upload(file, null, null, null, null, null);
+        Photo result = service.upload(file, new UploadParams(null, null, null, null, null));
         assertThat(result.getName()).isEqualTo("original.jpg");
     }
 
@@ -401,7 +507,7 @@ class PhotoServiceTest {
         });
         when(exifService.extractAndSave(any(), any())).thenReturn(null);
 
-        List<Photo> results = service.batchUpload(List.of(f1, f2), "batch", null, null, null, null);
+        List<Photo> results = service.batchUpload(List.of(f1, f2), new UploadParams("batch", null, null, null, null));
         assertThat(results).hasSize(2);
     }
 
@@ -487,23 +593,7 @@ class PhotoServiceTest {
         verify(photoRepo, never()).save(any());
     }
 
-    // ==================== transform ====================
-
-    @Test
-    void transform_corruptImage_shouldThrow400() throws IOException {
-        Path filePath = tempDir.resolve("2026/07/bad.jpg");
-        Files.createDirectories(filePath.getParent());
-        Files.write(filePath, "not an image at all".getBytes());
-
-        Photo p = new Photo(); p.setId(1L); p.setName("bad");
-        p.setFileName("2026/07/bad.jpg");
-        when(photoRepo.findById(1L)).thenReturn(Optional.of(p));
-
-        assertThatThrownBy(() -> service.transformPhoto(1L, 90, "none", null, null, null, null))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("无法处理");
-        verify(photoRepo, never()).save(any());
-    }
+    // ==================== transform（P4-#37 已拆至 PhotoTransformService，测试见 PhotoTransformServiceTest） ====================
 
     // ==================== delete ====================
 
@@ -759,14 +849,28 @@ class PhotoServiceTest {
         assertThat(items.get(0).getLongitude()).isNotEqualTo(116.4);
     }
 
-    // ==================== extractExif ====================
-
     @Test
-    void extractExifForExisting_shouldProcessAllPhotos() {
-        when(photoRepo.findAll(any(PageRequest.class))).thenReturn(Page.empty());
-        int count = service.extractExifForExisting();
-        assertThat(count).isEqualTo(0);
+    void getMapPhotos_shouldIncludeMediaToken() {
+        // 回归：内联 MapItem.from 会漏掉短时签名，前端 popup 缩略图 401
+        ExifData e = new ExifData();
+        e.setLatitude(39.9); e.setLongitude(116.4);
+        Photo p = new Photo(); p.setId(10L); p.setName("map1");
+        e.setPhoto(p);
+        when(exifRepo.findWithGpsInBounds(anyDouble(), anyDouble(), anyDouble(), anyDouble(),
+                any(PageRequest.class))).thenReturn(List.of(e));
+
+        List<MapItem> items = service.getMapPhotos(30.0, 100.0, 50.0, 130.0);
+        assertThat(items).hasSize(1);
+        assertThat(items.get(0).getMediaToken()).isNotBlank();
+        // 签名能通过校验且绑定 photoId
+        long verified = new com.hape.photogallery.config.MediaSignatureService(
+                "test-secret-0123456789abcdef0123456789abcdef", 300)
+                .verify(items.get(0).getMediaToken());
+        assertThat(verified).isEqualTo(10L);
     }
+
+    // ==================== extractExif ====================
+    // extractExifForExisting（批量）随迁移方法移至 MigrationService，测试见 MigrationServiceTest
 
     @Test
     void extractExifForPhoto_notFound_shouldReturnNull() {

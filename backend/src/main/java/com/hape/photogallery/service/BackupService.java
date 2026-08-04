@@ -13,12 +13,10 @@ import com.hape.photogallery.repository.CategoryRepository;
 import com.hape.photogallery.repository.PhotoRepository;
 import com.hape.photogallery.repository.TagRepository;
 
-import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
-import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
-import org.apache.commons.compress.compressors.gzip.GzipCompressorOutputStream;
 import org.hibernate.Hibernate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,19 +24,21 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 /**
- * 备份导出：筛选照片 → 收集元数据（事务内，懒加载初始化后转纯 DTO）→ 流式打包 tar.gz。
+ * 备份导出：筛选照片 → 收集元数据（事务内，懒加载初始化后转纯 DTO）→ 流式打包 zip。
  *
- * 打包结构（photo-gallery-backup-YYYY-MM-DD.tar.gz）：
+ * 打包结构（photo-gallery-backup-YYYY-MM-DD.zip）：
  * <pre>
  *   database/metadata.json    导出版本、时间、筛选参数、照片数
  *   database/photos.json      照片元数据（含 categoryId / tagIds / albumIds 关联）
@@ -51,6 +51,8 @@ import java.util.TreeSet;
  * - collect() 在请求线程同步执行：事务 + Hibernate.initialize 懒加载 + 空结果 400 快速失败，
  *   流式阶段（StreamingResponseBody 异步线程）只做文件 I/O，避免状态码已提交后无法改错误响应。
  * - 文件逐张流式复制，不落地临时文件、不占内存（照片量级再大也只是顺序读磁盘）。
+ * - 格式为 zip（java.util.zip，零第三方依赖）：通用解压器/压缩软件均支持，
+ *   替代早期 commons-compress 的 tar.gz。
  */
 @Service
 public class BackupService {
@@ -59,22 +61,29 @@ public class BackupService {
 
     public static final String METADATA_VERSION = "1.0";
 
+    /** 缓存 zip 固定文件名（下载时 Content-Disposition 用新鲜日期名） */
+    public static final String CACHE_FILENAME = "photo-gallery-backup-cache.zip";
+    public static final String FINGERPRINT_FILENAME = "fingerprint.json";
+
     private final PhotoRepository photoRepo;
     private final TagRepository tagRepo;
     private final CategoryRepository catRepo;
     private final AlbumRepository albumRepo;
     private final StorageService storage;
     private final ObjectMapper objectMapper;
+    private final Path backupDir;
 
     public BackupService(PhotoRepository photoRepo, TagRepository tagRepo,
                          CategoryRepository catRepo, AlbumRepository albumRepo,
-                         StorageService storage, ObjectMapper objectMapper) {
+                         StorageService storage, ObjectMapper objectMapper,
+                         @Value("${photo.backup-dir:${user.home}/photo-backups}") String backupDir) {
         this.photoRepo = photoRepo;
         this.tagRepo = tagRepo;
         this.catRepo = catRepo;
         this.albumRepo = albumRepo;
         this.storage = storage;
         this.objectMapper = objectMapper;
+        this.backupDir = Paths.get(backupDir).toAbsolutePath().normalize();
     }
 
     // === 元数据 DTO（纯数据，事务外安全使用） ===
@@ -86,7 +95,7 @@ public class BackupService {
         static BackupPhoto from(Photo p) {
             return new BackupPhoto(p.getId(), p.getName(), p.getDescription(), p.getFileName(),
                     p.getOriginalFileName(), p.getFileSize(), p.getContentType(), p.getCreatedAt(),
-                    p.getProcessingStatus(), p.getFileHash(),
+                    p.getProcessingStatus().name(), p.getFileHash(),
                     p.getCategory() != null ? p.getCategory().getId() : null,
                     p.getTags().stream().map(Tag::getId).sorted().toList(),
                     p.getAlbums().stream().map(Album::getId).sorted().toList());
@@ -170,64 +179,125 @@ public class BackupService {
     // === 打包 ===
 
     /**
-     * 将备份内容流式写入 tar.gz。照片文件缺失时跳过并记录 warn（磁盘与 DB 不一致的容错）。
-     * 目录条目先于文件写入，保证 Win11 原生 tar 等解压器兼容。
+     * 将备份内容流式写入 zip。照片文件缺失时跳过并记录 warn（磁盘与 DB 不一致的容错）。
+     * zip 的目录结构随条目隐式创建，无需显式目录条目。
      */
     public void writeTo(OutputStream out, BackupBundle bundle) throws IOException {
-        try (GzipCompressorOutputStream gz = new GzipCompressorOutputStream(out);
-             TarArchiveOutputStream tar = new TarArchiveOutputStream(gz)) {
-            tar.setLongFileMode(TarArchiveOutputStream.LONGFILE_GNU);
-
+        try (ZipOutputStream zip = new ZipOutputStream(out)) {
             BackupMetadata metadata = new BackupMetadata(METADATA_VERSION, bundle.exportedAt(),
                     bundle.photos().size(), bundle.filters());
-            writeJsonEntry(tar, "database/metadata.json", metadata);
-            writeJsonEntry(tar, "database/photos.json", bundle.photos());
-            writeJsonEntry(tar, "database/exif.json", bundle.exif());
-            writeJsonEntry(tar, "database/tags.json", bundle.tags());
-            writeJsonEntry(tar, "database/categories.json", bundle.categories());
-            writeJsonEntry(tar, "database/albums.json", bundle.albums());
+            writeJsonEntry(zip, "database/metadata.json", metadata);
+            writeJsonEntry(zip, "database/photos.json", bundle.photos());
+            writeJsonEntry(zip, "database/exif.json", bundle.exif());
+            writeJsonEntry(zip, "database/tags.json", bundle.tags());
+            writeJsonEntry(zip, "database/categories.json", bundle.categories());
+            writeJsonEntry(zip, "database/albums.json", bundle.albums());
 
-            // 收集存在的文件并写目录条目
-            Set<String> dirs = new TreeSet<>();
-            List<Path> files = new ArrayList<>();
             for (BackupPhoto photo : bundle.photos()) {
                 Path file = storage.resolveSafe(photo.fileName());
                 if (!Files.isRegularFile(file)) {
                     log.warn("备份跳过缺失文件: {}", photo.fileName());
                     continue;
                 }
-                files.add(file);
-                String rel = "photos/" + photo.fileName();
-                int slash = rel.lastIndexOf('/');
-                while (slash > 0) {
-                    dirs.add(rel.substring(0, slash));
-                    slash = rel.lastIndexOf('/', slash - 1);
-                }
-            }
-            for (String dir : dirs) {
-                TarArchiveEntry entry = new TarArchiveEntry(dir + "/");
-                tar.putArchiveEntry(entry);
-                tar.closeArchiveEntry();
-            }
-            for (Path file : files) {
                 String entryName = "photos/" + storage.getUploadDir().relativize(file).toString().replace('\\', '/');
-                TarArchiveEntry entry = new TarArchiveEntry(entryName);
-                entry.setSize(Files.size(file));
-                entry.setModTime(Files.getLastModifiedTime(file));
-                tar.putArchiveEntry(entry);
-                Files.copy(file, tar);
-                tar.closeArchiveEntry();
+                ZipEntry entry = new ZipEntry(entryName);
+                entry.setTime(Files.getLastModifiedTime(file).toMillis());
+                zip.putNextEntry(entry);
+                Files.copy(file, zip);
+                zip.closeEntry();
             }
-            tar.finish();
+            zip.finish();
         }
     }
 
-    private void writeJsonEntry(TarArchiveOutputStream tar, String name, Object value) throws IOException {
-        TarArchiveEntry entry = new TarArchiveEntry(name);
+    private void writeJsonEntry(ZipOutputStream zip, String name, Object value) throws IOException {
+        ZipEntry entry = new ZipEntry(name);
         byte[] bytes = objectMapper.writeValueAsBytes(value);
-        entry.setSize(bytes.length);
-        tar.putArchiveEntry(entry);
-        tar.write(bytes);
-        tar.closeArchiveEntry();
+        zip.putNextEntry(entry);
+        zip.write(bytes);
+        zip.closeEntry();
+    }
+
+    // === 预生成缓存（定时任务 + 导出时数据指纹比对） ===
+
+    /**
+     * 数据指纹：照片增删/恢复、标签/相册/分类计数变化都会改变指纹；
+     * 改名/改描述等低频编辑不覆盖（缓存最长滞后一个定时周期，可接受）。
+     */
+    public record BackupFingerprint(long photoCount, long maxPhotoId, LocalDateTime maxCreatedAt,
+                                    LocalDateTime maxDeletedAt,
+                                    long tagCount, long categoryCount, long albumCount) {
+
+        static BackupFingerprint current(PhotoRepository photoRepo, TagRepository tagRepo,
+                                         CategoryRepository catRepo, AlbumRepository albumRepo) {
+            // Spring Data 对 Object[] 返回类型会把每行包成元素：聚合查询实际返回 Object[1]{Object[3]}
+            Object[] agg = photoRepo.backupAggregate(); // [count, maxId, maxCreatedAt]
+            Object[] row = agg.length == 1 && agg[0] instanceof Object[] inner ? inner : agg;
+            // H2/MySQL 对 datetime 列的 MAX 返回类型不同（LocalDateTime / Timestamp），统一转换
+            Object created = row[2];
+            LocalDateTime maxCreatedAt = created == null ? null
+                    : created instanceof LocalDateTime ldt ? ldt
+                    : ((java.sql.Timestamp) created).toLocalDateTime();
+            return new BackupFingerprint(
+                    ((Number) row[0]).longValue(),
+                    row[1] != null ? ((Number) row[1]).longValue() : 0,
+                    maxCreatedAt,
+                    photoRepo.maxDeletedAt(),
+                    tagRepo.count(), catRepo.count(), albumRepo.count());
+        }
+    }
+
+    public Path getCacheFile() {
+        return backupDir.resolve(CACHE_FILENAME);
+    }
+
+    /** 数据指纹是否与缓存一致（一致 = 可直接下载缓存，免实时打包） */
+    public synchronized boolean isCacheFresh() {
+        try {
+            if (!Files.isRegularFile(getCacheFile()) || !Files.isRegularFile(backupDir.resolve(FINGERPRINT_FILENAME))) {
+                return false;
+            }
+            BackupFingerprint cached = objectMapper.readValue(
+                    backupDir.resolve(FINGERPRINT_FILENAME).toFile(), BackupFingerprint.class);
+            return cached.equals(BackupFingerprint.current(photoRepo, tagRepo, catRepo, albumRepo));
+        } catch (IOException e) {
+            log.warn("备份缓存指纹读取失败: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * 用当前数据刷新缓存：先写临时文件再原子 rename（避免下载到半写文件），随后更新指纹。
+     * 导出接口（全量）与定时任务共用。
+     */
+    public synchronized void updateCache(BackupBundle bundle) throws IOException {
+        Files.createDirectories(backupDir);
+        Path tmp = backupDir.resolve(CACHE_FILENAME + ".tmp");
+        try (OutputStream out = Files.newOutputStream(tmp)) {
+            writeTo(out, bundle);
+        }
+        Files.move(tmp, getCacheFile(), StandardCopyOption.REPLACE_EXISTING);
+        objectMapper.writeValue(backupDir.resolve(FINGERPRINT_FILENAME).toFile(),
+                BackupFingerprint.current(photoRepo, tagRepo, catRepo, albumRepo));
+        log.info("备份缓存已刷新: {}（{} 张照片）", getCacheFile(), bundle.photos().size());
+    }
+
+    /**
+     * 定时任务入口：重新收集全量备份并刷新缓存。空库/失败返回 false（不抛异常，避免调度线程中断）。
+     * 必须带事务：内部 this.collect() 自调用绕不过 @Transactional 代理，懒加载初始化依赖外层事务的会话。
+     * （文件 IO 在事务内——定时任务低频执行，可接受；用户导出路径不经过这里。）
+     */
+    @Transactional
+    public boolean generateCachedBackup() {
+        try {
+            updateCache(collect(new BackupExportRequest()));
+            return true;
+        } catch (BusinessException e) {
+            log.info("备份缓存跳过：{}", e.getMessage());
+            return false;
+        } catch (Exception e) {
+            log.warn("备份缓存生成失败: {}", e.getMessage());
+            return false;
+        }
     }
 }

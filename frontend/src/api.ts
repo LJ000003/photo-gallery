@@ -1,5 +1,6 @@
 import type { ApiResponse } from './types/api'
 import i18n from './i18n'
+import { logError } from './utils/logger'
 
 const BASE = '/api/v1'
 
@@ -48,8 +49,8 @@ export async function api(
 
   if (!res.ok) {
     const traceId = res.headers.get('X-Trace-Id') || headers['X-Trace-Id']
-    console.error(`[${traceId}] ${fetchOptions.method || 'GET'} ${url} → ${res.status}`)
-    let message = `请求失败（${res.status}）`
+    logError(`${fetchOptions.method || 'GET'} ${url} → ${res.status}`, `api ${traceId}`)
+    let message = i18n.global.t('common.requestFailed', { status: res.status })
     try {
       const body = await res.json()
       if (body.message) message = body.message

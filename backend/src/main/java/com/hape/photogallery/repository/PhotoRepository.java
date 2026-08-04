@@ -1,9 +1,11 @@
 package com.hape.photogallery.repository;
 
 import com.hape.photogallery.entity.Photo;
+import com.hape.photogallery.entity.ProcessingStatus;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -191,7 +193,19 @@ public interface PhotoRepository extends JpaRepository<Photo, Long> {
     Page<Photo> findDeleted(Pageable pageable);
 
     @Query("SELECT p FROM Photo p WHERE p.processingStatus = :status")
-    List<Photo> findByProcessingStatus(@Param("status") String status);
+    List<Photo> findByProcessingStatus(@Param("status") ProcessingStatus status);
+
+    /** 按文件哈希查详情（tags/albums/exifData 预取）——dedup 路径需要完整 DTO 序列化，
+     *  单行查询无分页风险，替代手工 eagerLoad hack（P4-#45） */
+    @EntityGraph(attributePaths = {"tags", "albums", "exifData"})
+    Optional<Photo> findWithDetailsByFileHash(String fileHash);
+
+    /**
+     * 各相册照片数（P4-#38）：一次分组查询替代 Album.getPhotoCount() 的整集合懒加载 N+1。
+     * @SQLRestriction 自动排除软删照片；已知局限：回收站相册不计已删照片（回收站 UI 不显示计数）。
+     */
+    @Query("SELECT a.id, COUNT(p.id) FROM Album a LEFT JOIN a.photos p GROUP BY a.id")
+    List<Object[]> countByAlbum();
 
     Optional<Photo> findByFileHash(String fileHash);
 
@@ -209,4 +223,35 @@ public interface PhotoRepository extends JpaRepository<Photo, Long> {
                               @Param("categoryId") Long categoryId,
                               @Param("dateFrom") LocalDateTime dateFrom,
                               @Param("dateTo") LocalDateTime dateTo);
+
+    /* ---------- 统计聚合（@SQLRestriction 自动排除软删除；JPQL YEAR/MONTH H2/MySQL 均兼容） ---------- */
+
+    @Query("SELECT COUNT(p) FROM Photo p")
+    long countAll();
+
+    @Query("SELECT COALESCE(SUM(p.fileSize), 0) FROM Photo p")
+    long sumFileSize();
+
+    /** 按月上传趋势：返回 [年, 月, 张数] 行，按时间升序 */
+    @Query("SELECT YEAR(p.createdAt), MONTH(p.createdAt), COUNT(p) FROM Photo p "
+            + "GROUP BY YEAR(p.createdAt), MONTH(p.createdAt) "
+            + "ORDER BY YEAR(p.createdAt), MONTH(p.createdAt)")
+    List<Object[]> countGroupedByMonth();
+
+    /** 热门标签：返回 [名称, 颜色, 照片数] 行，按照片数降序 */
+    @Query("SELECT t.name, t.color, COUNT(p.id) FROM Tag t JOIN t.photos p "
+            + "GROUP BY t.id ORDER BY COUNT(p.id) DESC")
+    List<Object[]> countByTag(Pageable pageable);
+
+    /** 相册内照片 id 列表（只投影主键列，零关系加载——相册选择器预选初始化用） */
+    @Query("SELECT p.id FROM Photo p JOIN p.albums a WHERE a.id = :albumId")
+    List<Long> findPhotoIdsByAlbumId(@Param("albumId") Long albumId);
+
+    /** 备份指纹聚合：[照片数, 最大 id, 最大创建时间]（@SQLRestriction 自动排除软删除） */
+    @Query("SELECT COUNT(p), MAX(p.id), MAX(p.createdAt) FROM Photo p")
+    Object[] backupAggregate();
+
+    /** 备份指纹：回收站最新删除时间（恢复操作会改变它，native 绕过 @SQLRestriction） */
+    @Query(nativeQuery = true, value = "SELECT MAX(deleted_at) FROM photos")
+    LocalDateTime maxDeletedAt();
 }

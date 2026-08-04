@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SpotBugs 排除清单（triage 后维护，见 v6-#28）：
+     1. EI_EXPOSE_REP/EI_EXPOSE_REP2/EI_EXPOSE_STATIC_REP2 —— Spring 构造注入把外部引用存入
+        字段必然触发，属系统性误报（实体 Set 集合 getter 同理，JPA 规范用法）；
+     2. CT_CONSTRUCTOR_THROW —— JwtService / ProdSecurityValidator 的构造器强校验是刻意
+        设计（启动即失败），非缺陷；
+     3. REC_CATCH_EXCEPTION —— ExifService.getOrientation 的 try 块抛 IOException /
+        ImageProcessingException / MetadataException 多种 checked 异常，防御性统一捕获
+        （失败仅影响方向读取，EXIF 提取非致命），SpotBugs 静态分析未识别 checked 异常链。
+     注：RV_RETURN_VALUE_IGNORED_NO_SIDE_EFFECT 条目已删除（v6-P4-#45）——eagerLoad 已移除、
+     recoverStuckProcessing 的懒加载触发改为赋值消费返回值。 -->
+<FindBugsFilter>
+    <Match>
+        <Bug pattern="EI_EXPOSE_REP, EI_EXPOSE_REP2, EI_EXPOSE_STATIC_REP2, CT_CONSTRUCTOR_THROW, REC_CATCH_EXCEPTION"/>
+    </Match>
+</FindBugsFilter>

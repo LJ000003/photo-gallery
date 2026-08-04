@@ -43,9 +43,11 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void handleInvalidFileType() {
+    void invalidFileType_shouldBeBusinessException400() {
+        // 异常体系统一后：InvalidFileTypeException 是 BusinessException(400)，由 handleBusiness 处理
         InvalidFileTypeException ex = new InvalidFileTypeException("不支持的文件类型");
-        ResponseEntity<ApiResponse<Void>> res = handler.handleInvalidFileType(ex);
+        assertThat(ex.getStatus()).isEqualTo(400);
+        ResponseEntity<ApiResponse<Void>> res = handler.handleBusiness(ex);
         assertThat(res.getStatusCode().value()).isEqualTo(400);
         assertThat(res.getBody().getMessage()).isEqualTo("不支持的文件类型");
     }
@@ -59,9 +61,11 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void handleFileSizeExceeded() {
+    void fileSizeExceeded_shouldBeBusinessException400() {
+        // 异常体系统一后：FileSizeExceededException 是 BusinessException(400)，由 handleBusiness 处理
         FileSizeExceededException ex = new FileSizeExceededException("文件过大");
-        ResponseEntity<ApiResponse<Void>> res = handler.handleFileSizeExceeded(ex);
+        assertThat(ex.getStatus()).isEqualTo(400);
+        ResponseEntity<ApiResponse<Void>> res = handler.handleBusiness(ex);
         assertThat(res.getStatusCode().value()).isEqualTo(400);
         assertThat(res.getBody().getMessage()).isEqualTo("文件过大");
     }

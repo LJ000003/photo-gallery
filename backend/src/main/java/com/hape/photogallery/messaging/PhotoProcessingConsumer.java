@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 
 import com.hape.photogallery.config.RabbitMQConfig;
 import com.hape.photogallery.entity.Photo;
+import com.hape.photogallery.entity.ProcessingStatus;
 import com.hape.photogallery.repository.PhotoRepository;
 import com.hape.photogallery.service.PhotoProcessor;
 import com.hape.photogallery.service.StorageService;
@@ -77,7 +78,7 @@ public class PhotoProcessingConsumer {
                     if (photo != null) {
                         String errMsg = e.getMessage() != null ? e.getMessage() : "未知错误";
                         if (errMsg.length() > 500) errMsg = errMsg.substring(0, 497) + "...";
-                        photo.setProcessingStatus("FAILED");
+                        photo.setProcessingStatus(ProcessingStatus.FAILED);
                         photo.setErrorMessage("处理失败（已重试" + MAX_RETRIES + "次）: " + errMsg);
                         photoRepo.save(photo);
                     }

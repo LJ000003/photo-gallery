@@ -19,6 +19,8 @@ import static org.mockito.Mockito.when;
 /**
  * 分享权限强制执行测试（P0-4）：view 权限禁止下载原图（/file），
  * download 权限与缩略图/WebP 端点不受影响；photoId 白名单越界仍 403。
+ * 图片短时签名（P1-11）：有效签名直接放行（不携带会话凭证），
+ * 绑定 photoId 不符/篡改签名一律 403，非图片端点忽略签名参数。
  */
 @ExtendWith(MockitoExtension.class)
 class JwtAuthFilterTest {
@@ -27,12 +29,15 @@ class JwtAuthFilterTest {
     @Mock private Claims claims;
 
     private JwtAuthFilter filter;
+    private MediaSignatureService sigService;
     private MockHttpServletResponse response;
     private boolean chainCalled;
 
     @BeforeEach
     void setUp() {
-        filter = new JwtAuthFilter(jwtService);
+        sigService = new MediaSignatureService("test-secret-0123456789abcdef0123456789abcdef", 300);
+        // P4-#48③：错误响应改 ApiResponse JSON，注入 ObjectMapper
+        filter = new JwtAuthFilter(jwtService, sigService, new com.fasterxml.jackson.databind.ObjectMapper());
         chainCalled = false;
         SecurityContextHolder.clearContext();
     }
@@ -63,6 +68,7 @@ class JwtAuthFilterTest {
         stubViewer("view", List.of(1L));
         MockHttpServletResponse res = apply("/api/v1/photos/1/file", "tok");
         assertThat(res.getStatus()).isEqualTo(403);
+        assertThat(res.getContentAsString()).contains("\"code\":403", "message");
         assertThat(chainCalled).isFalse();
     }
 
@@ -79,6 +85,7 @@ class JwtAuthFilterTest {
         stubViewer(null, List.of(1L));
         MockHttpServletResponse res = apply("/api/v1/photos/1/file", "tok");
         assertThat(res.getStatus()).isEqualTo(403);
+        assertThat(res.getContentAsString()).contains("\"code\":403", "message");
     }
 
     @Test
@@ -101,6 +108,7 @@ class JwtAuthFilterTest {
         stubViewer("download", List.of(2L));
         MockHttpServletResponse res = apply("/api/v1/photos/1/file", "tok");
         assertThat(res.getStatus()).isEqualTo(403);
+        assertThat(res.getContentAsString()).contains("\"code\":403", "message");
         assertThat(chainCalled).isFalse();
     }
 
@@ -116,6 +124,62 @@ class JwtAuthFilterTest {
     @Test
     void noToken_shouldPassThrough() throws Exception {
         apply("/api/v1/photos/1/file", null);
+        assertThat(chainCalled).isTrue();
+    }
+
+    /* ---------- 图片短时签名（P1-11） ---------- */
+
+    private MockHttpServletResponse applySig(String uri, String sig) throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", uri);
+        request.setRequestURI(uri);
+        if (sig != null) request.addParameter("sig", sig);
+        response = new MockHttpServletResponse();
+        filter.doFilter(request, response, (req, res) -> chainCalled = true);
+        return response;
+    }
+
+    @Test
+    void validSig_thumbnail_shouldPass() throws Exception {
+        MockHttpServletResponse res = applySig("/api/v1/photos/42/thumbnail", sigService.sign(42));
+        assertThat(res.getStatus()).isNotEqualTo(403);
+        assertThat(chainCalled).isTrue();
+    }
+
+    @Test
+    void validSig_file_shouldPass() throws Exception {
+        MockHttpServletResponse res = applySig("/api/v1/photos/42/file", sigService.sign(42));
+        assertThat(res.getStatus()).isNotEqualTo(403);
+        assertThat(chainCalled).isTrue();
+    }
+
+    @Test
+    void sig_forDifferentPhotoId_shouldBe403() throws Exception {
+        MockHttpServletResponse res = applySig("/api/v1/photos/41/file", sigService.sign(42));
+        assertThat(res.getStatus()).isEqualTo(403);
+        assertThat(res.getContentAsString()).contains("\"code\":403", "message");
+        assertThat(chainCalled).isFalse();
+    }
+
+    @Test
+    void tamperedSig_shouldBe403() throws Exception {
+        MockHttpServletResponse res = applySig("/api/v1/photos/42/file", sigService.sign(42) + "x");
+        assertThat(res.getStatus()).isEqualTo(403);
+        assertThat(res.getContentAsString()).contains("\"code\":403", "message");
+        assertThat(chainCalled).isFalse();
+    }
+
+    @Test
+    void garbageSig_shouldBe403() throws Exception {
+        MockHttpServletResponse res = applySig("/api/v1/photos/42/file", "not-a-signature");
+        assertThat(res.getStatus()).isEqualTo(403);
+        assertThat(res.getContentAsString()).contains("\"code\":403", "message");
+        assertThat(chainCalled).isFalse();
+    }
+
+    @Test
+    void sig_onNonImagePath_shouldBeIgnored() throws Exception {
+        // 非图片端点不验签：无 Authorization 头时签名参数不影响 JWT 逻辑（透传，最终由 Security 规则拦截）
+        MockHttpServletResponse res = applySig("/api/v1/photos?page=0", sigService.sign(42));
         assertThat(chainCalled).isTrue();
     }
 }

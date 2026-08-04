@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
-  <!-- 极简画廊风：宁静蓝圆角方块 + 白色照片图形 -->
-  <rect width="128" height="128" rx="28" fill="#2563eb"/>
-  <rect x="30" y="34" width="68" height="60" rx="10" fill="none" stroke="#ffffff" stroke-width="7"/>
-  <circle cx="53" cy="54" r="9" fill="#ffffff"/>
-  <path d="M36 86l22-20 14 13 10-9 14 16" stroke="#ffffff" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>

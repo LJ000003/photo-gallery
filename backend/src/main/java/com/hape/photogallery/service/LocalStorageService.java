@@ -64,11 +64,6 @@ public class LocalStorageService implements StorageService {
     }
 
     @Override
-    public boolean exists(String relativePath) {
-        return Files.exists(resolveSafe(relativePath));
-    }
-
-    @Override
     public void createDirectories(Path dir) throws IOException {
         Files.createDirectories(dir);
     }

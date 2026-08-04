@@ -1,19 +1,21 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { CheckOutlined } from '@ant-design/icons-vue'
 import { Button, Drawer, Input, Modal } from 'ant-design-vue'
 import { api } from '../../api'
 import { useDataStore } from '../../stores/data'
 import { useToastStore } from '../../stores/toast'
-import { tokenParam } from '../../utils/token'
+import { appendMediaParams } from '../../utils/token'
+import { logError } from '../../utils/logger'
 import type { Photo } from '../../types/photo'
 import type { Album } from '../../types/album'
 import type { ApiResponse, PageResponse } from '../../types/api'
 
 /**
- * 相册创建/编辑抽屉：名称/描述 + 照片选择器（搜索过滤）
- * API 语义与旧版一致：POST/PUT /albums 携带 photoIds
+ * 相册创建/编辑抽屉：名称/描述 + 照片选择器（后端分页 + 搜索防抖）
+ * 预选用 /albums/{id}/photo-ids 轻量投影（只取 id），浏览列表逐页拉取，
+ * 选中集合与列表独立——搜索/翻页不丢失已选。
  */
 const props = defineProps<{ album: Album | { id: null; name: string; description: string } }>()
 const emit = defineEmits<{
@@ -28,38 +30,69 @@ const toast = useToastStore()
 
 const name = ref('')
 const description = ref('')
-const allPhotos = ref<Photo[]>([])
+const photos = ref<Photo[]>([])
 const selectedPhotoIds = ref(new Set<number>())
 const submitting = ref(false)
 const searchQuery = ref('')
+const page = ref(0)
+const hasMore = ref(true)
+const loadingPicker = ref(false)
+let searchTimer: number | undefined
 
-const filteredPhotos = computed(() => {
-  const q = searchQuery.value.trim().toLowerCase()
-  if (!q) return allPhotos.value
-  return allPhotos.value.filter(
-    (p) =>
-      (p.name && p.name.toLowerCase().includes(q)) ||
-      (p.description && p.description.toLowerCase().includes(q)),
-  )
+const PICKER_PAGE_SIZE = 50
+
+async function loadPickerPage(reset = false): Promise<void> {
+  if (loadingPicker.value || (!reset && !hasMore.value)) return
+  if (reset) {
+    page.value = 0
+    hasMore.value = true
+    photos.value = []
+  }
+  loadingPicker.value = true
+  try {
+    const params = new URLSearchParams({ size: String(PICKER_PAGE_SIZE), page: String(page.value) })
+    const q = searchQuery.value.trim()
+    if (q) params.set('q', q)
+    const res = await api(`/api/photos?${params}`)
+    if (!res.ok) throw new Error(String(res.status))
+    const data: ApiResponse<PageResponse<Photo>> = await res.json()
+    photos.value = reset
+      ? data.data?.content || []
+      : [...photos.value, ...(data.data?.content || [])]
+    hasMore.value = !(data.data?.last ?? true)
+    page.value += 1
+  } catch (e) {
+    logError(e, '加载照片选择器失败')
+  } finally {
+    loadingPicker.value = false
+  }
+}
+
+// 搜索防抖（避免每击键请求）；重置列表但保留已选集合
+watch(searchQuery, () => {
+  window.clearTimeout(searchTimer)
+  searchTimer = window.setTimeout(() => void loadPickerPage(true), 300)
+})
+
+onUnmounted(() => {
+  window.clearTimeout(searchTimer)
 })
 
 onMounted(async () => {
   name.value = props.album.name || ''
   description.value = props.album.description || ''
-  try {
-    const res = await api('/api/photos?size=1000')
-    const data: ApiResponse<PageResponse<Photo>> = await res.json()
-    allPhotos.value = data.data?.content || []
-    if (props.album.id) {
-      selectedPhotoIds.value = new Set(
-        allPhotos.value
-          .filter((p) => p.albums && p.albums.some((a) => a.id === props.album.id))
-          .map((p) => p.id),
-      )
+  if (props.album.id) {
+    try {
+      const res = await api(`/api/albums/${props.album.id}/photo-ids`)
+      if (res.ok) {
+        const data: ApiResponse<number[]> = await res.json()
+        selectedPhotoIds.value = new Set(data.data || [])
+      }
+    } catch {
+      /* 预选失败不阻塞浏览（相册可能为空或已删除） */
     }
-  } catch (e) {
-    console.error('加载相册照片失败', e)
   }
+  void loadPickerPage()
 })
 
 function togglePhoto(id: number): void {
@@ -71,7 +104,8 @@ function togglePhoto(id: number): void {
 
 async function onSubmit(): Promise<void> {
   if (!name.value.trim()) {
-    toast.error(t('albums.name'))
+    // 旧实现弹字段 label「相册名称」而非错误文案
+    toast.error(t('albums.nameRequired'))
     return
   }
   if (submitting.value) return
@@ -115,7 +149,8 @@ function onDelete(): void {
         const res = await api(`/api/albums/${props.album.id}`, { method: 'DELETE' })
         if (!res.ok) throw new Error()
         refreshAlbums()
-        toast.success(t('trash.restored'))
+        // 旧实现删除成功后弹「已恢复」（trash.restored 文案方向反转）
+        toast.success(t('albums.deleted'))
         emit('deleted')
       } catch {
         toast.error(t('common.unknownError'))
@@ -159,7 +194,7 @@ function onDelete(): void {
 
       <div class="photo-picker">
         <button
-          v-for="p in filteredPhotos"
+          v-for="p in photos"
           :key="p.id"
           type="button"
           class="picker-item"
@@ -167,7 +202,7 @@ function onDelete(): void {
           @click="togglePhoto(p.id)"
         >
           <img
-            :src="`/api/v1/photos/${p.id}/thumbnail${tokenParam()}`"
+            :src="appendMediaParams(`/api/v1/photos/${p.id}/thumbnail`, p)"
             :alt="p.name"
             loading="lazy"
           />
@@ -175,7 +210,15 @@ function onDelete(): void {
             <CheckOutlined />
           </span>
         </button>
-        <p v-if="allPhotos.length === 0" class="picker-empty">{{ t('gallery.emptyTitle') }}</p>
+        <p v-if="!loadingPicker && photos.length === 0" class="picker-empty">
+          {{ t('gallery.emptyTitle') }}
+        </p>
+      </div>
+
+      <div v-if="photos.length > 0 && hasMore" class="picker-more">
+        <Button size="small" :loading="loadingPicker" @click="loadPickerPage()">
+          {{ t('gallery.loadMore') }}
+        </Button>
       </div>
 
       <div class="footer-actions">
@@ -272,6 +315,11 @@ function onDelete(): void {
   padding: 40px 0;
   font-size: 13px;
   color: var(--c-text-dim);
+}
+.picker-more {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0 4px;
 }
 .footer-actions {
   display: flex;

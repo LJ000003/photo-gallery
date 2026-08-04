@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useWindowVirtualizer } from '@tanstack/vue-virtual'
 import PhotoTile from './PhotoTile.vue'
@@ -19,8 +19,10 @@ const props = withDefaults(
     hasMore: boolean
     /** 关闭选择圈（相册详情/分享端等纯浏览场景） */
     selectable?: boolean
+    /** 显式查询 token（分享页 viewer token），透传给 PhotoTile */
+    token?: string
   }>(),
-  { selectable: true, searchQuery: '' },
+  { selectable: true, searchQuery: '', token: '' },
 )
 
 const emit = defineEmits<{
@@ -108,6 +110,12 @@ watch(
   { immediate: true },
 )
 
+// 组件卸载时断开观察，避免 observer 持引用泄漏（watch 内的 disconnect 只在重绑定时执行）
+onUnmounted(() => {
+  resizeObs?.disconnect()
+  resizeObs = null
+})
+
 function isSelected(id: number): boolean {
   return props.selectedIds.has(id)
 }
@@ -144,6 +152,7 @@ function isSelected(id: number): boolean {
           :search-query="searchQuery"
           :selected="isSelected(p.id)"
           :selectable="selectable"
+          :token="token"
           @view="emit('view', $event)"
           @edit="emit('edit', $event)"
           @edit-image="emit('edit-image', $event)"
@@ -153,7 +162,7 @@ function isSelected(id: number): boolean {
       </div>
 
       <!-- 加载中 -->
-      <div v-else-if="loading" class="sentinel" role="status" aria-label="loading">
+      <div v-else-if="loading" class="sentinel" role="status" :aria-label="t('gallery.loading')">
         <span class="sentinel-spinner"></span>
       </div>
 

@@ -6,27 +6,25 @@ import { Button } from 'ant-design-vue'
 import PhotoGrid from '../gallery/PhotoGrid.vue'
 import EmptyState from '../common/EmptyState.vue'
 import { api } from '../../api'
+import { usePhotoStore } from '../../stores/photo'
 import type { Photo } from '../../types/photo'
 import type { ApiResponse, PageResponse } from '../../types/api'
-import type { SortField, SortOrder } from '../../types/view'
 
 /**
- * 相册详情：复用 PhotoGrid 虚拟滚动，分页加载相册内照片（未分配专辑 = albumId 0）
+ * 相册详情：复用 PhotoGrid 虚拟滚动，分页加载相册内照片（未分配专辑 = albumId 0）。
+ * 排序直接读 photo store（与顶部菜单全局排序同源），排序变化自动重载。
  */
 const props = defineProps<{
   album: { id: number; name: string; photoCount: number }
-  sortBy: SortField
-  sortOrder: SortOrder
 }>()
 
 const emit = defineEmits<{
   back: []
   view: [p: Photo, list: Photo[]]
-  'update:sortBy': [key: SortField]
-  'update:sortOrder': [order: SortOrder]
 }>()
 
 const { t } = useI18n()
+const photo = usePhotoStore()
 
 const photos = ref<Photo[]>([])
 const page = ref(0)
@@ -36,8 +34,11 @@ const loading = ref(false)
 async function loadMore(): Promise<void> {
   if (loading.value || !hasMore.value) return
   loading.value = true
-  const fieldMap: Record<SortField, string> = { time: 'createdAt', name: 'name', size: 'fileSize' }
-  const sortStr = `${fieldMap[props.sortBy]},${props.sortOrder}`
+  // 请求层排序与 photo store 一致：time 字段反转（store asc = 请求 desc = 最新优先）
+  const fieldMap: Record<string, string> = { time: 'createdAt', name: 'name', size: 'fileSize' }
+  const order =
+    photo.sortBy === 'time' ? (photo.sortOrder === 'asc' ? 'desc' : 'asc') : photo.sortOrder
+  const sortStr = `${fieldMap[photo.sortBy]},${order}`
   try {
     const url =
       props.album.id === 0
@@ -57,7 +58,7 @@ async function loadMore(): Promise<void> {
 }
 
 watch(
-  [() => props.album.id, () => props.sortBy, () => props.sortOrder],
+  [() => props.album.id, () => photo.sortBy, () => photo.sortOrder],
   () => {
     photos.value = []
     page.value = 0

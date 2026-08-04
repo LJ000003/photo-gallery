@@ -48,7 +48,7 @@ const exifGroups = computed(() => {
 </script>
 
 <template>
-  <aside class="exif-panel" :class="{ open }" aria-label="拍摄信息">
+  <aside class="exif-panel" :class="{ open }" :aria-label="t('viewer.exif')">
     <h3 class="exif-title">{{ t('viewer.exif') }}</h3>
     <template v-if="exifGroups.length">
       <div v-for="group in exifGroups" :key="group.label" class="exif-group">

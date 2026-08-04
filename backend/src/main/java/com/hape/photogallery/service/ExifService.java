@@ -21,6 +21,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
+import java.util.Locale;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 
@@ -39,7 +40,7 @@ public class ExifService {
         String contentType = photo.getContentType();
         if (contentType == null) return null;
 
-        String lower = contentType.toLowerCase();
+        String lower = contentType.toLowerCase(Locale.ROOT);
         if (!lower.equals("image/jpeg") && !lower.equals("image/webp")) return null;
 
         ExifData exif = exifRepo.findByPhoto_Id(photo.getId()).orElse(new ExifData());
@@ -164,6 +165,8 @@ public class ExifService {
                 return ifd0.getInt(ExifIFD0Directory.TAG_ORIENTATION);
             }
         } catch (Exception e) {
+            // try 块抛 IOException/ImageProcessingException/MetadataException 多种 checked 异常，
+            // 统一防御性捕获（失败仅影响方向读取，EXIF 提取非致命）
             log.debug("EXIF 方向读取失败: {}", filePath, e);
         }
         return 1;

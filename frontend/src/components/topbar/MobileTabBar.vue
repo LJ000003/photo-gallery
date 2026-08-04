@@ -14,7 +14,7 @@ const ui = useUiStore()
 </script>
 
 <template>
-  <nav class="mobile-tabbar" aria-label="底部导航">
+  <nav class="mobile-tabbar" :aria-label="t('nav.mobile')">
     <div class="tabbar-inner">
       <ModeTabs class="tabs" />
       <Button

@@ -1,22 +1,25 @@
 {
   "app": {
-    "name": "照片墙",
-    "tagline": "朋友们的照片墙"
+    "name": "照片墙"
   },
   "auth": {
     "expired": "登录已过期，请重新解锁",
     "failed": "解锁失败，请重试",
-    "locked": "已锁定"
+    "locked": "已锁定",
+    "keyboardHint": "也支持键盘：▲ ▼ ◀ ▶ 方向键 + B / A"
   },
   "nav": {
     "photos": "照片",
     "albums": "相册",
     "timeline": "时间线",
     "map": "地图",
-    "trash": "回收站"
+    "trash": "回收站",
+    "mobile": "底部导航",
+    "mode": "浏览模式"
   },
   "topbar": {
     "searchPlaceholder": "搜索照片",
+    "searchAlbumsPlaceholder": "搜索相册",
     "sort": "排序",
     "filter": "筛选",
     "upload": "上传",
@@ -24,7 +27,8 @@
     "backupExport": "备份导出",
     "backupExporting": "导出中…",
     "help": "帮助与快捷键",
-    "relock": "重新锁定"
+    "relock": "重新锁定",
+    "language": "切换语言"
   },
   "actions": {
     "back": "返回",
@@ -33,24 +37,25 @@
     "cancel": "取消",
     "edit": "编辑",
     "delete": "删除",
-    "share": "分享",
-    "copy": "复制",
     "download": "下载",
     "restore": "恢复",
     "confirm": "确定",
-    "retry": "重试",
     "selectAll": "全选",
-    "create": "新建",
-    "rename": "重命名"
+    "rename": "重命名",
+    "deleted": "删除成功",
+    "undo": "撤销",
+    "deleteFailed": "删除失败",
+    "backToTop": "回到顶部"
   },
   "sort": {
     "time": "时间",
     "name": "名称",
     "size": "大小",
-    "asc": "升序",
-    "desc": "降序"
+    "asc": "升序"
   },
   "gallery": {
+    "title": "照片流",
+    "photoAria": "照片 #{id}",
     "count": "{n} 张照片",
     "loading": "加载中",
     "end": "已经到底啦",
@@ -59,13 +64,21 @@
     "emptyHintFiltered": "没有符合当前筛选条件的照片，换个条件试试",
     "processing": "处理中",
     "processFailed": "处理失败",
-    "retryProcessing": "重新处理"
+    "retryProcessing": "重新处理",
+    "loadFailed": "加载失败，请稍后重试",
+    "processingTimeout": "部分照片处理超时，已标记为失败，可点击重试",
+    "processingTimeoutMessage": "处理超时，可点击重试",
+    "loadMore": "加载更多"
   },
   "selection": {
     "selected": "已选 {n} 张",
     "batchEdit": "批量编辑",
     "batchDelete": "删除",
-    "batchShare": "生成分享"
+    "batchShare": "生成分享",
+    "batchDeleteConfirm": "确定删除选中的 {n} 张照片吗？",
+    "deletedCount": "已删除 {count} 张照片",
+    "select": "选择",
+    "deselect": "取消选择"
   },
   "filter": {
     "title": "筛选",
@@ -84,14 +97,12 @@
   },
   "viewer": {
     "exif": "拍摄信息",
-    "slideshow": "幻灯片播放",
     "previous": "上一张",
     "next": "下一张",
     "fullscreen": "全屏",
     "noExif": "这张照片没有拍摄信息",
-    "camera": "相机",
-    "shoot": "拍摄参数",
-    "location": "位置",
+    "pause": "暂停",
+    "play": "播放",
     "close": "关闭"
   },
   "exif": {
@@ -111,12 +122,10 @@
     "title": "上传照片",
     "dropzone": "拖拽照片到这里，或点击选择",
     "pasteHint": "也可以直接 Ctrl+V 粘贴剪贴板图片",
-    "chooseFiles": "选择照片",
     "compressing": "压缩处理中…",
     "uploading": "上传中 {pct}%",
     "success": "上传成功",
     "failed": "上传失败",
-    "duplicate": "这张照片已经存在",
     "viewExisting": "查看已有",
     "skipped": "已有 {n} 张照片重复，已跳过",
     "tooMany": "一次最多上传 50 张",
@@ -125,8 +134,8 @@
     "category": "分类",
     "tags": "标签",
     "watermark": "添加水印",
-    "none": "无",
-    "editing": "编辑图片"
+    "editing": "编辑图片",
+    "timeout": "上传超时，请重试"
   },
   "edit": {
     "title": "编辑照片",
@@ -139,8 +148,8 @@
     "addTag": "新建标签",
     "addAlbum": "新建相册",
     "addCategory": "新建分类",
-    "newName": "新名称",
-    "saved": "已保存"
+    "saved": "已保存",
+    "nameRequired": "照片名称不能为空"
   },
   "batchEdit": {
     "title": "批量编辑",
@@ -150,12 +159,11 @@
     "removeAlbums": "移出相册",
     "category": "分类",
     "categoryKeep": "保持不变",
-    "categorySet": "设置为",
     "categoryClear": "清除分类",
-    "saved": "批量修改已保存"
+    "saved": "批量修改已保存",
+    "tooMany": "一次最多批量编辑 50 张"
   },
   "albums": {
-    "title": "相册",
     "create": "新建相册",
     "edit": "编辑相册",
     "delete": "删除相册",
@@ -167,19 +175,29 @@
     "description": "相册描述",
     "pickPhotos": "选择照片",
     "searchInPicker": "搜索照片",
-    "picked": "已选 {n} 张",
     "saved": "相册已保存",
-    "deleteConfirm": "删除相册「{name}」？照片不会被删除"
+    "deleteConfirm": "删除相册「{name}」？照片不会被删除",
+    "nameRequired": "相册名称不能为空",
+    "deleted": "相册已删除",
+    "emptyFiltered": "没有符合搜索条件的相册"
   },
   "timeline": {
-    "title": "时间线",
     "empty": "还没有带拍摄时间的照片",
-    "noExif": "这张照片没有拍摄时间",
-    "otherPhotos": "其他照片"
+    "monthLabel": "{year} 年 {month} 月"
   },
   "map": {
-    "title": "地图",
-    "empty": "还没有带位置信息的照片"
+    "attribution": "© 高德地图"
+  },
+  "stats": {
+    "title": "统计",
+    "totalPhotos": "照片总数",
+    "storageUsed": "存储用量",
+    "topTags": "热门标签",
+    "uploadTrend": "每月上传趋势",
+    "photoCount": "{n} 张",
+    "month": "月份",
+    "barLabel": "上传量",
+    "empty": "暂时没有可统计的数据"
   },
   "trash": {
     "title": "回收站",
@@ -187,10 +205,13 @@
     "albums": "相册",
     "empty": "回收站是空的",
     "restored": "已恢复",
+    "restoreFailed": "恢复失败",
+    "restoreFailedCount": "{failed}/{total} 张照片恢复失败",
     "deleteConfirm": "彻底删除？此操作不可撤销",
     "emptyPhotos": "没有已删除的照片",
     "emptyAlbums": "没有已删除的相册",
-    "autoPurge": "30 天后自动清空"
+    "autoPurge": "30 天后自动清空",
+    "restoreConfirm": "恢复「{name}」吗？"
   },
   "share": {
     "generate": "生成分享链接",
@@ -198,10 +219,15 @@
     "copied": "链接已复制，分享给朋友吧",
     "expire": "7 天内有效",
     "generating": "生成中…",
-    "viewer": "照片分享"
+    "viewer": "照片分享",
+    "invalidTitle": "分享链接无效",
+    "invalidHint": "链接已失效或不存在，请联系分享者重新生成",
+    "serverErrorTitle": "加载失败",
+    "serverErrorHint": "服务器开小差了，请稍后重试",
+    "copyFailed": "复制失败，请手动复制",
+    "generateFailed": "生成分享失败"
   },
   "backup": {
-    "exporting": "正在导出备份…",
     "done": "备份已导出",
     "failed": "导出失败"
   },
@@ -268,12 +294,16 @@
     "mirrorH": "水平镜像",
     "mirrorV": "垂直镜像",
     "crop": "裁剪",
-    "reset": "重置",
-    "done": "已保存修改"
+    "reset": "重置"
   },
   "common": {
     "unknownError": "出错了，请稍后重试",
     "networkError": "网络异常，请检查连接",
-    "copied": "已复制"
+    "errorTitle": "页面出错了",
+    "errorReload": "刷新页面",
+    "errorCopyDiagnostics": "复制诊断信息",
+    "errorPageFailed": "页面加载失败",
+    "requestFailed": "请求失败（{status}）",
+    "serverError": "服务器返回异常（{status}），请稍后重试"
   }
 }

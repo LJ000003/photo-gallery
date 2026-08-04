@@ -1,66 +1,56 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { tokenParam, tokenQS } from '../utils/token'
+import { describe, expect, it } from 'vitest'
+import { appendMediaParams, appendTokenParam } from '../utils/token'
 
-describe('tokenParam', () => {
-  beforeEach(() => {
-    localStorage.clear()
+describe('appendMediaParams', () => {
+  it('URL 无查询参数时用 ? 拼接', () => {
+    expect(appendMediaParams('/api/v1/photos/1/thumbnail', { mediaToken: 'MTIzLjQ1Ni5hYmM' })).toBe(
+      '/api/v1/photos/1/thumbnail?sig=MTIzLjQ1Ni5hYmM',
+    )
   })
 
-  it('returns empty string when no token stored', () => {
-    expect(tokenParam()).toBe('')
+  it('URL 已有查询参数时用 & 拼接（回归：?w=400?sig= 双问号导致 401）', () => {
+    expect(
+      appendMediaParams('/api/v1/photos/1/thumbnail?w=400', { mediaToken: 'MTIzLjQ1Ni5hYmM' }),
+    ).toBe('/api/v1/photos/1/thumbnail?w=400&sig=MTIzLjQ1Ni5hYmM')
   })
 
-  it('returns query string with jwt_token', () => {
-    localStorage.setItem('jwt_token', 'abc123')
-    expect(tokenParam()).toBe('?token=abc123')
+  it('无 mediaToken 时原样返回 URL', () => {
+    const url = '/api/v1/photos/1/thumbnail?w=400'
+    expect(appendMediaParams(url, { mediaToken: undefined })).toBe(url)
+    expect(appendMediaParams(url, null)).toBe(url)
+    expect(appendMediaParams(url, undefined)).toBe(url)
+    expect(appendMediaParams(url, {})).toBe(url)
   })
 
-  it('falls back to token key when jwt_token missing', () => {
-    localStorage.setItem('token', 'fallback456')
-    expect(tokenParam()).toBe('?token=fallback456')
+  it('mediaToken 需要 URL 编码（base64url 一般安全，但兜底）', () => {
+    expect(appendMediaParams('/t', { mediaToken: 'a+b/c=' })).toBe('/t?sig=a%2Bb%2Fc%3D')
   })
 
-  it('prefers jwt_token over token when both present', () => {
-    localStorage.setItem('jwt_token', 'primary')
-    localStorage.setItem('token', 'fallback')
-    expect(tokenParam()).toBe('?token=primary')
-  })
-
-  it('appends fileSize as v param when provided', () => {
-    localStorage.setItem('jwt_token', 'abc')
-    expect(tokenParam(1024)).toBe('?token=abc&v=1024')
-  })
-
-  it('handles fileSize without token', () => {
-    expect(tokenParam(500)).toBe('?v=500')
-  })
-
-  it('handles fileSize of 0 as falsy (no v param)', () => {
-    localStorage.setItem('jwt_token', 'abc')
-    expect(tokenParam(0)).toBe('?token=abc')
+  it('不再携带 fileSize 缓存破坏参数（签名含时间桶，URL 本身即缓存键）', () => {
+    expect(appendMediaParams('/t', { mediaToken: 'x' }).includes('v=')).toBe(false)
   })
 })
 
-describe('tokenQS', () => {
-  beforeEach(() => {
-    localStorage.clear()
+describe('appendTokenParam', () => {
+  it('URL 无查询参数时用 ? 拼接', () => {
+    expect(appendTokenParam('/api/v1/photos/1/webp', 'abc.def')).toBe(
+      '/api/v1/photos/1/webp?token=abc.def',
+    )
   })
 
-  it('returns empty string when no token', () => {
-    expect(tokenQS()).toBe('')
+  it('URL 已有查询参数时用 & 拼接', () => {
+    expect(appendTokenParam('/api/v1/photos/1/thumbnail?w=200', 'abc.def')).toBe(
+      '/api/v1/photos/1/thumbnail?w=200&token=abc.def',
+    )
   })
 
-  it('strips leading ? and prepends &', () => {
-    localStorage.setItem('jwt_token', 'abc')
-    expect(tokenQS()).toBe('&token=abc')
+  it('空 token 原样返回 URL', () => {
+    expect(appendTokenParam('/t', '')).toBe('/t')
+    expect(appendTokenParam('/t', null)).toBe('/t')
+    expect(appendTokenParam('/t', undefined)).toBe('/t')
   })
 
-  it('with fileSize', () => {
-    localStorage.setItem('jwt_token', 'abc')
-    expect(tokenQS(1024)).toBe('&token=abc&v=1024')
-  })
-
-  it('with fileSize only (no token)', () => {
-    expect(tokenQS(100)).toBe('&v=100')
+  it('token 需要 URL 编码', () => {
+    expect(appendTokenParam('/t', 'a b&c')).toBe('/t?token=a%20b%26c')
   })
 })

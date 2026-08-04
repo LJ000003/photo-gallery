@@ -1,6 +1,8 @@
 backend/target/
 node_modules/
 frontend/dist/
+# 前端构建产物（npm run build 自动复制，不入库）
+backend/src/main/resources/static/
 frontend/coverage/
 frontend/playwright-report/
 .DS_Store
@@ -27,6 +29,7 @@ desktop.ini
 .env
 .env.local
 .env.*.local
+# 文档档案（改进方案/面试材料，本地保留，不提交）
 doc
 # IDE
 .idea/
@@ -36,6 +39,8 @@ serena-mcp.bat
 .serena
 # 本地开发配置（含真实密码，不提交）
 backend/src/main/resources/application-local.yml
+# H2 残留数据目录（曾于 2026-07-08 清理，防复发，见 v3 FIX-009）
+backend/data/
 
 # 前端测试/视觉产物
 frontend/test-results/

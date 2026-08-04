@@ -28,6 +28,8 @@ export interface Photo {
   deletedAt?: string
   processingStatus?: string
   errorMessage?: string
+  /** 图片 URL 短时签名（HMAC 时间桶），后端仅管理员上下文签发 */
+  mediaToken?: string
 }
 
 export interface PhotoPatch {

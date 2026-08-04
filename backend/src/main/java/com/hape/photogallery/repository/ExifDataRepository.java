@@ -15,8 +15,6 @@ public interface ExifDataRepository extends JpaRepository<ExifData, Long> {
 
     Optional<ExifData> findByPhoto_Id(Long photoId);
 
-    void deleteByPhoto_IdIn(List<Long> photoIds);
-
     // === 时间线（分页） ===
 
     @Query(value = "SELECT e FROM ExifData e JOIN FETCH e.photo p WHERE e.dateTaken IS NOT NULL",

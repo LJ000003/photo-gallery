@@ -25,7 +25,13 @@ describe('formatSize', () => {
   it('formats MB (>= 1048576)', () => {
     expect(formatSize(1048576)).toBe('1.0 MB')
     expect(formatSize(5242880)).toBe('5.0 MB')
-    expect(formatSize(1073741824)).toBe('1024.0 MB')
+    expect(formatSize(1073741823)).toBe('1024.0 MB')
+  })
+
+  it('formats GB (>= 1073741824)', () => {
+    expect(formatSize(1073741824)).toBe('1.0 GB')
+    expect(formatSize(2147483648)).toBe('2.0 GB')
+    expect(formatSize(16106127360)).toBe('15.0 GB')
   })
 
   it('handles typical photo sizes', () => {

@@ -10,8 +10,8 @@ import {
 import { Button, Modal } from 'ant-design-vue'
 import { useRouter } from 'vue-router'
 import { api } from '../../api'
-import { thumbUrl } from '../../webp'
-import { tokenQS } from '../../utils/token'
+import { thumbUrl } from '../../utils/webp'
+import { appendMediaParams } from '../../utils/token'
 import { useToastStore } from '../../stores/toast'
 import { useUiStore } from '../../stores/ui'
 import { useDataStore } from '../../stores/data'
@@ -141,7 +141,14 @@ function onKeydown(e: KeyboardEvent): void {
     e.preventDefault()
     const id = p.id
     ui.closeViewer()
-    void restorePhoto(id)
+    // 与 Delete（彻底删除）同级保护：R 恢复也先确认，避免灯箱内误触直接改数据
+    Modal.confirm({
+      title: t('actions.restore'),
+      content: t('trash.restoreConfirm', { name: p.name || `#${p.id}` }),
+      okText: t('actions.restore'),
+      cancelText: t('actions.cancel'),
+      onOk: () => restorePhoto(id),
+    })
   }
 }
 
@@ -181,7 +188,7 @@ onUnmounted(() => {
       <div v-else class="trash-list">
         <div v-for="p in photos" :key="p.id" class="trash-row">
           <img
-            :src="thumbUrl(p.id, 200) + tokenQS()"
+            :src="appendMediaParams(thumbUrl(p.id, 200), p)"
             :alt="p.name"
             loading="lazy"
             class="trash-thumb"

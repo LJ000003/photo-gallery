@@ -1,18 +1,18 @@
 <script setup lang="ts">
-import { computed, h, onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { CaretDownOutlined, CaretUpOutlined, PlusOutlined } from '@ant-design/icons-vue'
-import { Button, Dropdown } from 'ant-design-vue'
+import { PlusOutlined } from '@ant-design/icons-vue'
+import { Button } from 'ant-design-vue'
 import AlbumDetail from './AlbumDetail.vue'
 import AlbumEditDrawer from './AlbumEditDrawer.vue'
 import { api } from '../../api'
 import { useDataStore } from '../../stores/data'
+import { usePhotoStore } from '../../stores/photo'
 import { useToastStore } from '../../stores/toast'
-import { tokenParam } from '../../utils/token'
+import { appendMediaParams } from '../../utils/token'
 import { useUiStore } from '../../stores/ui'
 import type { Album } from '../../types/album'
 import type { ApiResponse, PageResponse } from '../../types/api'
-import type { SortField, SortOrder } from '../../types/view'
 
 /**
  * 相册页：相册墙（封面 + 数量）→ 详情流（复用 PhotoGrid）
@@ -22,6 +22,7 @@ const { t } = useI18n()
 const { refreshAlbums } = useDataStore()
 const toast = useToastStore()
 const ui = useUiStore()
+const photo = usePhotoStore()
 
 const albums = ref<Album[]>([])
 const loading = ref(true)
@@ -29,9 +30,6 @@ const brokenCovers = ref(new Set<number>())
 const selectedAlbum = ref<{ id: number; name: string; photoCount: number } | null>(null)
 const editingAlbum = ref<Album | { id: null; name: string; description: string } | null>(null)
 const unassignedCount = ref(0)
-
-const sortBy = ref<SortField>('time')
-const sortOrder = ref<SortOrder>('desc')
 
 async function loadAlbums(): Promise<void> {
   loading.value = true
@@ -57,15 +55,38 @@ async function loadUnassignedCount(): Promise<void> {
   }
 }
 
+/**
+ * 相册墙排序跟随顶部菜单（photo store 全局排序），不再有本地按钮。
+ * 方向语义与 TopBar 完全一致：store 层 time 反转（store asc = 用户可见 desc = 最新优先）。
+ * size 字段对相册映射为 photoCount（相册没有文件大小，照片数量即「相册大小」）。
+ */
 const sortedAlbums = computed(() => {
   const list = [...albums.value]
-  const dir = sortOrder.value === 'asc' ? 1 : -1
-  if (sortBy.value === 'name') {
+  const visibleOrder: 'asc' | 'desc' =
+    photo.sortBy === 'time'
+      ? photo.sortOrder === 'asc'
+        ? 'desc'
+        : 'asc'
+      : photo.sortOrder
+  const dir = visibleOrder === 'asc' ? 1 : -1
+  if (photo.sortBy === 'name') {
     list.sort((a, b) => dir * a.name.localeCompare(b.name))
+  } else if (photo.sortBy === 'size') {
+    list.sort((a, b) => dir * (a.photoCount - b.photoCount))
   } else {
     list.sort((a, b) => dir * (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()))
   }
   return list
+})
+
+/** 相册搜索（顶部搜索框驱动）：按名称/描述包含过滤，大小写不敏感 */
+const visibleAlbums = computed(() => {
+  const q = ui.albumSearch.trim().toLowerCase()
+  if (!q) return sortedAlbums.value
+  return sortedAlbums.value.filter(
+    (a) =>
+      a.name.toLowerCase().includes(q) || (a.description || '').toLowerCase().includes(q),
+  )
 })
 
 function formatDate(d: string | undefined): string {
@@ -126,40 +147,6 @@ function onAlbumSaved(): void {
   void loadAlbums()
 }
 
-/* ---------- 排序菜单（antd-vue 4 不支持函数式 label/icon，用字符串 + VNode） ---------- */
-const sortItems = [
-  {
-    key: 'time-desc',
-    label: t('sort.time'),
-    icon: h(CaretDownOutlined),
-    onClick: () => applySort('time', 'desc'),
-  },
-  {
-    key: 'time-asc',
-    label: t('sort.time'),
-    icon: h(CaretUpOutlined),
-    onClick: () => applySort('time', 'asc'),
-  },
-  {
-    key: 'name-asc',
-    label: t('sort.name'),
-    icon: h(CaretUpOutlined),
-    onClick: () => applySort('name', 'asc'),
-  },
-  {
-    key: 'name-desc',
-    label: t('sort.name'),
-    icon: h(CaretDownOutlined),
-    onClick: () => applySort('name', 'desc'),
-  },
-]
-
-function applySort(field: SortField, order: SortOrder): void {
-  if (sortBy.value === field && sortOrder.value === order) return
-  sortBy.value = field
-  sortOrder.value = order
-}
-
 onMounted(() => {
   void loadAlbums()
   void loadUnassignedCount()
@@ -173,15 +160,7 @@ onMounted(() => {
       <div class="albums-header">
         <h2 class="page-title">{{ t('nav.albums') }}</h2>
         <div class="header-actions">
-          <Dropdown
-            :menu="{ items: sortItems, selectable: true, selectedKeys: [`${sortBy}-${sortOrder}`] }"
-            placement="bottomRight"
-          >
-            <Button type="text" class="sort-btn" :aria-label="t('topbar.sort')">
-              {{ t('sort.' + sortBy) }}
-              <CaretDownOutlined class="caret" />
-            </Button>
-          </Dropdown>
+          <!-- 排序已收敛到顶部菜单（全局生效），此处不再有本地按钮 -->
           <Button type="primary" @click="onCreate">
             <PlusOutlined />
             {{ t('albums.create') }}
@@ -206,12 +185,12 @@ onMounted(() => {
           </button>
         </div>
 
-        <div v-for="a in sortedAlbums" :key="a.id" class="album-card">
+        <div v-for="a in visibleAlbums" :key="a.id" class="album-card">
           <button class="album-main" @click="selectAlbum(a)">
             <div class="album-cover">
               <img
                 v-if="a.coverPhotoId && !brokenCovers.has(a.id)"
-                :src="`/api/v1/photos/${a.coverPhotoId}/thumbnail${tokenParam()}`"
+                :src="appendMediaParams(`/api/v1/photos/${a.coverPhotoId}/thumbnail`, a)"
                 :alt="a.name"
                 loading="lazy"
                 @error="brokenCovers.add(a.id)"
@@ -236,14 +215,15 @@ onMounted(() => {
       </div>
 
       <p v-if="!loading && albums.length === 0" class="albums-empty">{{ t('albums.empty') }}</p>
+      <p v-else-if="!loading && visibleAlbums.length === 0" class="albums-empty">
+        {{ t('albums.emptyFiltered') }}
+      </p>
     </template>
 
-    <!-- 详情流 -->
+    <!-- 详情流（排序跟随顶部菜单，由 AlbumDetail 直接读 photo store） -->
     <AlbumDetail
       v-else
       :album="selectedAlbum"
-      :sort-by="sortBy"
-      :sort-order="sortOrder"
       @back="backToList"
       @view="(p, list) => ui.openViewer(p, list)"
     />
