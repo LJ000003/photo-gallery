@@ -73,10 +73,10 @@ Spring Boot 3 + Vue 3 单页应用——开发期前后端分离（Vite 开发�
 ### 安全
 - **Konami 门禁** — Challenge-Response 架构：前端按键只记录不验证 → `GET /api/v1/auth/challenge` 获取一次性 nonce（60s TTL）→ `POST /api/v1/auth/unlock` 提交 nonce + 序列给后端验证，序列仅存后端配置文件。键盘 + 触摸双模式
 - **暴力破解防护** — 认证端点 IP 限流（10 次/s）+ 失败计数（Caffeine），5 次错误封禁 15 分钟
-- **JWT 双角色** — admin（24h，管理）/ viewer（7 天，分享查看）
-- **限时分享链接** — 选中照片生成分享链接，朋友无需密码即可查看。viewer JWT 编码照片白名单（`photoIds`）+ 权限范围（`permission`，仅 `view`/`download`，非法值 400），服务端双重校验：SecurityConfig 限制 viewer 仅能访问 `/api/v1/share/view` + 图片文件端点，JwtAuthFilter 对每个图片请求校验 `photoId ∈ sharePhotoIds`，防止越权访问
+- **JWT 双角色** — admin（24h，管理）；分享不再签发 viewer JWT（P0-#6/#7，见下）
+- **可撤销分享链接** — 选中照片生成分享链接，朋友无需密码即可查看。凭证为 DB 高熵随机 token（`share_tokens` 表，V10）：同内容重复生成幂等复用同一链接，弹窗一键撤销（`POST /api/v1/share/{token}/revoke`，撤销后旧链接立即失效）；photoIds 白名单 + `permission`（仅 `view`/`download`，非法值 400）编码在 token 记录中，JwtAuthFilter 每个请求查表校验（不缓存 → 撤销即时生效）；legacy viewer JWT 分支仅过渡兼容（存量链接 7 天自然失效、不可撤销）
 - **图片短时签名 URL** — `<img>` 无法携带 Authorization 头，图片地址改用 HMAC 短时签名（`photoId.时间桶.hmac`，300s 时间桶 ±1 滑动窗口约 10 分钟，密钥从 JWT_SECRET 单向派生），会话 JWT 不再出现在 URL query string（防日志/历史/Referer 泄漏）；分享响应剥离签名防止借签名越权下载
-- **分享权限强制执行** — `/api/v1/photos/{id}/file` 端点强制 `permission=download`：view 权限或缺失一律 403（缩略图/WebP 不受影响，查看需渲染）
+- **分享权限强制执行** — `/api/v1/photos/{id}/file` 端点强制 `permission=download`：view 权限或缺失一律 403；缩略图/WebP 缺失时按角色回退（admin 回退原图，viewer 一律 404，`w` 白名单 200/400——封堵 view-only 分享借回退下载原图，P0-#3）
 - **SHA-256 去重** — 上传时计算文件哈希（事务外计算，不持数据库连接），检测重复上传，单张返回 409 + 已有照片数据，批量静默跳过
 - **统一参数校验** — 缺必填参数、参数类型错误、非法枚举统一返回 400 + 参数名（`GlobalExceptionHandler` 兜底，不落 500）
 - **缓存策略** — dev 使用 Caffeine 本地缓存（30s TTL），prod 切换 Redis 分布式缓存（JSON 序列化 + PageImpl mixin 反序列化），所有写操作自动驱逐相关缓存
@@ -98,7 +98,7 @@ Spring Boot 3 + Vue 3 单页应用——开发期前后端分离（Vite 开发�
 
 ### 其他
 - 设计令牌单一来源（`theme.ts` 同时驱动 antd ConfigProvider 主题与 CSS 变量，明暗模式自动跟随系统；`styles/tokens.css` 为无 JS 首帧兜底）
-- 健康检查端点 `/actuator/health`（dev：DB + 磁盘空间，禁用 Rabbit/Redis 指示器避免误报 DOWN；prod：含 RabbitMQ/Redis）+ Prometheus 指标端点 `/actuator/prometheus`（两个端点均公开）
+- 健康检查端点 `/actuator/health`（公开；dev：DB + 磁盘空间，禁用 Rabbit/Redis 指示器避免误报 DOWN；prod：含 RabbitMQ/Redis）+ Prometheus 指标端点 `/actuator/prometheus`（**Basic Auth**：`MONITORING_USER/MONITORING_PASSWORD`，P0-#4）
 - Micrometer 自定义指标：`photo.upload.total`、`photo.upload.bytes`、`photo.processing.total`、`photo.processing.failures`、`@Timed("photo.processing.time")` 处理耗时
 - Toast 通知、错误边界（组件级 ErrorBoundary + 全局 errorHandler 兜底页）
 - 移动端响应式（底部导航、中央上传按钮、工具栏居中、hover 降级、地图适配）
@@ -391,6 +391,8 @@ JWT_SECRET=$(openssl rand -base64 32)    # 生产环境必须替换
 REDIS_PASSWORD=                          # Redis 可选密码（留空则不设）
 RABBIT_USER=admin
 RABBIT_PASS=                             # RabbitMQ 密码（prod 启动强校验：Redis/Rabbit 密码非空）
+MONITORING_USER=                         # /actuator/prometheus Basic Auth 用户名（prod 强校验非空，P0-#4）
+MONITORING_PASSWORD=                     # 同上，密码（prometheus.yml basic_auth 用 ${} 内插引用，需保持一致）
 ```
 
 #### 2. 构建并启动
@@ -513,7 +515,8 @@ certbot --nginx -d 你的域名   # 免费 SSL
 | `POST/PUT/DELETE /api/v1/**`（其他） | `ROLE_admin` |
 | `GET /api/v1/auth/challenge`、`POST /api/v1/auth/unlock` | 公开（认证端点 10 次/s/IP 限流；unlock 另有 5 次失败封禁 15 分钟） |
 | `GET /share/**` | 公开（转发到 SPA 落地面） |
-| `/actuator/health`、`/actuator/prometheus` | 公开 |
+| `/actuator/health` | 公开 |
+| `/actuator/prometheus` | Basic Auth（`MONITORING_USER/MONITORING_PASSWORD`，MONITOR 角色） |
 | `/swagger-ui/**`、`/v3/api-docs/**` | 公开（仅开发环境，prod 已禁用 springdoc） |
 | 静态资源 | 公开 |
 
@@ -525,7 +528,7 @@ certbot --nginx -d 你的域名   # 免费 SSL
 GET /actuator/health
 → {"status":"UP","components":{"db":{"status":"UP"},"diskSpace":{"status":"UP"}}}   # dev；prod 另含 redis/rabbitmq
 
-GET /actuator/prometheus
+GET /actuator/prometheus   # 需 Basic Auth（MONITORING_USER/MONITORING_PASSWORD）
 → # HELP photo_upload_total ...
 → # HELP photo_processing_time_seconds ...
 ```
