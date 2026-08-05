@@ -388,11 +388,11 @@ DB_HOST=mysql
 DB_USERNAME=root
 DB_PASSWORD=${MYSQL_ROOT_PASSWORD}
 JWT_SECRET=$(openssl rand -base64 32)        # must be replaced in production
-REDIS_PASSWORD=                              # optional Redis password (leave empty for none)
-RABBIT_USER=admin
-RABBIT_PASS=                                 # RabbitMQ password (prod startup requires Redis/Rabbit passwords non-blank)
-MONITORING_USER=                             # /actuator/prometheus Basic Auth username (prod startup requires non-blank, P0-#4)
-MONITORING_PASSWORD=                         # Same, password (referenced via ${} in prometheus.yml basic_auth; keep in sync)
+REDIS_PASSWORD=your-redis-password       # Redis password (prod startup requires non-blank)
+RABBIT_USER=your-rabbit-user             # RabbitMQ username (must NOT be the default "admin")
+RABBIT_PASS=your-rabbit-pass             # RabbitMQ password (prod startup requires Redis/Rabbit passwords non-blank)
+MONITORING_USER=your-monitor-user        # /actuator/prometheus Basic Auth username (prod requires non-blank, P0-#4)
+MONITORING_PASSWORD=your-monitor-pass    # Same, password (referenced via ${} in prometheus.yml basic_auth; keep in sync)
 ```
 
 #### 2. Build and start

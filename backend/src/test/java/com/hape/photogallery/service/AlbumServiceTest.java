@@ -206,4 +206,65 @@ class AlbumServiceTest {
         // a2 should lose it
         assertThat(a2.getPhotos()).doesNotContain(p);
     }
+
+    // ==================== 回收站：恢复 / 永久删除 / 列表（P1-#14） ====================
+
+    @Test
+    void restore_success_shouldClearDeletedAt() {
+        Album a = new Album("已删"); a.setId(1L);
+        a.setDeletedAt(java.time.LocalDateTime.now());
+        when(albumRepo.findDeletedById(1L)).thenReturn(Optional.of(a));
+
+        service.restore(1L);
+
+        assertThat(a.getDeletedAt()).isNull();
+        verify(albumRepo).save(a);
+    }
+
+    @Test
+    void restore_notFound_should404() {
+        when(albumRepo.findDeletedById(99L)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.restore(99L))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("未找到可恢复的相册");
+        verify(albumRepo, never()).save(any());
+    }
+
+    @Test
+    void permanentlyDelete_shouldDisassociatePhotos() {
+        Album a = new Album("已删"); a.setId(1L);
+        Photo p = new Photo(); p.setId(10L); p.setName("p10");
+        a.getPhotos().add(p);
+        p.getAlbums().add(a);
+        when(albumRepo.findDeletedById(1L)).thenReturn(Optional.of(a));
+
+        service.permanentlyDelete(1L);
+
+        verify(albumRepo).delete(a);
+        assertThat(p.getAlbums()).doesNotContain(a);
+        assertThat(a.getPhotos()).isEmpty();
+    }
+
+    @Test
+    void permanentlyDelete_notFound_should404() {
+        when(albumRepo.findDeletedById(99L)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.permanentlyDelete(99L))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("未找到该相册");
+        verify(albumRepo, never()).delete(any());
+    }
+
+    @Test
+    void listDeleted_photoCountShouldAlwaysBeZero() {
+        Album a = new Album("已删"); a.setId(1L);
+        Photo p = new Photo(); p.setId(10L); p.setName("p10");
+        a.getPhotos().add(p);
+        when(albumRepo.findDeleted()).thenReturn(List.of(a));
+
+        var result = service.listDeleted();
+
+        // P4-#38：回收站 UI 不显示计数，photoCount 一律 0（即使实体仍有关联照片）
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getPhotoCount()).isZero();
+    }
 }
