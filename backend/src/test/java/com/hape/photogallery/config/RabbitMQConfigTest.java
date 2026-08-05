@@ -14,5 +14,8 @@ class RabbitMQConfigTest {
         assertThat(RabbitMQConfig.DLQ).isEqualTo("pg.photo.processing.dlq");
         assertThat(RabbitMQConfig.ROUTING_KEY).isEqualTo("photo.processing");
         assertThat(RabbitMQConfig.DLQ_ROUTING_KEY).isEqualTo("photo.processing.dlq");
+        assertThat(RabbitMQConfig.RETRY_QUEUE).isEqualTo("pg.photo.processing.retry");
+        assertThat(RabbitMQConfig.RETRY_ROUTING_KEY).isEqualTo("photo.processing.retry");
+        assertThat(RabbitMQConfig.RETRY_TTL_MS).isEqualTo(10_000L);
     }
 }
