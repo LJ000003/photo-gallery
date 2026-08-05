@@ -1,6 +1,7 @@
 package com.hape.photogallery.messaging;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -21,7 +22,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageProperties;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 
+import com.hape.photogallery.config.RabbitMQConfig;
 import com.hape.photogallery.entity.Photo;
 import com.hape.photogallery.entity.ProcessingStatus;
 import com.hape.photogallery.repository.PhotoRepository;
@@ -30,8 +33,9 @@ import com.hape.photogallery.service.StorageService;
 import com.rabbitmq.client.Channel;
 
 /**
- * 消息消费者 ack/nack/DLQ 语义测试（直接 new，绕开 @ConditionalOnProperty 的上下文加载）。
- * 用例：照片不存在直接 ack / 成功 ack / 失败 requeue 重试（header 递增）/ 达上限转 DLQ + 标 FAILED。
+ * 消息消费者 ack / TTL 重试队列 / DLQ 语义测试（直接 new，绕开 @ConditionalOnProperty 的上下文加载）。
+ * P0-#1 后语义：失败时显式重投到 TTL 重试队列（rabbitTemplate.send 原样转发，header 递增 x-retry-count）+ ack；
+ * 达上限标 FAILED + nack 进 DLQ。计数用自定义 header（随显式重投持久化，与 broker 版本无关）。
  */
 @ExtendWith(MockitoExtension.class)
 class PhotoProcessingConsumerTest {
@@ -40,6 +44,7 @@ class PhotoProcessingConsumerTest {
     @Mock private PhotoRepository photoRepo;
     @Mock private StorageService storage;
     @Mock private Channel channel;
+    @Mock private RabbitTemplate rabbitTemplate;
 
     @TempDir Path tempDir;
 
@@ -47,14 +52,22 @@ class PhotoProcessingConsumerTest {
 
     @BeforeEach
     void setUp() {
-        consumer = new PhotoProcessingConsumer(processor, photoRepo, storage);
+        consumer = new PhotoProcessingConsumer(processor, photoRepo, storage, rabbitTemplate);
     }
 
+    /** 构造带 x-retry-count header 的消息；retryCount 为 null 表示初投（无 header） */
     private Message makeMessage(long deliveryTag, Integer retryCount) {
         MessageProperties props = new MessageProperties();
         props.setDeliveryTag(deliveryTag);
         if (retryCount != null) props.setHeader("x-retry-count", retryCount);
         return new Message(new byte[0], props);
+    }
+
+    private Photo photo() {
+        Photo photo = new Photo();
+        photo.setId(1L);
+        photo.setFileName("x.jpg");
+        return photo;
     }
 
     @Test
@@ -70,10 +83,7 @@ class PhotoProcessingConsumerTest {
 
     @Test
     void handle_success_shouldAck() throws Exception {
-        Photo photo = new Photo();
-        photo.setId(1L);
-        photo.setFileName("2024/08/a.jpg");
-        when(photoRepo.findById(1L)).thenReturn(Optional.of(photo));
+        when(photoRepo.findById(1L)).thenReturn(Optional.of(photo()));
         when(storage.getUploadDir()).thenReturn(tempDir);
 
         consumer.handle(new ProcessingMessage(1L, "2024/08", "a.jpg", "wm"),
@@ -84,37 +94,54 @@ class PhotoProcessingConsumerTest {
     }
 
     @Test
-    void handle_failure_belowMaxRetries_shouldRequeueWithIncrementingHeader() throws Exception {
-        Photo photo = new Photo();
-        photo.setId(1L);
-        photo.setFileName("x.jpg");
-        when(photoRepo.findById(1L)).thenReturn(Optional.of(photo));
+    void handle_failure_belowMaxRetries_shouldPublishToRetryQueueWithIncrementedHeaderAndAck() throws Exception {
+        when(photoRepo.findById(1L)).thenReturn(Optional.of(photo()));
         when(storage.getUploadDir()).thenReturn(tempDir);
         org.mockito.Mockito.doThrow(new RuntimeException("boom"))
                 .when(processor).process(anyLong(), any(), any(), any(), any());
+        Message amqpMsg = makeMessage(42L, 2); // 第 3 次尝试仍 < MAX_RETRIES(3)
 
-        consumer.handle(new ProcessingMessage(1L, "2024/08", "x.jpg", null),
-                makeMessage(42L, 2), channel);
+        consumer.handle(new ProcessingMessage(1L, "2024/08", "x.jpg", null), amqpMsg, channel);
 
-        // 第 3 次尝试仍 < MAX_RETRIES(3) → requeue 并递增 header
-        verify(channel).basicNack(42L, false, true);
+        // 重投 TTL 重试队列（同一 Message 实例，header 递增为 3）+ ack，不再 requeue
+        ArgumentCaptor<Message> sent = ArgumentCaptor.forClass(Message.class);
+        verify(rabbitTemplate).send(eq(RabbitMQConfig.EXCHANGE),
+                eq(RabbitMQConfig.RETRY_ROUTING_KEY), sent.capture());
+        assertThat(sent.getValue()).isSameAs(amqpMsg);
+        assertThat(sent.getValue().getMessageProperties().getHeaders().get("x-retry-count"))
+                .isEqualTo(3);
+        verify(channel).basicAck(42L, false);
+        verify(channel, never()).basicNack(anyLong(), anyBoolean(), anyBoolean());
         verify(photoRepo, never()).save(any());
     }
 
     @Test
-    void handle_failure_atMaxRetries_shouldNackToDlqAndMarkFailed() throws Exception {
-        Photo photo = new Photo();
-        photo.setId(1L);
-        photo.setFileName("x.jpg");
-        when(photoRepo.findById(1L)).thenReturn(Optional.of(photo));
+    void handle_failure_firstAttempt_shouldRetry() throws Exception {
+        when(photoRepo.findById(1L)).thenReturn(Optional.of(photo()));
         when(storage.getUploadDir()).thenReturn(tempDir);
         org.mockito.Mockito.doThrow(new RuntimeException("boom"))
                 .when(processor).process(anyLong(), any(), any(), any(), any());
 
         consumer.handle(new ProcessingMessage(1L, "2024/08", "x.jpg", null),
-                makeMessage(42L, 3), channel);
+                makeMessage(42L, null), channel); // 初投无 header → count=0 → 走重试
 
-        // 已达 MAX_RETRIES → 不 requeue（进 DLQ）+ 标记 FAILED
+        verify(rabbitTemplate).send(eq(RabbitMQConfig.EXCHANGE),
+                eq(RabbitMQConfig.RETRY_ROUTING_KEY), any(Message.class));
+        verify(channel).basicAck(42L, false);
+    }
+
+    @Test
+    void handle_failure_atMaxRetries_shouldNackToDlqAndMarkFailed() throws Exception {
+        when(photoRepo.findById(1L)).thenReturn(Optional.of(photo()));
+        when(storage.getUploadDir()).thenReturn(tempDir);
+        org.mockito.Mockito.doThrow(new RuntimeException("boom"))
+                .when(processor).process(anyLong(), any(), any(), any(), any());
+
+        consumer.handle(new ProcessingMessage(1L, "2024/08", "x.jpg", null),
+                makeMessage(42L, 3), channel); // 已达 MAX_RETRIES
+
+        // 不再重投 → nack(requeue=false) 走主队列 DLX 进 DLQ + 标记 FAILED
+        verify(rabbitTemplate, never()).send(any(), any(), any(Message.class));
         verify(channel).basicNack(42L, false, false);
         ArgumentCaptor<Photo> captor = ArgumentCaptor.forClass(Photo.class);
         verify(photoRepo, times(1)).save(captor.capture());

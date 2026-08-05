@@ -30,12 +30,14 @@ public class PhotoProcessingConsumer {
     private final PhotoProcessor processor;
     private final PhotoRepository photoRepo;
     private final StorageService storage;
+    private final RabbitTemplate rabbitTemplate;
 
     public PhotoProcessingConsumer(PhotoProcessor processor, PhotoRepository photoRepo,
-                                   StorageService storage) {
+                                   StorageService storage, RabbitTemplate rabbitTemplate) {
         this.processor = processor;
         this.photoRepo = photoRepo;
         this.storage = storage;
+        this.rabbitTemplate = rabbitTemplate;
     }
 
     @RabbitListener(queues = RabbitMQConfig.QUEUE, containerFactory = "rabbitListenerContainerFactory")
@@ -66,10 +68,16 @@ public class PhotoProcessingConsumer {
             int retryCount = getRetryCount(amqpMsg);
             if (retryCount < MAX_RETRIES) {
                 log.warn("处理失败（第 {} 次重试）photo={}: {}", retryCount + 1, photoId, e.getMessage());
-                // 递增自定义重试计数 header（x-death 在 requeue 路径下不会生成）
+                // P0-#1：显式重投到 TTL 重试队列（10s 后死信回主队列再尝试），先投后 ack（at-least-once，
+                // processor 幂等可重入，重复仅多一次处理）。
+                // 计数用自定义 header x-retry-count：显式重投是重新发布消息，header 随消息持久化
+                // （AMQP 消息语义，与 broker 版本无关——X-Trace-Id 在 TTL 死信后保留已实测）。
+                // 为何不用 broker 生成的 x-death：实测 RabbitMQ 4.x 死信时 x-death 被重置为 1 而非
+                // 「同组合合并递增」，依赖它会导致重试计数恒 1、消息无限循环。
+                // 原 bug 根因：basicNack(requeue=true) 回投的是 broker 原始消息，本地 header 改动不持久。
                 amqpMsg.getMessageProperties().setHeader("x-retry-count", retryCount + 1);
-                // requeue：消息回到队尾等待重试
-                channel.basicNack(deliveryTag, false, true);
+                rabbitTemplate.send(RabbitMQConfig.EXCHANGE, RabbitMQConfig.RETRY_ROUTING_KEY, amqpMsg);
+                channel.basicAck(deliveryTag, false);
             } else {
                 log.error("处理失败（已达最大重试 {} 次）photo={}，转入 DLQ", MAX_RETRIES, photoId, e);
                 // 标记 FAILED + 不 requeue → 消息进入 DLQ
@@ -92,7 +100,7 @@ public class PhotoProcessingConsumer {
         }
     }
 
-    /** 从自定义 header 中读取当前重试次数（x-death 在 basicNack(requeue=true) 路径下不会生成） */
+    /** P0-#1：读自定义 x-retry-count header（随显式重投持久化）；初投消息无此 header → 0 */
     private int getRetryCount(Message msg) {
         Object count = msg.getMessageProperties().getHeaders().get("x-retry-count");
         if (count instanceof Number n) return n.intValue();
