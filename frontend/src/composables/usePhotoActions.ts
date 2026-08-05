@@ -14,6 +14,10 @@ import type { ApiResponse } from '../types/api'
 const shareModal = ref<{ photoIds: number[] } | null>(null)
 const shareUrl = ref('')
 const shareLoading = ref(false)
+// P0-#6：当前弹窗分享的 DB token（generate 响应返回；撤销按钮只撤销它——
+// 幂等复用的语义下同内容分享返回同一 token，之前发出的旧链接=同一链接）
+const shareToken = ref('')
+const shareRevoking = ref(false)
 
 export function usePhotoActions() {
   const photo = usePhotoStore()
@@ -100,13 +104,32 @@ export function usePhotoActions() {
         const msg = await extractErrorMessage(res)
         throw new Error(msg)
       }
-      const json: ApiResponse<{ url: string }> = await res.json()
+      const json: ApiResponse<{ url: string; token: string }> = await res.json()
       shareUrl.value = window.location.origin + json.data.url
+      shareToken.value = json.data.token
     } catch (err) {
       toast.error(err instanceof Error ? err.message : i18n.global.t('share.generateFailed'))
       shareModal.value = null
     } finally {
       shareLoading.value = false
+    }
+  }
+
+  /** P0-#6：撤销当前分享链接（撤销后旧链接立即失效） */
+  async function revokeShare(): Promise<void> {
+    if (!shareToken.value) return
+    shareRevoking.value = true
+    try {
+      const res = await api(`/api/share/${shareToken.value}/revoke`, { method: 'POST' })
+      if (!res.ok) throw new Error(await extractErrorMessage(res))
+      shareModal.value = null
+      shareUrl.value = ''
+      shareToken.value = ''
+      toast.success(i18n.global.t('share.revoked'))
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : i18n.global.t('share.revokeFailed'))
+    } finally {
+      shareRevoking.value = false
     }
   }
 
@@ -125,9 +148,12 @@ export function usePhotoActions() {
     shareModal,
     shareUrl,
     shareLoading,
+    shareToken,
+    shareRevoking,
     deletePhoto,
     deletePhotos,
     generateShare,
     copyShareLink,
+    revokeShare,
   }
 }
