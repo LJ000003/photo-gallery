@@ -388,11 +388,11 @@ DB_HOST=mysql
 DB_USERNAME=root
 DB_PASSWORD=${MYSQL_ROOT_PASSWORD}
 JWT_SECRET=$(openssl rand -base64 32)    # 生产环境必须替换
-REDIS_PASSWORD=                          # Redis 可选密码（留空则不设）
-RABBIT_USER=admin
-RABBIT_PASS=                             # RabbitMQ 密码（prod 启动强校验：Redis/Rabbit 密码非空）
-MONITORING_USER=                         # /actuator/prometheus Basic Auth 用户名（prod 强校验非空，P0-#4）
-MONITORING_PASSWORD=                     # 同上，密码（prometheus.yml basic_auth 用 ${} 内插引用，需保持一致）
+REDIS_PASSWORD=你的Redis密码             # Redis 密码（prod 启动强校验非空）
+RABBIT_USER=你的RabbitMQ用户名           # RabbitMQ 用户名（prod 强校验不能为默认 admin）
+RABBIT_PASS=你的RabbitMQ密码             # RabbitMQ 密码（prod 启动强校验：Redis/Rabbit 密码非空）
+MONITORING_USER=你的监控用户名           # /actuator/prometheus Basic Auth 用户名（prod 强校验非空，P0-#4）
+MONITORING_PASSWORD=你的监控密码         # 同上，密码（prometheus.yml basic_auth 用 ${} 内插引用，需保持一致）
 ```
 
 #### 2. 构建并启动
