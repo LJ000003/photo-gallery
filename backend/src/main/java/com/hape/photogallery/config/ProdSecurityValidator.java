@@ -17,7 +17,10 @@ public class ProdSecurityValidator {
     public ProdSecurityValidator(
             @Value("${REDIS_PASSWORD:}") String redisPassword,
             @Value("${RABBIT_PASS:}") String rabbitPassword,
-            @Value("${RABBIT_USER:admin}") String rabbitUser) {
+            @Value("${RABBIT_USER:admin}") String rabbitUser,
+            // P0-#4：监控抓取 Basic Auth 凭据（/actuator/prometheus 已改 hasRole(MONITOR)）
+            @Value("${MONITORING_USER:}") String monitoringUser,
+            @Value("${MONITORING_PASSWORD:}") String monitoringPassword) {
         if (redisPassword == null || redisPassword.isBlank()) {
             throw new IllegalStateException(
                     "生产环境必须设置环境变量 REDIS_PASSWORD，例如: export REDIS_PASSWORD=$(openssl rand -base64 24)");
@@ -29,6 +32,12 @@ public class ProdSecurityValidator {
         if ("admin".equalsIgnoreCase(rabbitUser)) {
             throw new IllegalStateException(
                     "生产环境 RABBIT_USER 不能使用默认值 admin，请通过环境变量设置自定义用户名");
+        }
+        if (monitoringUser == null || monitoringUser.isBlank()
+                || monitoringPassword == null || monitoringPassword.isBlank()) {
+            throw new IllegalStateException(
+                    "生产环境必须设置环境变量 MONITORING_USER / MONITORING_PASSWORD"
+                        + "（/actuator/prometheus 的 Basic Auth 凭据），例如: export MONITORING_PASSWORD=$(openssl rand -base64 24)");
         }
     }
 }
