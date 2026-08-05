@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import com.hape.photogallery.repository.ShareTokenRepository;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -35,6 +36,7 @@ import com.hape.photogallery.service.PhotoService;
         excludeAutoConfiguration = SecurityAutoConfiguration.class)
 @Import({ClientIpResolver.class, JwtService.class, MediaSignatureService.class})
 class ShareControllerTest {
+    @MockBean private ShareTokenRepository shareTokenRepository;
 
     @Autowired
     private MockMvc mockMvc;

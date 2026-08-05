@@ -11,7 +11,12 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
+
+import com.hape.photogallery.entity.ShareToken;
+import com.hape.photogallery.repository.ShareTokenRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
@@ -27,6 +32,7 @@ class JwtAuthFilterTest {
 
     @Mock private JwtService jwtService;
     @Mock private Claims claims;
+    @Mock private ShareTokenRepository shareTokenRepository;
 
     private JwtAuthFilter filter;
     private MediaSignatureService sigService;
@@ -37,9 +43,41 @@ class JwtAuthFilterTest {
     void setUp() {
         sigService = new MediaSignatureService("test-secret-0123456789abcdef0123456789abcdef", 300);
         // P4-#48③：错误响应改 ApiResponse JSON，注入 ObjectMapper
-        filter = new JwtAuthFilter(jwtService, sigService, new com.fasterxml.jackson.databind.ObjectMapper());
+        filter = new JwtAuthFilter(jwtService, sigService,
+                new com.fasterxml.jackson.databind.ObjectMapper(), shareTokenRepository);
         chainCalled = false;
         SecurityContextHolder.clearContext();
+    }
+
+    /** 构造 DB 分享 token（P0-#6） */
+    private ShareToken shareToken(String token, String photoIds, String permission,
+                                  LocalDateTime expiresAt, LocalDateTime revokedAt) {
+        ShareToken st = new ShareToken();
+        st.setToken(token);
+        st.setPhotoIds(photoIds);
+        st.setPermission(permission);
+        st.setExpiresAt(expiresAt);
+        st.setRevokedAt(revokedAt);
+        return st;
+    }
+
+    private MockHttpServletRequest applyGet(String uri, String token) throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", uri);
+        request.setRequestURI(uri);
+        if (token != null) request.addParameter("token", token);
+        response = new MockHttpServletResponse();
+        filter.doFilter(request, response, (req, res) -> chainCalled = true);
+        return request;
+    }
+
+    /** token 走 Authorization header（非图片端点不从 query 取 token，如 /api/v1/share/view） */
+    private MockHttpServletRequest applyHeader(String uri, String token) throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", uri);
+        request.setRequestURI(uri);
+        if (token != null) request.addHeader("Authorization", "Bearer " + token);
+        response = new MockHttpServletResponse();
+        filter.doFilter(request, response, (req, res) -> chainCalled = true);
+        return request;
     }
 
     @AfterEach
@@ -110,6 +148,77 @@ class JwtAuthFilterTest {
         assertThat(res.getStatus()).isEqualTo(403);
         assertThat(res.getContentAsString()).contains("\"code\":403", "message");
         assertThat(chainCalled).isFalse();
+    }
+
+    /* ---------- DB share token（P0-#6：JWT 校验失败 → 查表，撤销/过期即失效） ---------- */
+
+    @Test
+    void dbShareToken_valid_thumbnail_shouldSetViewerAttributes() throws Exception {
+        when(shareTokenRepository.findByToken("db-tok")).thenReturn(Optional.of(
+                shareToken("db-tok", "[1,2]", "view", LocalDateTime.now().plusDays(1), null)));
+
+        MockHttpServletRequest req = applyGet("/api/v1/photos/1/thumbnail?w=400", "db-tok");
+
+        assertThat(response.getStatus()).isNotEqualTo(403);
+        assertThat(chainCalled).isTrue();
+        assertThat(req.getAttribute("sharePhotoIds")).isEqualTo(List.of(1L, 2L));
+        assertThat(req.getAttribute("sharePermission")).isEqualTo("view");
+    }
+
+    @Test
+    void dbShareToken_viewPermission_file_shouldBe403() throws Exception {
+        when(shareTokenRepository.findByToken("db-tok")).thenReturn(Optional.of(
+                shareToken("db-tok", "[1]", "view", LocalDateTime.now().plusDays(1), null)));
+
+        MockHttpServletResponse res = apply("/api/v1/photos/1/file", "db-tok");
+
+        assertThat(res.getStatus()).isEqualTo(403);
+        assertThat(res.getContentAsString()).contains("\"code\":403", "message");
+        assertThat(chainCalled).isFalse();
+    }
+
+    @Test
+    void dbShareToken_photoOutsideWhitelist_file_shouldBe403() throws Exception {
+        when(shareTokenRepository.findByToken("db-tok")).thenReturn(Optional.of(
+                shareToken("db-tok", "[2]", "download", LocalDateTime.now().plusDays(1), null)));
+
+        MockHttpServletResponse res = apply("/api/v1/photos/1/file", "db-tok");
+
+        assertThat(res.getStatus()).isEqualTo(403);
+        assertThat(res.getContentAsString()).contains("\"code\":403", "message");
+        assertThat(chainCalled).isFalse();
+    }
+
+    @Test
+    void dbShareToken_revoked_shouldPassThroughWithoutAuth() throws Exception {
+        when(shareTokenRepository.findByToken("db-tok")).thenReturn(Optional.of(
+                shareToken("db-tok", "[1]", "view", LocalDateTime.now().plusDays(1), LocalDateTime.now())));
+
+        applyHeader("/api/v1/share/view", "db-tok");
+
+        assertThat(chainCalled).isTrue();
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+    }
+
+    @Test
+    void dbShareToken_expired_shouldPassThroughWithoutAuth() throws Exception {
+        when(shareTokenRepository.findByToken("db-tok")).thenReturn(Optional.of(
+                shareToken("db-tok", "[1]", "view", LocalDateTime.now().minusHours(1), null)));
+
+        applyHeader("/api/v1/share/view", "db-tok");
+
+        assertThat(chainCalled).isTrue();
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+    }
+
+    @Test
+    void dbShareToken_unknown_shouldPassThroughWithoutAuth() throws Exception {
+        when(shareTokenRepository.findByToken("db-tok")).thenReturn(Optional.empty());
+
+        applyHeader("/api/v1/share/view", "db-tok");
+
+        assertThat(chainCalled).isTrue();
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
     }
 
     @Test
