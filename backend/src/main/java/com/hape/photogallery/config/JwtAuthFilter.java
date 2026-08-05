@@ -1,6 +1,7 @@
 package com.hape.photogallery.config;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -12,9 +13,12 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import org.springframework.stereotype.Component;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import com.hape.photogallery.ApiResponse;
+import com.hape.photogallery.entity.ShareToken;
+import com.hape.photogallery.repository.ShareTokenRepository;
 
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
@@ -28,12 +32,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     private final JwtService jwtService;
     private final MediaSignatureService mediaSignatureService;
     private final ObjectMapper objectMapper;
+    private final ShareTokenRepository shareTokenRepository;
 
     public JwtAuthFilter(JwtService jwtService, MediaSignatureService mediaSignatureService,
-                         ObjectMapper objectMapper) {
+                         ObjectMapper objectMapper, ShareTokenRepository shareTokenRepository) {
         this.jwtService = jwtService;
         this.mediaSignatureService = mediaSignatureService;
         this.objectMapper = objectMapper;
+        this.shareTokenRepository = shareTokenRepository;
     }
 
     /** 错误响应统一走 ApiResponse JSON（P4-#48③：此前 sendError 是纯 Servlet 错误体，与接口契约不一致） */
@@ -87,43 +93,80 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             Claims claims = jwtService.verify(token);
             if (claims != null) {
                 String role = claims.get("role", String.class);
-                List<SimpleGrantedAuthority> authorities = List.of(
-                        new SimpleGrantedAuthority("ROLE_" + role));
-
-                if ("viewer".equals(role)) {
+                if ("admin".equals(role)) {
+                    SecurityContextHolder.getContext().setAuthentication(
+                            new UsernamePasswordAuthenticationToken("admin", null,
+                                    List.of(new SimpleGrantedAuthority("ROLE_admin"))));
+                } else if ("viewer".equals(role)) {
+                    // legacy：旧 7 天 viewer JWT 分享链接过渡期兼容（新链接一律 DB token，
+                    // 存量 JWT 最长 7 天自然失效且不可撤销——文档已注明）
                     @SuppressWarnings("unchecked")
                     List<?> photos = claims.get("photos", List.class);
                     List<Long> photoIds = null;
                     if (photos != null) {
                         photoIds = photos.stream().map(n -> ((Number) n).longValue()).toList();
-                        request.setAttribute("sharePhotoIds", photoIds);
                     }
                     String permission = claims.get("permission", String.class);
-                    request.setAttribute("sharePermission", permission);
-
-                    // 校验 viewer 访问图片文件端点时，photo ID 必须在 sharePhotoIds 范围内
-                    Long requestedPhotoId = extractPhotoIdFromImagePath(request.getRequestURI());
-                    if (requestedPhotoId != null) {
-                        if (photoIds == null || !photoIds.contains(requestedPhotoId)) {
-                            writeError(response, HttpServletResponse.SC_FORBIDDEN, "无权限访问该照片");
-                            return;
-                        }
-                        // 强制执行分享权限：view 仅可查看缩略图/WebP，禁止下载原图；
-                        // permission claim 缺失时按最保守处理（同样拒绝下载）
-                        if (isFileRequest(request.getRequestURI()) && !"download".equals(permission)) {
-                            writeError(response, HttpServletResponse.SC_FORBIDDEN, "该分享链接仅可查看，不可下载");
-                            return;
-                        }
+                    if (!applyViewerAuth(request, response, photoIds, permission)) {
+                        return;
                     }
                 }
-
-                UsernamePasswordAuthenticationToken auth =
-                        new UsernamePasswordAuthenticationToken(role, null, authorities);
-                SecurityContextHolder.getContext().setAuthentication(auth);
+            } else {
+                // P0-#6：JWT 校验失败 → DB share token（新分享链接；撤销/过期即失效）。
+                // 热路径代价：每张图一次 token 唯一索引查询——刻意不缓存以保持撤销即时生效。
+                ShareToken st = shareTokenRepository.findByToken(token).orElse(null);
+                if (st != null && st.getRevokedAt() == null && st.getExpiresAt() != null
+                        && st.getExpiresAt().isAfter(LocalDateTime.now())) {
+                    try {
+                        List<Long> photoIds = objectMapper.readValue(st.getPhotoIds(),
+                                objectMapper.getTypeFactory()
+                                        .constructCollectionType(List.class, Long.class));
+                        if (!applyViewerAuth(request, response, photoIds, st.getPermission())) {
+                            return;
+                        }
+                    } catch (JsonProcessingException ex) {
+                        // photo_ids 数据损坏：按未认证透传（Security 401 兜底）
+                    }
+                }
+                // 无效/已撤销/已过期 token：不设认证，继续 chain（图片端点 403、
+                // /api/v1/share/view 由 controller 以 404「分享链接无效或已过期」兜底）
             }
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    /**
+     * viewer 鉴权（legacy JWT 与 DB share token 共用）：设 sharePhotoIds/sharePermission
+     * attribute + ROLE_viewer；图片请求校验 photoId 白名单与 download 权限。
+     * 返回 false 表示已写错误响应，调用方应终止链。
+     */
+    private boolean applyViewerAuth(HttpServletRequest request, HttpServletResponse response,
+                                    List<Long> photoIds, String permission) throws IOException {
+        if (photoIds != null) {
+            request.setAttribute("sharePhotoIds", photoIds);
+        }
+        request.setAttribute("sharePermission", permission);
+
+        // 校验 viewer 访问图片文件端点时，photo ID 必须在 sharePhotoIds 范围内
+        Long requestedPhotoId = extractPhotoIdFromImagePath(request.getRequestURI());
+        if (requestedPhotoId != null) {
+            if (photoIds == null || !photoIds.contains(requestedPhotoId)) {
+                writeError(response, HttpServletResponse.SC_FORBIDDEN, "无权限访问该照片");
+                return false;
+            }
+            // 强制执行分享权限：view 仅可查看缩略图/WebP，禁止下载原图；
+            // permission 缺失时按最保守处理（同样拒绝下载）
+            if (isFileRequest(request.getRequestURI()) && !"download".equals(permission)) {
+                writeError(response, HttpServletResponse.SC_FORBIDDEN, "该分享链接仅可查看，不可下载");
+                return false;
+            }
+        }
+
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("viewer", null,
+                        List.of(new SimpleGrantedAuthority("ROLE_viewer"))));
+        return true;
     }
 
     private static final Pattern PHOTO_IMAGE_PATH = Pattern.compile(

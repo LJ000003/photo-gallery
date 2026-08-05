@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -12,6 +13,9 @@ import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.context.SecurityContextHolderFilter;
@@ -78,6 +82,11 @@ public class SecurityConfig {
             )
             .csrf(csrf -> csrf.disable())
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            // P0-#4：启用 Basic Auth——仅 /actuator/prometheus（hasRole MONITOR）实际受保护，
+            // 其余端点仍走 JWT 过滤器链；未带 Basic 凭据的 API 请求不受影响。
+            // 注意必须在本处先于 exceptionHandling 配置——Spring Security 6 中 httpBasic()
+            // 会覆盖 authenticationEntryPoint，若在其后调用会破坏下方自定义 JSON 401 响应
+            .httpBasic(h -> {})
             // P4-#48③：未认证 401 / 权限不足 403 统一 ApiResponse JSON（此前默认空体；前端对 401/403 同样登出处理，无影响）
             .exceptionHandling(eh -> eh
                 .authenticationEntryPoint((req, res, ex) ->
@@ -103,7 +112,10 @@ public class SecurityConfig {
                 .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/api/v1/**"))
                     .hasAuthority("ROLE_admin")
                 .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/actuator/health")).permitAll()
-                .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/actuator/prometheus")).permitAll()
+                // P0-#4：prometheus 指标公网裸奔 → Basic Auth（MONITOR 角色，凭据来自 env，
+                // 未配置时 Boot 默认用户非 MONITOR → 403，端点仍不可访问）
+                .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/actuator/prometheus"))
+                    .hasRole("MONITOR")
                 .requestMatchers(AntPathRequestMatcher.antMatcher("/swagger-ui/**")).permitAll()
                 .requestMatchers(AntPathRequestMatcher.antMatcher("/v3/api-docs/**")).permitAll()
                 .requestMatchers(
@@ -120,10 +132,24 @@ public class SecurityConfig {
                 ).permitAll()
                 .anyRequest().hasAuthority("ROLE_admin")
             )
-            .formLogin(fl -> fl.disable())
-            .httpBasic(hb -> hb.disable());
+            .formLogin(fl -> fl.disable());
 
         return http.build();
+    }
+
+    /**
+     * P0-#4：监控抓取凭据（Grafana/Prometheus basic_auth 对应）。
+     * 条件加载：dev/test 未配置 monitoring.* 时该 Bean 不存在，
+     * Boot 默认随机密码用户无 MONITOR 角色 → 端点恒 403，不泄漏指标。
+     * {noop} 明码：内网 localhost 抓取凭据，可接受；如需更强可换 {bcrypt} 预哈希。
+     */
+    @Bean
+    @ConditionalOnProperty(name = {"monitoring.username", "monitoring.password"})
+    UserDetailsService monitoringUserDetailsService(
+            @Value("${monitoring.username}") String username,
+            @Value("${monitoring.password}") String password) {
+        return new InMemoryUserDetailsManager(
+                User.withUsername(username).password("{noop}" + password).roles("MONITOR").build());
     }
 
     @Value("${cors.allowed-origins:http://localhost:*,https://hape233.online}")

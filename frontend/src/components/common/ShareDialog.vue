@@ -1,16 +1,17 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { CopyOutlined, LinkOutlined } from '@ant-design/icons-vue'
-import { Button, Input, Modal, Spin } from 'ant-design-vue'
+import { CopyOutlined, DeleteOutlined, LinkOutlined } from '@ant-design/icons-vue'
+import { Button, Input, Modal, Popconfirm, Spin } from 'ant-design-vue'
 import { usePhotoActions } from '../../composables/usePhotoActions'
 
 /**
- * 分享链接弹窗：生成结果展示 + 复制
- * 状态来自 usePhotoActions 单例（shareModal/shareUrl/shareLoading）
+ * 分享链接弹窗：生成结果展示 + 复制 + 撤销（P0-#6）
+ * 状态来自 usePhotoActions 单例（shareModal/shareUrl/shareLoading/shareRevoking）
  */
 const { t } = useI18n()
-const { shareModal, shareUrl, shareLoading, copyShareLink } = usePhotoActions()
+const { shareModal, shareUrl, shareLoading, copyShareLink, shareRevoking, revokeShare } =
+  usePhotoActions()
 
 const photoCount = computed(() => shareModal.value?.photoIds.length ?? 0)
 </script>
@@ -48,6 +49,20 @@ const photoCount = computed(() => shareModal.value?.photoIds.length ?? 0)
         <LinkOutlined />
         {{ t('share.expire') }}
       </p>
+
+      <div v-if="shareUrl" class="share-revoke">
+        <Popconfirm
+          :title="t('share.revokeConfirm')"
+          :ok-text="t('share.revokeOk')"
+          :cancel-text="t('share.revokeCancel')"
+          @confirm="revokeShare"
+        >
+          <Button danger size="small" :loading="shareRevoking" :disabled="shareLoading">
+            <DeleteOutlined />
+            {{ t('share.revoke') }}
+          </Button>
+        </Popconfirm>
+      </div>
     </div>
   </Modal>
 </template>
@@ -75,5 +90,10 @@ const photoCount = computed(() => shareModal.value?.photoIds.length ?? 0)
   display: flex;
   align-items: center;
   gap: 4px;
+}
+.share-revoke {
+  margin-top: 16px;
+  border-top: 1px solid var(--c-border);
+  padding-top: 12px;
 }
 </style>

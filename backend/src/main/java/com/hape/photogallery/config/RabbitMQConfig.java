@@ -34,6 +34,12 @@ public class RabbitMQConfig {
     public static final String DLQ = "pg.photo.processing.dlq";
     public static final String ROUTING_KEY = "photo.processing";
     public static final String DLQ_ROUTING_KEY = "photo.processing.dlq";
+    /** P0-#1：TTL 重试队列——consumer 失败时显式重投到此队列，TTL 到期死信回主队列重试；
+     *  重试次数由自定义 header x-retry-count 记录（随显式重投持久化，与 broker 版本无关——
+     *  实测 RabbitMQ 4.x 死信时 x-death 被重置而非合并递增，不可依赖） */
+    public static final String RETRY_QUEUE = "pg.photo.processing.retry";
+    public static final String RETRY_ROUTING_KEY = "photo.processing.retry";
+    public static final long RETRY_TTL_MS = 10_000;
 
     /** 处理队列（持久、含 DLX） */
     @Bean
@@ -42,6 +48,16 @@ public class RabbitMQConfig {
         args.put("x-dead-letter-exchange", DLX_EXCHANGE);
         args.put("x-dead-letter-routing-key", DLQ_ROUTING_KEY);
         return QueueBuilder.durable(QUEUE).withArguments(args).build();
+    }
+
+    /** 重试队列（无消费者）：TTL 到期死信回主交换机，经主绑定回到处理队列（等待室语义） */
+    @Bean
+    Queue retryQueue() {
+        Map<String, Object> args = new HashMap<>();
+        args.put("x-message-ttl", RETRY_TTL_MS);
+        args.put("x-dead-letter-exchange", EXCHANGE);
+        args.put("x-dead-letter-routing-key", ROUTING_KEY);
+        return QueueBuilder.durable(RETRY_QUEUE).withArguments(args).build();
     }
 
     /** 死信队列 */
@@ -65,6 +81,12 @@ public class RabbitMQConfig {
     @Bean
     Binding processingBinding() {
         return BindingBuilder.bind(processingQueue()).to(processingExchange()).with(ROUTING_KEY);
+    }
+
+    /** P0-#1：主交换机 → 重试队列（consumer 失败时显式重投的路由） */
+    @Bean
+    Binding retryBinding() {
+        return BindingBuilder.bind(retryQueue()).to(processingExchange()).with(RETRY_ROUTING_KEY);
     }
 
     @Bean

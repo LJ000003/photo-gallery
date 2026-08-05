@@ -73,8 +73,8 @@ Spring Boot 3 + Vue 3 single-page app — the frontend and backend are separated
 ### Security
 - **Konami gate** — challenge-response: the frontend records keys only and never validates → `GET /api/v1/auth/challenge` issues a one-time nonce (60s TTL) → `POST /api/v1/auth/unlock` submits nonce + sequence; the sequence lives only in backend config. Keyboard + touch input
 - **Brute-force protection** — per-IP rate limit on auth endpoints (10 req/s) + failure counter (Caffeine); 5 failures = 15-minute ban
-- **Dual-role JWT** — admin (24h, management) / viewer (7 days, share viewing)
-- **Time-limited share links** — generate share links for selected photos; friends view without a password. The viewer JWT encodes a photo whitelist (`photoIds`) + permission scope (`permission`, only `view`/`download`, invalid values → 400). Double-checked server-side: `SecurityConfig` restricts viewers to `/api/v1/share/view` + image endpoints; `JwtAuthFilter` validates `photoId ∈ sharePhotoIds` per image request, preventing cross-access
+- **Dual-role JWT** — admin (24h, management); share links no longer issue viewer JWTs (P0-#6/#7, see below)
+- **Revocable share links** — generate share links for selected photos; friends view without a password. The credential is a high-entropy random DB token (`share_tokens` table, V10): same content reuses the same link (idempotent), one-click revoke in the dialog (`POST /api/v1/share/{token}/revoke` — the old link stops working immediately); photo whitelist + `permission` (only `view`/`download`, invalid → 400) are stored in the token record, checked per request by `JwtAuthFilter` (no caching → instant revocation). The legacy viewer JWT branch exists only for transition (old links expire naturally within 7 days, not revocable)
 - **Short-lived signed image URLs** — `<img>` tags can't carry Authorization headers, so image URLs use HMAC short-lived signatures (`photoId.bucket.hmac`, 300s buckets ±1 → ~10min sliding window, key derived one-way from `JWT_SECRET`). The session JWT never appears in URL query strings (no leaks via logs/history/Referer); share responses strip signatures so they can't be borrowed to download
 - **Share permission enforcement** — `/api/v1/photos/{id}/file` requires `permission=download`: `view` permission or a missing signature → 403 (thumbnails/WebP unaffected — viewing needs rendering)
 - **SHA-256 dedup** — file hash computed outside the transaction (no DB connection held); duplicates return 409 with existing photo data (single) or are skipped silently (batch)
@@ -98,7 +98,7 @@ Spring Boot 3 + Vue 3 single-page app — the frontend and backend are separated
 
 ### Misc
 - Design tokens single-sourced in `theme.ts` (drives the antd ConfigProvider theme + CSS variables at runtime, light/dark follows the system); `styles/tokens.css` is the no-JS first-paint fallback
-- `/actuator/health` (dev: DB + diskSpace, Rabbit/Redis indicators disabled to avoid false DOWN; prod: incl. RabbitMQ/Redis) + `/actuator/prometheus` (both endpoints public)
+- `/actuator/health` (public; dev: DB + diskSpace, Rabbit/Redis indicators disabled to avoid false DOWN; prod: incl. RabbitMQ/Redis) + `/actuator/prometheus` (**Basic Auth**: `MONITORING_USER/MONITORING_PASSWORD`, P0-#4)
 - Micrometer custom metrics: `photo.upload.total`, `photo.upload.bytes`, `photo.processing.total`, `photo.processing.failures`, `@Timed("photo.processing.time")` for processing duration
 - Toast notifications, error boundaries (component-level ErrorBoundary + global errorHandler fallback page)
 - Mobile responsive (bottom nav, centered upload button, hover degradation, map adaptation)
@@ -391,6 +391,8 @@ JWT_SECRET=$(openssl rand -base64 32)        # must be replaced in production
 REDIS_PASSWORD=                              # optional Redis password (leave empty for none)
 RABBIT_USER=admin
 RABBIT_PASS=                                 # RabbitMQ password (prod startup requires Redis/Rabbit passwords non-blank)
+MONITORING_USER=                             # /actuator/prometheus Basic Auth username (prod startup requires non-blank, P0-#4)
+MONITORING_PASSWORD=                         # Same, password (referenced via ${} in prometheus.yml basic_auth; keep in sync)
 ```
 
 #### 2. Build and start
@@ -517,6 +519,7 @@ Manual switch: `localStorage.setItem('locale', 'en-US')` or `'zh-CN'`, then refr
 | `POST/PUT/DELETE /api/v1/**` (other) | `ROLE_admin` |
 | `GET /api/v1/auth/challenge`, `POST /api/v1/auth/unlock` | Public (auth endpoints rate-limited 10/s/IP; unlock additionally bans 15 min after 5 failures) |
 | `GET /share/**` | Public (forwards to the SPA landing page) |
+| `/actuator/prometheus` | Basic Auth (`MONITORING_USER/MONITORING_PASSWORD`, MONITOR role) |
 | `/actuator/health`, `/actuator/prometheus` | Public |
 | `/swagger-ui/**`, `/v3/api-docs/**` | Public (dev only; springdoc disabled in prod) |
 | Static assets | Public |

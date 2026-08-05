@@ -1,20 +1,26 @@
 package com.hape.photogallery.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hape.photogallery.config.FailedAttemptStore;
 import com.hape.photogallery.config.JwtService;
 import com.hape.photogallery.config.NonceStore;
+import com.hape.photogallery.entity.ShareToken;
+import com.hape.photogallery.repository.ShareTokenRepository;
 import com.hape.photogallery.service.AuthService.AuthResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -35,13 +41,27 @@ class AuthServiceTest {
     @Mock private JwtService jwtService;
     @Mock private NonceStore nonceStore;
     @Mock private FailedAttemptStore failedAttemptStore;
+    @Mock private ShareTokenRepository shareTokenRepository;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     private AuthService service;
 
     @BeforeEach
     void setUp() {
-        service = new AuthService(jwtService, nonceStore, failedAttemptStore);
+        service = new AuthService(jwtService, nonceStore, failedAttemptStore,
+                shareTokenRepository, objectMapper);
         ReflectionTestUtils.setField(service, "konamiSequence", SEQUENCE);
+    }
+
+    private ShareToken activeToken(String token, String photoIds, String permission) {
+        ShareToken st = new ShareToken();
+        st.setToken(token);
+        st.setPhotoIds(photoIds);
+        st.setPermission(permission);
+        st.setExpiresAt(LocalDateTime.now().plusDays(7));
+        st.setCreatedAt(LocalDateTime.now());
+        return st;
     }
 
     private Map<String, Object> unlockBody(String nonce, List<String> keys) {
@@ -117,14 +137,82 @@ class AuthServiceTest {
         verify(failedAttemptStore).reset("1.2.3.4");
     }
 
+    // ==================== 分享 token（P0-#6：DB token + 幂等复用） ====================
+
     @Test
-    void generateShare_shouldIssueViewerToken() {
-        when(jwtService.issueShare(any(), anyString(), anyLong())).thenReturn("viewer-token");
+    void generateShare_shouldPersistShareToken() {
+        when(shareTokenRepository.findAllByRevokedAtIsNullAndExpiresAtAfter(any()))
+                .thenReturn(List.of());
+
+        AuthResult result = service.generateShare(List.of(2L, 1L, 2L), "view", 7);
+
+        assertThat(result.status()).isEqualTo(200);
+        assertThat(result.data()).containsKey("token");
+        assertThat(result.data()).containsEntry("expiresIn", "604800");
+        assertThat(result.data().get("url")).isEqualTo("/share/" + result.data().get("token"));
+
+        ArgumentCaptor<ShareToken> captor = ArgumentCaptor.forClass(ShareToken.class);
+        verify(shareTokenRepository).save(captor.capture());
+        ShareToken saved = captor.getValue();
+        assertThat(saved.getPhotoIds()).isEqualTo("[1,2]"); // 规范化：排序去重
+        assertThat(saved.getPermission()).isEqualTo("view");
+        assertThat(saved.getExpiresAt()).isAfter(LocalDateTime.now().plusDays(6));
+        assertThat(saved.getToken()).matches("^[A-Za-z0-9_-]{40,50}$"); // base64url(32B)
+    }
+
+    @Test
+    void generateShare_sameContent_shouldReuseExistingToken() {
+        ShareToken existing = activeToken("existing-token", "[1,2]", "view");
+        when(shareTokenRepository.findAllByRevokedAtIsNullAndExpiresAtAfter(any()))
+                .thenReturn(List.of(existing));
 
         AuthResult result = service.generateShare(List.of(1L, 2L), "view", 7);
 
-        assertThat(result.status()).isEqualTo(200);
-        assertThat(result.data()).containsEntry("url", "/share/viewer-token");
-        assertThat(result.data()).containsEntry("token", "viewer-token");
+        assertThat(result.data()).containsEntry("url", "/share/existing-token");
+        assertThat(result.data()).containsEntry("token", "existing-token");
+        verify(shareTokenRepository, never()).save(any());
+    }
+
+    @Test
+    void generateShare_sameContentDifferentPermission_shouldCreateNew() {
+        ShareToken existing = activeToken("existing-token", "[1,2]", "download");
+        when(shareTokenRepository.findAllByRevokedAtIsNullAndExpiresAtAfter(any()))
+                .thenReturn(List.of(existing));
+
+        AuthResult result = service.generateShare(List.of(1L, 2L), "view", 7);
+
+        assertThat(result.data()).doesNotContainEntry("token", "existing-token");
+        verify(shareTokenRepository).save(any(ShareToken.class));
+    }
+
+    @Test
+    void revokeShare_notFound_should404() {
+        when(shareTokenRepository.findByToken("no-such")).thenReturn(java.util.Optional.empty());
+
+        assertThatThrownBy(() -> service.revokeShare("no-such"))
+                .isInstanceOf(com.hape.photogallery.exception.BusinessException.class)
+                .hasMessageContaining("分享链接不存在");
+    }
+
+    @Test
+    void revokeShare_active_shouldSetRevokedAt() {
+        ShareToken st = activeToken("tok-1", "[1]", "view");
+        when(shareTokenRepository.findByToken("tok-1")).thenReturn(java.util.Optional.of(st));
+
+        service.revokeShare("tok-1");
+
+        assertThat(st.getRevokedAt()).isNotNull();
+        verify(shareTokenRepository).save(st);
+    }
+
+    @Test
+    void revokeShare_alreadyRevoked_shouldBeIdempotent() {
+        ShareToken st = activeToken("tok-1", "[1]", "view");
+        st.setRevokedAt(LocalDateTime.now().minusHours(1));
+        when(shareTokenRepository.findByToken("tok-1")).thenReturn(java.util.Optional.of(st));
+
+        service.revokeShare("tok-1");
+
+        verify(shareTokenRepository, never()).save(any());
     }
 }

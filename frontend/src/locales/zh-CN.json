@@ -224,6 +224,12 @@
     "invalidHint": "链接已失效或不存在，请联系分享者重新生成",
     "serverErrorTitle": "加载失败",
     "serverErrorHint": "服务器开小差了，请稍后重试",
+    "revoke": "撤销分享",
+    "revoked": "分享链接已撤销，旧链接立即失效",
+    "revokeFailed": "撤销失败，请重试",
+    "revokeConfirm": "撤销后该链接将立即失效，确定撤销？",
+    "revokeOk": "撤销",
+    "revokeCancel": "取消",
     "copyFailed": "复制失败，请手动复制",
     "generateFailed": "生成分享失败"
   },

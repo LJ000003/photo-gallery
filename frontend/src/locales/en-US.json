@@ -224,6 +224,12 @@
     "invalidHint": "This link is invalid or expired. Ask the sharer to create a new one",
     "serverErrorTitle": "Failed to load",
     "serverErrorHint": "The server hit an issue, please try again later",
+    "revoke": "Revoke share",
+    "revoked": "Share link revoked, the old link stops working immediately",
+    "revokeFailed": "Failed to revoke, please retry",
+    "revokeConfirm": "The link will stop working immediately. Revoke it?",
+    "revokeOk": "Revoke",
+    "revokeCancel": "Cancel",
     "copyFailed": "Copy failed, please copy manually",
     "generateFailed": "Failed to create share link"
   },

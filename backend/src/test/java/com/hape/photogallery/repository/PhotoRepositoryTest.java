@@ -2,8 +2,14 @@ package com.hape.photogallery.repository;
 
 import com.hape.photogallery.entity.Album;
 import com.hape.photogallery.entity.Category;
+import com.hape.photogallery.entity.ExifData;
 import com.hape.photogallery.entity.Photo;
 import com.hape.photogallery.entity.Tag;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityManagerFactory;
+import jakarta.persistence.PersistenceContext;
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -11,13 +17,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@DataJpaTest
+@DataJpaTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 class PhotoRepositoryTest {
 
     @Autowired
@@ -31,6 +38,15 @@ class PhotoRepositoryTest {
 
     @Autowired
     private AlbumRepository albumRepo;
+
+    @Autowired
+    private ExifDataRepository exifRepo;
+
+    @PersistenceContext
+    private EntityManager em;
+
+    @Autowired
+    private EntityManagerFactory emf;
 
     private Category cat1, cat2;
     private Tag tag1, tag2;
@@ -251,5 +267,44 @@ class PhotoRepositoryTest {
     void findForBackup_noMatch_shouldReturnEmpty() {
         List<Photo> result = photoRepo.findForBackup(null, 9999L, null, null);
         assertThat(result).isEmpty();
+    }
+
+    // ==================== P0-#2：列表页 exifData 懒加载批量（v6 P4-#44 类级 @BatchSize 回归保护） ====================
+    // 先测后改：Photo.exifData 无字段级 @BatchSize，但 ExifData 类级 @BatchSize(20) 已生效——
+    // 期望不加任何代码此用例即通过（查询数 ≈ 3 而非 N+1 的 27），作为回归防护留存。
+
+    @Test
+    void exifData_shouldLoadInBatches_notOnePerRow() {
+        List<Photo> photos = new java.util.ArrayList<>();
+        for (int i = 0; i < 25; i++) {
+            Photo p = new Photo();
+            p.setName("batch-" + i);
+            p.setFileName("batch-" + i + ".jpg");
+            photos.add(p);
+        }
+        photoRepo.saveAll(photos);
+
+        List<ExifData> exifs = new java.util.ArrayList<>();
+        for (int i = 0; i < 25; i++) {
+            ExifData e = new ExifData();
+            e.setPhoto(photos.get(i));
+            e.setDateTaken(LocalDateTime.now().minusDays(i));
+            exifs.add(e);
+        }
+        exifRepo.saveAll(exifs);
+
+        Statistics stats = emf.unwrap(SessionFactory.class).getStatistics();
+        stats.clear(); // 清掉 saveAll 阶段的计数
+        em.clear();    // 清一级缓存，确保懒加载真实查库
+
+        Page<Photo> page = photoRepo.findByIdIn(
+                photos.stream().map(Photo::getId).toList(), Pageable.unpaged());
+        for (Photo p : page.getContent()) {
+            p.getExifData(); // PhotoResponse.from 的等价访问路径
+        }
+
+        long queries = stats.getQueryExecutionCount();
+        // 主查询 1 + exifData 批量 2 批（20+5）≈ 3；若类级 @BatchSize 失效则 ≈ 27（每张 1 条）
+        assertThat(queries).isLessThanOrEqualTo(5);
     }
 }

@@ -4,8 +4,6 @@ import io.jsonwebtoken.Claims;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -28,18 +26,7 @@ class JwtServiceTest {
         assertThat(claims.get("role")).isEqualTo("admin");
     }
 
-    @Test
-    void issueShare_shouldContainPhotoIds() {
-        String token = jwtService.issueShare(List.of(1L, 2L, 3L), "view", 86400000);
-        assertThat(token).isNotBlank();
-
-        Claims claims = jwtService.verify(token);
-        assertThat(claims).isNotNull();
-        assertThat(claims.get("role")).isEqualTo("viewer");
-        @SuppressWarnings("unchecked")
-        List<Integer> photos = claims.get("photos", List.class);
-        assertThat(photos).hasSize(3);
-    }
+    // P0-#6：issueShare 已删除——分享凭证改为 DB 高熵 token（可撤销），JWT 退出分享签发
 
     @Test
     void verify_invalidToken_shouldReturnNull() {

@@ -17,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import com.hape.photogallery.repository.ShareTokenRepository;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -37,6 +38,7 @@ import com.hape.photogallery.service.AuthService.AuthResult;
         excludeAutoConfiguration = SecurityAutoConfiguration.class)
 @Import({ClientIpResolver.class, JwtService.class, MediaSignatureService.class})
 class AuthControllerTest {
+    @MockBean private ShareTokenRepository shareTokenRepository;
 
     @Autowired
     private MockMvc mockMvc;
@@ -139,5 +141,14 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"photoIds\":[]}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void revokeShare_shouldCallService() throws Exception {
+        mockMvc.perform(post("/api/v1/share/some-token/revoke"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").value("分享链接已撤销"));
+
+        verify(authService).revokeShare("some-token");
     }
 }

@@ -5,6 +5,7 @@ import java.util.Map;
 import io.swagger.v3.oas.annotations.Operation;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -62,11 +63,20 @@ public class AuthController {
 
     /** 管理员生成分享链接 */
     @Operation(summary = "生成分享链接",
-            description = "签发 7 天 viewer JWT（photoIds 白名单 + permission view/download，非法 permission 400）")
+            description = "生成 DB 分享 token（P0-#6：同内容幂等复用，photoIds 白名单 + permission view/download，非法 permission 400）")
     @PostMapping("/api/v1/share/generate")
     public ApiResponse<Map<String, Object>> generateShare(@Valid @RequestBody ShareGenerateRequest req) {
         AuthResult result = authService.generateShare(req.getPhotoIds(), req.getPermission(),
                 req.getExpireDays());
         return ApiResponse.success(result.data());
+    }
+
+    /** 撤销分享链接（P0-#6：admin；幂等——撤销后旧链接立即 403/404） */
+    @Operation(summary = "撤销分享链接",
+            description = "按 token 撤销（幂等；不存在 404），撤销后该分享立即失效")
+    @PostMapping("/api/v1/share/{token}/revoke")
+    public ApiResponse<String> revokeShare(@PathVariable String token) {
+        authService.revokeShare(token);
+        return ApiResponse.success("分享链接已撤销");
     }
 }
