@@ -12,7 +12,9 @@ import com.hape.photogallery.service.MigrationService;
 import com.hape.photogallery.service.PhotoService;
 import com.hape.photogallery.service.PhotoTransformService;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -21,8 +23,13 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -45,6 +52,9 @@ class PhotoControllerTest {
     @MockBean private MigrationService migrationService;
     @MockBean private FilePathResolver filePathResolver;
     @MockBean private PhotoTransformService transformService;
+
+    @TempDir
+    Path tempDir;
 
     // ==================== list ====================
 
@@ -286,5 +296,109 @@ class PhotoControllerTest {
         mockMvc.perform(post("/api/v1/photos/extract-exif"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.extracted").value(5));
+    }
+
+    // ==================== thumbnail / webp（P0-#3：回退原图绕过封堵）====================
+
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    void getThumbnail_missingThumb_asViewer_should404() throws Exception {
+        when(filePathResolver.getByIdIncludeDeleted(1L)).thenReturn(photo("image/jpeg"));
+        when(filePathResolver.getThumbnailPath(1L, 400)).thenReturn(null);
+
+        mockMvc.perform(get("/api/v1/photos/1/thumbnail"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value(
+                        org.hamcrest.Matchers.containsString("缩略图不存在")));
+    }
+
+    @Test
+    void getThumbnail_missingThumb_asAdmin_shouldServeOriginal() throws Exception {
+        setAdmin();
+        when(filePathResolver.getByIdIncludeDeleted(1L)).thenReturn(photo("image/jpeg"));
+        when(filePathResolver.getThumbnailPath(1L, 400)).thenReturn(null);
+        Path original = createFile("original.jpg");
+        when(filePathResolver.getFilePath(1L)).thenReturn(original);
+
+        mockMvc.perform(get("/api/v1/photos/1/thumbnail"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.IMAGE_JPEG));
+    }
+
+    @Test
+    void getThumbnail_thumbExists_shouldServeThumb() throws Exception {
+        when(filePathResolver.getByIdIncludeDeleted(1L)).thenReturn(photo("image/jpeg"));
+        Path thumb = createFile("thumb.jpg");
+        when(filePathResolver.getThumbnailPath(1L, 400)).thenReturn(thumb);
+
+        mockMvc.perform(get("/api/v1/photos/1/thumbnail"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.IMAGE_JPEG));
+    }
+
+    @Test
+    void getThumbnail_invalidWidth_should400() throws Exception {
+        mockMvc.perform(get("/api/v1/photos/1/thumbnail?w=9999"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
+    void getWebp_missing_asViewer_should404() throws Exception {
+        when(filePathResolver.getByIdIncludeDeleted(1L)).thenReturn(photo("image/jpeg"));
+        when(filePathResolver.getWebpPath(1L)).thenReturn(null);
+
+        mockMvc.perform(get("/api/v1/photos/1/webp"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value(
+                        org.hamcrest.Matchers.containsString("图片不存在")));
+    }
+
+    @Test
+    void getWebp_missing_asAdmin_shouldServeOriginal() throws Exception {
+        setAdmin();
+        when(filePathResolver.getByIdIncludeDeleted(1L)).thenReturn(photo("image/jpeg"));
+        when(filePathResolver.getWebpPath(1L)).thenReturn(null);
+        Path original = createFile("original.jpg");
+        when(filePathResolver.getFilePath(1L)).thenReturn(original);
+
+        mockMvc.perform(get("/api/v1/photos/1/webp"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.IMAGE_JPEG));
+    }
+
+    @Test
+    void getWebp_webpExists_shouldServeWebp() throws Exception {
+        when(filePathResolver.getByIdIncludeDeleted(1L)).thenReturn(photo("image/jpeg"));
+        Path webp = createFile("webp");
+        when(filePathResolver.getWebpPath(1L)).thenReturn(webp);
+
+        mockMvc.perform(get("/api/v1/photos/1/webp"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.parseMediaType("image/webp")));
+    }
+
+    private Photo photo(String contentType) {
+        Photo p = new Photo();
+        p.setId(1L);
+        p.setContentType(contentType);
+        return p;
+    }
+
+    private Path createFile(String name) throws Exception {
+        Files.createDirectories(tempDir);
+        Path f = tempDir.resolve(name);
+        Files.createFile(f);
+        return f;
+    }
+
+    private void setAdmin() {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("admin", null,
+                        List.of(new SimpleGrantedAuthority("ROLE_admin"))));
     }
 }

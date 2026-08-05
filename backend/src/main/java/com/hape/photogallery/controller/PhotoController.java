@@ -22,6 +22,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -184,28 +186,55 @@ public class PhotoController {
         if (photo.getDeletedAt() != null && !isAdmin()) {
             throw new BusinessException(404, "该照片已被删除");
         }
-        Resource resource = new FileSystemResource(filePathResolver.getWebpPath(id));
+        MediaType mediaType = MediaType.parseMediaType("image/webp");
+        Path path = filePathResolver.getWebpPath(id);
+        if (path == null || !Files.exists(path)) {
+            // P0-#3：webp 缺失——admin 回退原图（功能无损），viewer 一律 404
+            // （此前 view-only 分享可借 /webp 端点回退下载原图，已封堵）
+            if (!isAdmin()) {
+                throw new BusinessException(404, "图片不存在");
+            }
+            path = filePathResolver.getFilePath(id);
+            mediaType = MediaType.parseMediaType(photo.getContentType()); // 回退分支按原图类型返回
+        }
+        Resource resource = new FileSystemResource(path);
         if (!resource.exists()) {
             throw new BusinessException(404, "文件不存在");
         }
         return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType("image/webp"))
+                .contentType(mediaType)
                 .body(resource);
     }
 
     @GetMapping("/photos/{id}/thumbnail")
     public ResponseEntity<Resource> getThumbnail(@PathVariable Long id,
                                                  @RequestParam(defaultValue = "400") int w) {
+        // P0-#3：w 白名单——全仓仅生成 200/400 两档（PhotoProcessor/AsyncImageProcessor），
+        // 任意 w 此前可借回退路径探测磁盘（回退 400 → 原图）
+        if (w != 200 && w != 400) {
+            throw new BusinessException(400, "缩略图宽度仅支持 200/400");
+        }
         Photo photo = filePathResolver.getByIdIncludeDeleted(id);
         if (photo.getDeletedAt() != null && !isAdmin()) {
             throw new BusinessException(404, "该照片已被删除");
         }
-        Resource resource = new FileSystemResource(filePathResolver.getThumbnailPath(id, w));
+        MediaType mediaType = MediaType.IMAGE_JPEG;
+        Path path = filePathResolver.getThumbnailPath(id, w);
+        if (path == null || !Files.exists(path)) {
+            // P0-#3：缩略图缺失——admin 回退原图（功能无损），viewer 一律 404
+            // （此前 view-only 分享可借缩略图缺失回退下载原图，已封堵）
+            if (!isAdmin()) {
+                throw new BusinessException(404, "缩略图不存在");
+            }
+            path = filePathResolver.getFilePath(id);
+            mediaType = MediaType.parseMediaType(photo.getContentType()); // 回退分支按原图类型返回
+        }
+        Resource resource = new FileSystemResource(path);
         if (!resource.exists()) {
             throw new BusinessException(404, "文件不存在");
         }
         return ResponseEntity.ok()
-                .contentType(MediaType.IMAGE_JPEG)
+                .contentType(mediaType)
                 .cacheControl(CacheControl.maxAge(7, TimeUnit.DAYS))
                 .body(resource);
     }
