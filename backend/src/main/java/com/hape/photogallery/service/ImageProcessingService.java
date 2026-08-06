@@ -253,10 +253,6 @@ public class ImageProcessingService {
         writeAtomic(image, path, 0.75f);
     }
 
-    private void writeJpeg(BufferedImage image, Path path, float quality) throws IOException {
-        writeAtomic(image, path, quality);
-    }
-
     /**
      * 原子写 JPEG：先写同目录唯一 .tmp 再 ATOMIC_MOVE 替换——中途失败（磁盘满/IO 错误）
      * 只损坏 .tmp，目标文件完好可重试；曾原地截断重写，失败即毁目标文件 → 永久 FAILED。
