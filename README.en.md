@@ -20,7 +20,7 @@ flowchart LR
         F3[JwtAuthFilter JWT / share token / image signature]
     end
     subgraph Application
-        C[Controller] --> S[Service] --> R[Repository] --> DB[(MySQL<br/>Flyway V1-V10)]
+        C[Controller] --> S[Service] --> R[Repository] --> DB[(MySQL<br/>Flyway V1-V11)]
         S <--> CACHE[(Cache<br/>dev Caffeine / prod Redis)]
     end
     subgraph Image processing
@@ -80,7 +80,7 @@ Unlock on first use with the Konami sequence **↑↑↓↓←→←→BABA**. F
 
 ## Testing & Quality
 
-349 JUnit tests (JaCoCo 71.8% instructions measured) · 113 Vitest · 14 Playwright E2E · SpotBugs 0 bugs · Husky + commitlint · CI: four-job pipeline (frontend → backend → docker/e2e)
+419 JUnit tests (JaCoCo 76% instructions measured) · 135 Vitest · 14 Playwright E2E · SpotBugs 0 bugs · Husky + commitlint · CI: four-job pipeline (frontend → backend → docker/e2e)
 
 ## Links
 

@@ -16,7 +16,7 @@
 
 ### 图片处理
 
-- **异步处理管线** — 上传后立即返回，EXIF 提取 → 自动旋转 → 水印 → 缩略图（200px + 400px）→ WebP 由后台完成。dev 环境使用 `@Async` 线程池（队列满丢弃，不在请求线程同步执行），prod 环境切换 RabbitMQ 消息队列（持久队列 + 3 次重试 + 死信队列兜底）。照片卡片自动轮询状态更新，无需手动刷新。失败可一键重试（`POST /photos/{id}/retry-processing`），启动时立即恢复一次 + 每 5 分钟定时重扫卡在 PROCESSING 状态的照片
+- **异步处理管线** — 上传后立即返回，EXIF 提取 → 自动旋转 → 水印 → 缩略图（200px + 400px）→ WebP 由后台完成。dev 环境使用 `@Async` 线程池（队列满丢弃，不在请求线程同步执行），prod 环境切换 RabbitMQ 消息队列（持久队列 + TTL 延迟重试队列 10s + 3 次后进死信队列）。照片卡片自动轮询状态更新，无需手动刷新。失败可一键重试（`POST /photos/{id}/retry-processing`），启动时立即恢复一次 + 每 5 分钟定时重扫卡在 PROCESSING 状态的照片
 - **响应式缩略图** — 上传自动生成 200px + 400px JPEG 双档，前端 `srcset` + `sizes` 按视口和 DPR 自动选择
 - **编辑器** — Canvas 全分辨率旋转（任意角度）/镜像（水平/垂直）/裁剪
 - **水印** — 右下角半透明白色文字，字号自适应图片宽度，字体/字号比例/透明度可配置（`photo.watermark.*`）
@@ -208,7 +208,7 @@ photo-gallery/
 │   │   ├── application-prod.yml                # 生产环境（Redis/RabbitMQ/限流受信头，ddl-auto: validate）
 │   │   ├── application-local.yml.example       # 本地敏感配置模板（密码/JWT 密钥，gitignored）
 │   │   ├── logback-spring.xml                  # 控制台 + 按天滚动文件（30/90 天保留）
-│   │   ├── db/migration/                       # Flyway 迁移脚本 V1–V10（含 file_hash 去重 + FULLTEXT/ngram 索引 + share_tokens）
+│   │   ├── db/migration/                       # Flyway 迁移脚本 V1–V11（含 file_hash 去重 + FULLTEXT/ngram 索引 + share_tokens + 水印落库）
 │   │   └── static/                             # 前端构建产物 (SPA，npm run build 自动复制，不入库)
 │   ├── Dockerfile                              # JRE 17 Alpine + 文泉驿字体 + curl
 │   └── pom.xml                                 # Maven 配置（JaCoCo ≥35% + SpotBugs 门禁）
@@ -395,6 +395,7 @@ RABBIT_USER=你的RabbitMQ用户名           # RabbitMQ 用户名（prod 强校
 RABBIT_PASS=你的RabbitMQ密码             # RabbitMQ 密码（prod 启动强校验：Redis/Rabbit 密码非空）
 MONITORING_USER=你的监控用户名           # /actuator/prometheus Basic Auth 用户名（prod 强校验非空）
 MONITORING_PASSWORD=你的监控密码         # 同上，密码（prometheus.yml basic_auth 用 ${} 内插引用，需保持一致）
+GF_SECURITY_ADMIN_PASSWORD=你的Grafana密码  # Grafana Web 面板 admin 密码（127.0.0.1:3000）
 ```
 
 #### 2. 构建并启动
@@ -419,7 +420,7 @@ docker compose up -d --build
 | Prometheus | 128M | v3.2.0，15 天保留，每 15s scrape |
 | Grafana | 256M | 13.1.0，仅绑定 127.0.0.1:3000 |
 
-所有容器均配置了 Docker healthcheck（`restart: always` 保证容器异常退出时自动拉起）。内存上限合计约 1.9GB，2GB 内存服务器上建议同时关闭本地其他服务。
+所有容器均配置了 Docker healthcheck（`restart: always` 保证容器异常退出时自动拉起）。内存上限合计约 2.1GB（768+512+256+256+128+256），2GB 内存服务器上建议同时关闭本地其他服务。
 
 #### 4. 常用命令
 

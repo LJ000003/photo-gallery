@@ -16,7 +16,7 @@
 
 ### Image processing
 
-- **Async processing pipeline** — upload returns immediately; EXIF extraction → auto-rotate → watermark → thumbnails (200px + 400px) → WebP run in the background. The dev environment uses the `@Async` thread pool (queue overflow drops, never synchronous in the request thread); prod switches to RabbitMQ (durable queue + 3 retries + dead-letter queue). Photo cards poll for status automatically — no manual refresh needed. Failed photos can be retried with one click (`POST /photos/{id}/retry-processing`); a recovery pass runs once at startup and every 5 minutes for photos stuck in `PROCESSING`
+- **Async processing pipeline** — upload returns immediately; EXIF extraction → auto-rotate → watermark → thumbnails (200px + 400px) → WebP run in the background. The dev environment uses the `@Async` thread pool (queue overflow drops, never synchronous in the request thread); prod switches to RabbitMQ (durable queue + TTL delayed-retry queue 10s + dead-letter queue after 3 attempts). Photo cards poll for status automatically — no manual refresh needed. Failed photos can be retried with one click (`POST /photos/{id}/retry-processing`); a recovery pass runs once at startup and every 5 minutes for photos stuck in `PROCESSING`
 - **Responsive thumbnails** — upload generates 200px + 400px JPEG variants; the frontend `srcset` + `sizes` pick per viewport and DPR
 - **Editor** — full-resolution Canvas rotate (any angle) / flip (horizontal/vertical) / crop
 - **Watermark** — semi-transparent white text at bottom-right, font size scales with image width; font/size ratio/opacity configurable (`photo.watermark.*`)
@@ -86,7 +86,7 @@
 | ORM | Spring Data JPA + Hibernate | — |
 | Database | MySQL + Flyway migrations (incl. FULLTEXT index) | 8.0 |
 | Caching | Spring Cache + Caffeine (dev) / Redis (prod, 7-alpine) | — |
-| Message queue | RabbitMQ (prod, durable queue + 3 retries + DLQ) | 3.13 |
+| Message queue | RabbitMQ (prod, durable queue + TTL delayed retry 10s + DLQ after 3 attempts) | 3.13 |
 | Search | MySQL FULLTEXT + ngram Chinese tokenizer (token size 2) | — |
 | EXIF | metadata-extractor | 2.19.0 |
 | Image encoding | webp-imageio (JDK ImageIO plugin) | 0.1.6 |
@@ -208,7 +208,7 @@ photo-gallery/
 │   │   ├── application-prod.yml                # Prod (Redis/RabbitMQ/rate-limit trusted header; ddl-auto: validate)
 │   │   ├── application-local.yml.example       # Local secrets template (password/JWT secret, gitignored)
 │   │   ├── logback-spring.xml                  # Console + daily rolling files (30/90-day retention)
-│   │   ├── db/migration/                       # Flyway migrations V1–V10 (incl. file_hash dedup + FULLTEXT/ngram index + share_tokens)
+│   │   ├── db/migration/                       # Flyway migrations V1–V11 (incl. file_hash dedup + FULLTEXT/ngram index + share_tokens + watermark)
 │   │   └── static/                             # Frontend build output (SPA, copied by npm run build, not committed)
 │   ├── Dockerfile                              # JRE 17 Alpine + WenQuanYi font + curl
 │   └── pom.xml                                 # Maven config (JaCoCo ≥35% + SpotBugs gate)
@@ -419,7 +419,7 @@ Access `http://localhost:8080` (bound to 127.0.0.1 only; expose it via Nginx or 
 | Prometheus | 128M | v3.2.0, 15-day retention, scrape every 15s |
 | Grafana | 256M | 13.1.0, bound to 127.0.0.1:3000 only |
 
-All containers have Docker healthchecks (`restart: always` restarts containers that exit abnormally). Total memory limits ≈ 1.9GB — on a 2GB server, consider stopping other local services.
+All containers have Docker healthchecks (`restart: always` restarts containers that exit abnormally). Total memory limits ≈ 2.1GB (768+512+256+256+128+256) — on a 2GB server, consider stopping other local services.
 
 #### 4. Common commands
 
