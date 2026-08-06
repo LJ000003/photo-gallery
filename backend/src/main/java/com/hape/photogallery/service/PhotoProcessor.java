@@ -85,6 +85,9 @@ public class PhotoProcessor {
             // 2. 解码原图
             BufferedImage img = ImageIO.read(target.toFile());
             if (img == null) {
+                // 确定性终态例外（不走「状态上移」）：文件损坏重试/重扫必然同样失败，
+                // 直接落 FAILED 避免进 rabbit 重试循环；与 catch 路径指标语义对齐
+                processingFailureCounter.increment();
                 log.warn("  无法解码图片 photo={}", photoId);
                 photo.setProcessingStatus(ProcessingStatus.FAILED);
                 photo.setErrorMessage("无法解码图片文件");
@@ -126,18 +129,15 @@ public class PhotoProcessor {
         } catch (Throwable e) {
             processingFailureCounter.increment();
             log.error("处理失败 photo={}: {}", photoId, e.getMessage(), e);
-            try {
-                String msg = e.getMessage() != null ? e.getMessage() : "未知错误";
-                if (msg.length() > 500) msg = msg.substring(0, 497) + "...";
-                photo.setProcessingStatus(ProcessingStatus.FAILED);
-                photo.setErrorMessage(msg);
-                photoRepo.save(photo);
-            } catch (Throwable inner) {
-                log.error("无法保存失败状态 photo={}", photoId, inner);
-            }
-            // 失败路径已置 FAILED 并落库，手动失效列表缓存（@CacheEvict 后置在异常时不生效）
+            // 状态写入上移到调用方（P2 修复）：rabbit 模式由 consumer 在重试耗尽后落 FAILED
+            // （重试期间不落 FAILED，避免「FAILED → 重试成功翻回 DONE」的状态翻转 + 前端
+            // 误显重试按钮）；dev 模式由 AsyncImageProcessor 落 FAILED 终态。
+            // 这里只做缓存失效（@CacheEvict 后置在异常时不生效，缓存最长 30s 显示 PROCESSING）
             evictListCaches();
-            throw new RuntimeException("Photo processing failed for photo=" + photoId, e);
+            // wrapper 带根因 message：dev/rabbit 两个调用方都取 getMessage() 落 errorMessage，
+            // 不带根因前端只看到固定文案（回归教训，勿再省略）
+            throw new RuntimeException("Photo processing failed for photo=" + photoId
+                    + ": " + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()), e);
         }
     }
 }

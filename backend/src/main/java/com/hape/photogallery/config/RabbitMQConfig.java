@@ -94,24 +94,36 @@ public class RabbitMQConfig {
         return BindingBuilder.bind(deadLetterQueue()).to(deadLetterExchange()).with(DLQ_ROUTING_KEY);
     }
 
-    /** JSON 序列化 RabbitTemplate，仅允许白名单类型反序列化 */
+    /**
+     * 生产/消费共用的 JSON 消息转换器，仅允许白名单类型反序列化。
+     * 发布侧（RabbitTemplate）与消费侧（监听容器工厂）必须用同一个转换器——
+     * 否则发布为 application/json，消费端默认 SimpleMessageConverter 只返回 byte[]，
+     * POJO 参数解析失败 → MessageConversionException（fatal）→ 直接进 DLQ，
+     * 上传永久卡 PROCESSING（P0 修复，曾缺 setMessageConverter）。
+     */
     @Bean
-    RabbitTemplate rabbitTemplate(ConnectionFactory factory) {
+    Jackson2JsonMessageConverter jackson2JsonMessageConverter() {
         PolymorphicTypeValidator ptv = BasicPolymorphicTypeValidator.builder()
                 .allowIfBaseType(ProcessingMessage.class)
                 .build();
         ObjectMapper mapper = new ObjectMapper();
         mapper.activateDefaultTyping(ptv, ObjectMapper.DefaultTyping.NON_FINAL,
                 com.fasterxml.jackson.annotation.JsonTypeInfo.As.PROPERTY);
+        return new Jackson2JsonMessageConverter(mapper);
+    }
 
+    /** JSON 序列化 RabbitTemplate（发布侧） */
+    @Bean
+    RabbitTemplate rabbitTemplate(ConnectionFactory factory, Jackson2JsonMessageConverter converter) {
         RabbitTemplate template = new RabbitTemplate(factory);
-        template.setMessageConverter(new Jackson2JsonMessageConverter(mapper));
+        template.setMessageConverter(converter);
         return template;
     }
 
-    /** Consumer 容器工厂：MANUAL ack + 2-4 并发 + MDC 传播 */
+    /** Consumer 容器工厂：MANUAL ack + 2-4 并发 + MDC 传播 + JSON 转换器（与发布侧一致） */
     @Bean
-    SimpleRabbitListenerContainerFactory rabbitListenerContainerFactory(ConnectionFactory factory) {
+    SimpleRabbitListenerContainerFactory rabbitListenerContainerFactory(ConnectionFactory factory,
+                                                                        Jackson2JsonMessageConverter converter) {
         SimpleRabbitListenerContainerFactory containerFactory = new SimpleRabbitListenerContainerFactory();
         containerFactory.setConnectionFactory(factory);
         containerFactory.setAcknowledgeMode(AcknowledgeMode.MANUAL);
@@ -119,6 +131,7 @@ public class RabbitMQConfig {
         containerFactory.setConcurrentConsumers(2);
         containerFactory.setMaxConcurrentConsumers(4);
         containerFactory.setDefaultRequeueRejected(false);
+        containerFactory.setMessageConverter(converter);
         containerFactory.setTaskExecutor(mdcAwareExecutor());
         return containerFactory;
     }

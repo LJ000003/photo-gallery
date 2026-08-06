@@ -292,6 +292,26 @@ class PhotoQueryServiceTest {
                 .hasMessageContaining("不支持的排序字段");
     }
 
+    /** 列表路径同样过白名单（曾漏保护：未知 sort 直达 repo.findAll → PropertyReferenceException → 500） */
+    @Test
+    void listAllResponses_sortByUnknownProperty_shouldReject400() {
+        Pageable malicious = PageRequest.of(0, 20, Sort.by(Sort.Order.asc("hacked")));
+        assertThatThrownBy(() -> service.listAllResponses(null, null, malicious))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("不支持的排序字段");
+    }
+
+    /** 列表路径合法排序保持属性名（列名会让 JPQL 解析失败——曾把 createdAt 映射成 created_at） */
+    @Test
+    void listAllResponses_validSort_shouldKeepPropertyName() {
+        Pageable sortable = PageRequest.of(0, 20, Sort.by(Sort.Order.desc("createdAt")));
+        when(photoRepo.findAll(sortable)).thenReturn(new PageImpl<>(List.of()));
+
+        service.listAllResponses(null, null, sortable);
+
+        verify(photoRepo).findAll(sortable);
+    }
+
     @Test
     void search_sortByName_shouldMapToNameColumn() {
         when(photoRepo.search(eq("cat"), any())).thenReturn(new PageImpl<>(List.of()));

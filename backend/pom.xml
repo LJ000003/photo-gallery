@@ -117,6 +117,13 @@
             <artifactId>webp-imageio</artifactId>
             <version>0.1.6</version>
         </dependency>
+        <!-- Hibernate 懒加载代理的 Jackson 序列化支持（Boot 自动注册 Hibernate6Module）：
+             无此模块时未初始化代理（ByteBuddyInterceptor）序列化 → HttpMessageConversionException 500，
+             实测回收站列表带标签照片复现 -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-hibernate6</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>

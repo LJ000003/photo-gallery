@@ -31,6 +31,8 @@ public class Photo {
     private Long fileSize;
     private String contentType;
     private LocalDateTime createdAt;
+    /** 上传时的水印文案（可为 null）；落库供重试/兜底重扫补发处理消息时恢复（V11） */
+    private String watermark;
 
     @ManyToMany
     @JoinTable(name = "photo_tags",
@@ -79,6 +81,9 @@ public class Photo {
 
     public String getContentType() { return contentType; }
     public void setContentType(String contentType) { this.contentType = contentType; }
+
+    public String getWatermark() { return watermark; }
+    public void setWatermark(String watermark) { this.watermark = watermark; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

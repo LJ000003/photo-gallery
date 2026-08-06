@@ -43,8 +43,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -354,6 +356,18 @@ class PhotoServiceTest {
         assertThat(p.getDeletedAt()).isNotNull();
     }
 
+    @Test
+    void delete_shouldReselectAlbumCovers() {
+        // P1 修复：软删后以其为封面的相册必须重选，否则封面悬空（viewer 404 / 彻底删除后永久失效）
+        Photo p = new Photo(); p.setId(1L); p.setName("test");
+        p.setFileName("2026/07/test.jpg");
+        when(photoRepo.findById(1L)).thenReturn(Optional.of(p));
+
+        service.delete(1L);
+
+        verify(albumService).reselectCoversAfterPhotoDeletion(1L);
+    }
+
     // ==================== batchDelete ====================
 
     @Test
@@ -526,5 +540,116 @@ class PhotoServiceTest {
 
         List<PhotoResponse> result = service.batchUpdate(batchReq(List.of(99L)));
         assertThat(result).isEmpty();
+    }
+
+    // ==================== retryProcessing / 卡死恢复 ====================
+
+    @Test
+    void retryProcessing_shouldResetStatusAndResend() throws IOException {
+        Path filePath = tempDir.resolve("2026/07/test.jpg");
+        Files.createDirectories(filePath.getParent());
+        Files.write(filePath, JPEG_BYTES);
+
+        Photo p = new Photo();
+        p.setId(1L);
+        p.setName("test");
+        p.setFileName("2026/07/test.jpg");
+        p.setProcessingStatus(ProcessingStatus.FAILED);
+        p.setErrorMessage("上次失败");
+        p.setWatermark("wm"); // V11：水印落库，重试补发从 DB 恢复
+        when(photoRepo.findById(1L)).thenReturn(Optional.of(p));
+
+        service.retryProcessing(1L);
+
+        // 状态重置 + 重发处理消息（无事务直调 → 立即发送，与 upload 的 SendAfterCommit 同语义）
+        assertThat(p.getProcessingStatus()).isEqualTo(ProcessingStatus.PROCESSING);
+        assertThat(p.getErrorMessage()).isNull();
+        verify(photoRepo).save(p);
+        verify(processingSender).send(eq(1L), eq(tempDir.resolve("2026/07/test.jpg")),
+                eq("2026/07"), eq("test.jpg"), eq("wm"));
+    }
+
+    @Test
+    void retryProcessing_notFound_shouldThrow404() {
+        when(photoRepo.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.retryProcessing(99L))
+                .isInstanceOf(BusinessException.class);
+        verify(processingSender, never()).send(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void recoverStuckProcessing_shouldResendAllProcessingPhotos() throws IOException {
+        Path filePath = tempDir.resolve("2026/07/test.jpg");
+        Files.createDirectories(filePath.getParent());
+        Files.write(filePath, JPEG_BYTES);
+
+        Photo p1 = new Photo();
+        p1.setId(1L);
+        p1.setFileName("2026/07/test.jpg");
+        p1.setProcessingStatus(ProcessingStatus.PROCESSING);
+        p1.setWatermark("wm1");
+        Photo p2 = new Photo();
+        p2.setId(2L);
+        p2.setFileName("2026/07/test2.jpg");
+        p2.setProcessingStatus(ProcessingStatus.PROCESSING);
+        // 无水印照片 → 透传 null（语义：重扫不凭空造水印）
+        when(photoRepo.findByProcessingStatus(ProcessingStatus.PROCESSING)).thenReturn(List.of(p1, p2));
+
+        service.recoverStuckProcessing();
+
+        // 水印从 DB 恢复（V11）：消息丢失后重扫补发不再丢水印
+        verify(processingSender).send(eq(1L), any(Path.class), eq("2026/07"), eq("test.jpg"), eq("wm1"));
+        verify(processingSender).send(eq(2L), any(Path.class), eq("2026/07"), eq("test2.jpg"), isNull());
+    }
+
+    @Test
+    void recoverStuckProcessing_sendFailure_shouldKeepProcessing() throws IOException {
+        Path filePath = tempDir.resolve("2026/07/test.jpg");
+        Files.createDirectories(filePath.getParent());
+        Files.write(filePath, JPEG_BYTES);
+
+        Photo p = new Photo();
+        p.setId(1L);
+        p.setFileName("2026/07/test.jpg");
+        p.setProcessingStatus(ProcessingStatus.PROCESSING);
+        when(photoRepo.findByProcessingStatus(ProcessingStatus.PROCESSING)).thenReturn(List.of(p));
+        doThrow(new RuntimeException("rabbit down")).when(processingSender)
+                .send(any(Long.class), any(Path.class), any(), any(), any());
+
+        service.recoverStuckProcessing();
+
+        // 发送失败（Rabbit broker 抖动）不判死：保持 PROCESSING 等下次 5 分钟重扫
+        assertThat(p.getProcessingStatus()).isEqualTo(ProcessingStatus.PROCESSING);
+        assertThat(p.getErrorMessage()).isNull();
+        verify(photoRepo, never()).save(p);
+    }
+
+    @Test
+    void recoverStuckProcessing_noStuck_shouldNoOp() {
+        when(photoRepo.findByProcessingStatus(ProcessingStatus.PROCESSING)).thenReturn(List.of());
+
+        service.recoverStuckProcessing();
+
+        verify(processingSender, never()).send(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void recoverStuckOnStartup_shouldTriggerRecovery() throws IOException {
+        Path filePath = tempDir.resolve("2026/07/test.jpg");
+        Files.createDirectories(filePath.getParent());
+        Files.write(filePath, JPEG_BYTES);
+
+        Photo p = new Photo();
+        p.setId(1L);
+        p.setFileName("2026/07/test.jpg");
+        p.setProcessingStatus(ProcessingStatus.PROCESSING);
+        p.setWatermark("wm-startup");
+        when(photoRepo.findByProcessingStatus(ProcessingStatus.PROCESSING)).thenReturn(List.of(p));
+
+        service.recoverStuckOnStartup();
+
+        verify(processingSender).send(eq(1L), any(Path.class), eq("2026/07"), eq("test.jpg"),
+                eq("wm-startup"));
     }
 }

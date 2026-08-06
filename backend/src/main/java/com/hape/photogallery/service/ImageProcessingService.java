@@ -8,10 +8,12 @@ import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Locale;
+import java.util.UUID;
 
 import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
@@ -149,6 +151,12 @@ public class ImageProcessingService {
         writeJpeg(thumb, thumbPath(dateDir, baseName, width));
     }
 
+    /**
+     * 生成全尺寸 WebP（增强产物，失败不阻塞整条处理链——缩略图已成功，照片仍 DONE）。
+     * 注意：webp 编码器为 native 库（webp-imageio），初始化失败可能抛 Error 而非
+     * IOException——统一捕 Throwable 并留日志，避免照片因 webp 缺失误报 FAILED
+     * （曾与「无 writer 静默 return」两种失败表现互相矛盾）。
+     */
     public void generateWebp(BufferedImage img, String dateDir, String baseName) {
         Path webpDir = uploadDir.resolve(dateDir).resolve("webp");
         try {
@@ -160,7 +168,10 @@ public class ImageProcessingService {
         Path webpPath = webpDir.resolve(baseName + ".webp");
         try {
             java.util.Iterator<ImageWriter> writers = ImageIO.getImageWritersByMIMEType("image/webp");
-            if (!writers.hasNext()) return;
+            if (!writers.hasNext()) {
+                log.warn("无 WebP 编码器，跳过生成（viewer 大图将回退缩略图）: {}", webpPath);
+                return;
+            }
             ImageWriter writer = writers.next();
             try {
                 ImageWriteParam param = writer.getDefaultWriteParam();
@@ -176,7 +187,7 @@ public class ImageProcessingService {
             } finally {
                 writer.dispose();
             }
-        } catch (IOException e) {
+        } catch (Throwable e) {
             log.warn("WebP 生成失败: {}", webpPath, e);
         }
     }
@@ -213,9 +224,31 @@ public class ImageProcessingService {
         }
     }
 
-    /** 高质量写回原文件 */
+    /**
+     * 高质量写回原文件（旋转/水印后覆盖原图）。
+     * 原子写：先写同目录唯一 .tmp 再 ATOMIC_MOVE 替换——中途失败（磁盘满/IO 错误）
+     * 只损坏 .tmp，原图完好可重试；曾原地截断重写，失败即毁源文件 → 永久 FAILED。
+     * tmp 用 UUID 唯一命名：同照片并发处理（retry-processing 与在途消息/重扫并存）时
+     * 各自写独立临时文件，后到者覆盖先到者，绝不交错写坏（固定 .tmp 名会互踩字节）。
+     */
     public void writeOriginalJpeg(BufferedImage image, Path path) throws IOException {
-        writeJpeg(image, path, 0.92f);
+        Path tmp = path.resolveSibling(path.getFileName() + "." + UUID.randomUUID() + ".tmp");
+        try {
+            writeJpeg(image, tmp, 0.92f);
+            try {
+                Files.move(tmp, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+                Files.move(tmp, path, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (IOException e) {
+            // 编码失败（磁盘满等）或 move 失败：清理 .tmp，原图完好
+            try {
+                Files.deleteIfExists(tmp);
+            } catch (IOException ignored) {
+                // 清理失败仅留残留文件，不影响原图完好性
+            }
+            throw e;
+        }
     }
 
     // === 原 Path 版重载（供外部调用） ===
@@ -275,11 +308,15 @@ public class ImageProcessingService {
             return;
         }
 
+        // 捕 Throwable（native 编码器初始化失败可能抛 Error 而非 IOException）
         try {
             BufferedImage img = ImageIO.read(original.toFile());
             if (img == null) return;
             java.util.Iterator<ImageWriter> writers = ImageIO.getImageWritersByMIMEType("image/webp");
-            if (!writers.hasNext()) return;
+            if (!writers.hasNext()) {
+                log.warn("无 WebP 编码器，跳过生成: {}", webpPath);
+                return;
+            }
             ImageWriter writer = writers.next();
             try {
                 ImageWriteParam param = writer.getDefaultWriteParam();
@@ -295,7 +332,7 @@ public class ImageProcessingService {
             } finally {
                 writer.dispose();
             }
-        } catch (IOException e) {
+        } catch (Throwable e) {
             log.warn("WebP 生成失败: {}", webpPath, e);
         }
     }
@@ -337,18 +374,32 @@ public class ImageProcessingService {
         return dst;
     }
 
+    /**
+     * 按文件实际字节（魔数）判断格式，而非扩展名。
+     * 背景：旋转/水印写回时文件内容可能被转码（如 PNG 原图旋转后写成 JPEG 字节，
+     * 但文件名/扩展名不变）——按扩展名判断会写错格式（GIF 场景 ImageIO.write
+     * 可能返回 false → transform 400），改按魔数后写回格式与真实字节一致。
+     * .webp 返回 "WebP"（webp-imageio/sejda SPI 注册名，与 MIME image/webp 对应）。
+     */
     public String getFormat(Path path) {
-        // getFileName 可能为 null（路径以分隔符结尾），先取局部变量避免二次调用
-        var fileName = path.getFileName();
-        String name = fileName != null ? fileName.toString().toLowerCase(Locale.ROOT) : "";
-        if (name.endsWith(".png")) return "PNG";
-        if (name.endsWith(".gif")) return "GIF";
-        if (name.endsWith(".bmp")) return "BMP";
-        // .webp 返回 "WebP"（webp-imageio/sejda SPI 注册名，与 MIME image/webp 对应），
-        // 而非 "JPEG"——曾把 JPEG 字节写进 .webp 文件名并丢失 alpha。
-        // 无 WebP writer（native 库加载失败）时 ImageIO.write 返回 false 不改文件，
-        // 由调用方（doTransformPhoto）判定为处理失败。
-        if (name.endsWith(".webp")) return "WebP";
+        byte[] header = new byte[12];
+        int read;
+        try (InputStream in = Files.newInputStream(path)) {
+            // readNBytes 循环读满或 EOF——单次 read 契约不保证填满缓冲区，
+            // 短读会导致 WebP 魔数（需 12 字节）判不出而回退 JPEG（格式错位残留窗口）
+            read = in.readNBytes(header, 0, header.length);
+        } catch (IOException e) {
+            throw new UncheckedIOException("无法读取文件格式: " + path, e);
+        }
+        if (read >= 2 && header[0] == (byte) 0xFF && header[1] == (byte) 0xD8) return "JPEG";
+        if (read >= 4 && header[0] == (byte) 0x89 && header[1] == 0x50
+                && header[2] == 0x4E && header[3] == 0x47) return "PNG";
+        if (read >= 4 && header[0] == 0x47 && header[1] == 0x49
+                && header[2] == 0x46 && header[3] == 0x38) return "GIF";
+        if (read >= 2 && header[0] == 0x42 && header[1] == 0x4D) return "BMP";
+        if (read >= 12 && header[0] == 0x52 && header[1] == 0x49 && header[2] == 0x46
+                && header[3] == 0x46 && header[8] == 0x57 && header[9] == 0x45
+                && header[10] == 0x42 && header[11] == 0x50) return "WebP";
         return "JPEG";
     }
 }

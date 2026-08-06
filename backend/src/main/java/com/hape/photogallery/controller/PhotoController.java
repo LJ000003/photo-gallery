@@ -80,15 +80,16 @@ public class PhotoController {
             @RequestParam(required = false) Long albumId,
             @PageableDefault(size = 20) Pageable pageable) {
         if (q != null && !q.isBlank()) {
-            // 搜索与标签/分类筛选可组合（交集），不再忽略筛选条件
-            return ApiResponse.success(photoQueryService.search(q, tagIds, categoryIds, pageable)
-                    .map(photoQueryService::toResponse));
+            // 搜索与标签/分类筛选可组合（交集），不再忽略筛选条件；
+            // 事务内 map（懒加载代理序列化防护）
+            return ApiResponse.success(photoQueryService.searchResponses(q, tagIds, categoryIds, pageable));
         }
         if (albumId != null) {
-            Page<Photo> page = albumId == 0
-                    ? albumService.listUnassigned(pageable)
-                    : albumService.listPhotos(albumId, pageable);
-            return ApiResponse.success(page.map(photoQueryService::toResponse));
+            // 事务内 map（懒加载代理序列化防护）
+            Page<PhotoResponse> page = albumId == 0
+                    ? albumService.listUnassignedResponses(pageable)
+                    : albumService.listPhotosResponses(albumId, pageable);
+            return ApiResponse.success(page);
         }
         return ApiResponse.success(photoQueryService.listAllResponses(tagIds, categoryIds, pageable));
     }
@@ -114,7 +115,8 @@ public class PhotoController {
                         @RequestParam(value = "watermark", required = false) String watermark)
             throws IOException {
         try {
-            UploadParams params = new UploadParams(name, description, tagIds, categoryId, watermark);
+            UploadParams params = new UploadParams(
+                    fixMultipartText(name), fixMultipartText(description), tagIds, categoryId, fixMultipartText(watermark));
             return ResponseEntity.ok(ApiResponse.success(photoQueryService.toResponse(service.upload(file, params))));
         } catch (DuplicateException e) {
             return ResponseEntity.status(409).body(ApiResponse.error(409, e.getMessage(), e.getExisting()));
@@ -135,10 +137,55 @@ public class PhotoController {
         if (files.size() > MAX_BATCH_SIZE) {
             throw new BusinessException(400, "单次最多上传 " + MAX_BATCH_SIZE + " 张图片");
         }
-        UploadParams params = new UploadParams(name, description, tagIds, categoryId, watermark);
+        UploadParams params = new UploadParams(
+                fixMultipartText(name), fixMultipartText(description), tagIds, categoryId, fixMultipartText(watermark));
         List<PhotoResponse> result = service.batchUpload(files, params)
                 .stream().map(photoQueryService::toResponse).toList();
         return ApiResponse.success(result);
+    }
+
+    /**
+     * multipart 文本参数编码恢复：浏览器 FormData 的文本 part 不带 Content-Type charset，
+     * Tomcat 10 按 RFC 7578 用 ISO-8859-1 解码 UTF-8 字节 → 中文乱码（实测 curl -F /
+     * 裸 FormData 复现；query 参数与带 charset 的 part 不受影响）。
+     * 恢复逻辑带保护：仅当参数含 U+0080-U+00FF（ISO-8859-1 解码 UTF-8 的特征）时尝试
+     * 重建，且恢复结果含 U+FFFD（无效 UTF-8）则保留原值——纯 ASCII 与合法 ISO-8859-1
+     * 文本零误伤。
+     */
+    static String fixMultipartText(String s) {
+        if (s == null || s.isEmpty()) return s;
+        boolean highByte = false;
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c >= 0x80 && c <= 0xFF) {
+                highByte = true;
+                break;
+            }
+        }
+        if (!highByte) return s;
+        try {
+            String recovered = new String(s.getBytes(java.nio.charset.StandardCharsets.ISO_8859_1),
+                    java.nio.charset.StandardCharsets.UTF_8);
+            // 恢复结果出现替换符说明原文本本就不是 UTF-8 字节——保留原值
+            return recovered.indexOf('�') >= 0 ? s : recovered;
+        } catch (Exception e) {
+            return s;
+        }
+    }
+
+    /**
+     * contentType 回退解析：multipart part 无 Content-Type 时落库为 null，
+     * parseMediaType(null) 曾抛 IAE → 500，一条脏数据即可让照片永远无法查看。
+     */
+    private MediaType resolveContentType(String contentType) {
+        if (contentType == null || contentType.isBlank()) {
+            return MediaType.APPLICATION_OCTET_STREAM;
+        }
+        try {
+            return MediaType.parseMediaType(contentType);
+        } catch (Exception e) {
+            return MediaType.APPLICATION_OCTET_STREAM;
+        }
     }
 
     @Operation(summary = "更新照片",
@@ -184,7 +231,7 @@ public class PhotoController {
             throw new BusinessException(404, "文件不存在");
         }
         return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(photo.getContentType()))
+                .contentType(resolveContentType(photo.getContentType()))
                 .body(resource);
     }
 
@@ -197,13 +244,18 @@ public class PhotoController {
         MediaType mediaType = MediaType.parseMediaType("image/webp");
         Path path = filePathResolver.getWebpPath(id);
         if (path == null || !Files.exists(path)) {
-            // webp 缺失——admin 回退原图（功能无损），viewer 一律 404
-            // （此前 view-only 分享可借 /webp 端点回退下载原图，已封堵）
+            // webp 缺失——admin 回退原图（功能无损）；viewer 回退缩略图（不破图，
+            // 且不能回退原图——view-only 分享借 /webp 回退下载原图，已封堵）
             if (!isAdmin()) {
-                throw new BusinessException(404, "图片不存在");
+                path = filePathResolver.getThumbnailPath(id, 400);
+                mediaType = MediaType.IMAGE_JPEG;
+                if (path == null || !Files.exists(path)) {
+                    throw new BusinessException(404, "图片不存在");
+                }
+            } else {
+                path = filePathResolver.getFilePath(id);
+                mediaType = resolveContentType(photo.getContentType()); // 回退分支按原图类型返回
             }
-            path = filePathResolver.getFilePath(id);
-            mediaType = MediaType.parseMediaType(photo.getContentType()); // 回退分支按原图类型返回
         }
         Resource resource = new FileSystemResource(path);
         if (!resource.exists()) {
@@ -235,7 +287,7 @@ public class PhotoController {
                 throw new BusinessException(404, "缩略图不存在");
             }
             path = filePathResolver.getFilePath(id);
-            mediaType = MediaType.parseMediaType(photo.getContentType()); // 回退分支按原图类型返回
+            mediaType = resolveContentType(photo.getContentType()); // 回退分支按原图类型返回
         }
         Resource resource = new FileSystemResource(path);
         if (!resource.exists()) {

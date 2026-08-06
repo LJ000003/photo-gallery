@@ -243,8 +243,10 @@ public interface PhotoRepository extends JpaRepository<Photo, Long> {
             + "GROUP BY t.id ORDER BY COUNT(p.id) DESC")
     List<Object[]> countByTag(Pageable pageable);
 
-    /** 相册内照片 id 列表（只投影主键列，零关系加载——相册选择器预选初始化用） */
-    @Query("SELECT p.id FROM Photo p JOIN p.albums a WHERE a.id = :albumId")
+    /** 相册内照片 id 列表（只投影主键列，零关系加载——相册选择器预选初始化用）。
+     *  显式 ORDER BY p.id：封面重选取「第一张」需要确定性行序（无 ORDER BY 时
+     *  MySQL 行序无契约，同一场景封面可能漂移） */
+    @Query("SELECT p.id FROM Photo p JOIN p.albums a WHERE a.id = :albumId ORDER BY p.id")
     List<Long> findPhotoIdsByAlbumId(@Param("albumId") Long albumId);
 
     /** 备份指纹聚合：[照片数, 最大 id, 最大创建时间]（@SQLRestriction 自动排除软删除） */

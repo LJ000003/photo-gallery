@@ -49,8 +49,8 @@ public class ShareController {
         // page/size 钳制——size=-1 曾直接 500（PageRequest 校验抛 IllegalArgumentException）
         int clampedPage = Math.max(0, page);
         int clampedSize = Math.max(1, Math.min(100, size));
-        Page<PhotoResponse> result = photoQueryService.findByIds(photoIds, PageRequest.of(clampedPage, clampedSize))
-                .map(photoQueryService::toResponse);
+        Page<PhotoResponse> result = photoQueryService
+                .findByIdsResponses(photoIds, PageRequest.of(clampedPage, clampedSize));
         // 分享上下文不得签发管理员短时签名（否则 view 权限可借签名下载原图），统一剥离
         result.getContent().forEach(r -> r.setMediaToken(null));
         return ApiResponse.success(result);

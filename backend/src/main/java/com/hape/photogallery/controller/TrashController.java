@@ -7,7 +7,6 @@ import com.hape.photogallery.ApiResponse;
 import com.hape.photogallery.dto.AlbumResponse;
 import com.hape.photogallery.dto.PhotoResponse;
 import com.hape.photogallery.service.AlbumService;
-import com.hape.photogallery.service.PhotoQueryService;
 import com.hape.photogallery.service.TrashService;
 
 import org.springframework.data.domain.Page;
@@ -20,19 +19,16 @@ import org.springframework.web.bind.annotation.*;
 public class TrashController {
 
     private final TrashService trashService;
-    private final PhotoQueryService photoQueryService;
     private final AlbumService albumService;
 
-    public TrashController(TrashService trashService, PhotoQueryService photoQueryService,
-                           AlbumService albumService) {
+    public TrashController(TrashService trashService, AlbumService albumService) {
         this.trashService = trashService;
-        this.photoQueryService = photoQueryService;
         this.albumService = albumService;
     }
 
     @GetMapping("/photos")
     public ApiResponse<Page<PhotoResponse>> listPhotos(@PageableDefault(size = 20) Pageable pageable) {
-        return ApiResponse.success(trashService.listDeleted(pageable).map(photoQueryService::toResponse));
+        return ApiResponse.success(trashService.listDeletedResponses(pageable));
     }
 
     @PostMapping("/photos/{id}/restore")

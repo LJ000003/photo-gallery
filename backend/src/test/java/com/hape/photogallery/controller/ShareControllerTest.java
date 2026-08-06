@@ -50,9 +50,8 @@ class ShareControllerTest {
         photo.setId(7L);
         PhotoResponse resp = new PhotoResponse();
         resp.setMediaToken("signed-token-should-be-stripped");
-        when(photoQueryService.findByIds(eq(List.of(7L)), any(PageRequest.class)))
-                .thenReturn(new PageImpl<>(List.of(photo)));
-        when(photoQueryService.toResponse(any(Photo.class))).thenReturn(resp);
+        when(photoQueryService.findByIdsResponses(eq(List.of(7L)), any(PageRequest.class)))
+                .thenReturn(new PageImpl<>(List.of(resp)));
 
         mockMvc.perform(get("/api/v1/share/view")
                         .requestAttr("sharePhotoIds", List.of(7L)))

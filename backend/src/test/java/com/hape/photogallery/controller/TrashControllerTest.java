@@ -51,7 +51,7 @@ class TrashControllerTest {
 
     @Test
     void listPhotos_shouldReturnPage() throws Exception {
-        when(trashService.listDeleted(any())).thenReturn(new PageImpl<>(List.of()));
+        when(trashService.listDeletedResponses(any())).thenReturn(new PageImpl<>(List.of()));
 
         mockMvc.perform(get("/api/v1/trash/photos"))
                 .andExpect(status().isOk())
@@ -61,12 +61,12 @@ class TrashControllerTest {
 
     @Test
     void listPhotos_shouldPassPageable() throws Exception {
-        when(trashService.listDeleted(any())).thenReturn(new PageImpl<>(List.of()));
+        when(trashService.listDeletedResponses(any())).thenReturn(new PageImpl<>(List.of()));
 
         mockMvc.perform(get("/api/v1/trash/photos?page=1&size=5"))
                 .andExpect(status().isOk());
 
-        verify(trashService).listDeleted(PageRequest.of(1, 5));
+        verify(trashService).listDeletedResponses(PageRequest.of(1, 5));
     }
 
     @Test
@@ -74,8 +74,7 @@ class TrashControllerTest {
         Photo p = new Photo();
         p.setId(1L);
         p.setName("已删");
-        when(trashService.listDeleted(any())).thenReturn(new PageImpl<>(List.of(p)));
-        when(photoQueryService.toResponse(any())).thenReturn(PhotoResponse.from(p));
+        when(trashService.listDeletedResponses(any())).thenReturn(new PageImpl<>(List.of(PhotoResponse.from(p))));
 
         mockMvc.perform(get("/api/v1/trash/photos"))
                 .andExpect(status().isOk())

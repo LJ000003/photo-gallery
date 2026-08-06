@@ -67,11 +67,14 @@ public class PhotoQueryService {
         return repo.findAll(pageable);
     }
 
-    /** 缓存照片列表（DTO 形式，避免 Hibernate 懒加载代理被序列化到 Redis） */
+    /** 缓存照片列表（DTO 形式，避免 Hibernate 懒加载代理被序列化到 Redis）。
+     *  排序过 validateSort 白名单（保留属性名——JPQL/派生查询路径不能用列名；
+     *  未知字段抛 400，曾漏保护：未知 sort 直达 repo.findAll 抛 PropertyReferenceException → 500） */
     @Transactional(readOnly = true)
     @Cacheable(value = "photos", key = "{#tagIds, #categoryIds, #pageable}")
     public Page<PhotoResponse> listAllResponses(List<Long> tagIds, List<Long> categoryIds, Pageable pageable) {
-        return listAll(tagIds, categoryIds, pageable).map(this::toResponse);
+        Pageable validated = validateSort(pageable);
+        return listAll(tagIds, categoryIds, validated).map(this::toResponse);
     }
 
     /**
@@ -79,6 +82,15 @@ public class PhotoQueryService {
      * native query 的排序必须是数据库列名（Hibernate 不做属性→列名翻译），
      * 而前端传的是实体属性名（createdAt/fileSize），需在此映射，否则 MySQL 报 Unknown column。
      */
+    /**
+     * 搜索并转 DTO（事务内 map——PhotoResponse.from 访问懒加载关联，
+     * 无事务时 Hibernate 代理被 Jackson 序列化 → 500，实测回收站列表复现）。
+     */
+    @Transactional(readOnly = true)
+    public Page<PhotoResponse> searchResponses(String q, List<Long> tagIds, List<Long> categoryIds, Pageable pageable) {
+        return search(q, tagIds, categoryIds, pageable).map(this::toResponse);
+    }
+
     public Page<Photo> search(String q, List<Long> tagIds, List<Long> categoryIds, Pageable pageable) {
         if (q == null || q.isBlank()) return repo.findAll(pageable);
         Pageable columnSort = toColumnSort(pageable);
@@ -138,6 +150,17 @@ public class PhotoQueryService {
         return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by(orders));
     }
 
+    /** 排序白名单校验但保留实体属性名（JPQL/派生查询路径——列名会让 Hibernate 解析失败） */
+    private Pageable validateSort(Pageable pageable) {
+        if (pageable.getSort().isUnsorted()) return pageable;
+        for (Sort.Order order : pageable.getSort()) {
+            if (!SORT_COLUMNS.containsKey(order.getProperty())) {
+                throw new BusinessException(400, "不支持的排序字段: " + order.getProperty());
+            }
+        }
+        return pageable;
+    }
+
     @Transactional(readOnly = true)
     public Photo getById(Long id) {
         return repo.findById(id)
@@ -151,6 +174,12 @@ public class PhotoQueryService {
 
     public Page<Photo> findByIds(List<Long> ids, Pageable pageable) {
         return repo.findByIdIn(ids, pageable);
+    }
+
+    /** 分享 view 列表（事务内 map——同 searchResponses 的懒加载序列化防护） */
+    @Transactional(readOnly = true)
+    public Page<PhotoResponse> findByIdsResponses(List<Long> ids, Pageable pageable) {
+        return findByIds(ids, pageable).map(this::toResponse);
     }
 
     @Transactional(readOnly = true)

@@ -2,6 +2,7 @@ package com.hape.photogallery.service;
 
 import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -95,9 +96,11 @@ public class PhotoTransformService {
                     log.error("Transform 补偿恢复失败 photo={}: {}", id, restore.getMessage());
                 }
             }
-            if (e instanceof IOException io) {
-                // 图片无法解码/写入编码失败——"用户图片不可处理"，返回业务错误而非 500
-                log.warn("Transform failed for photo {}: {}", id, io.getMessage());
+            if (e instanceof IOException || e instanceof UncheckedIOException) {
+                // 图片无法解码/写入编码失败（含 getFormat 读文件失败包装的
+                // UncheckedIOException——它不是 IOException 子类，需显式兜底）——
+                // "用户图片不可处理"，返回业务错误而非 500
+                log.warn("Transform failed for photo {}: {}", id, e.getMessage());
                 throw new BusinessException(400, "图片无法处理，可能已损坏");
             }
             throw e;

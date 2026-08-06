@@ -277,6 +277,59 @@ class JwtAuthFilterTest {
         assertThat(chainCalled).isFalse();
     }
 
+    /** P1 回归：过期/失效签名不得短路——请求头带有效 admin JWT 时必须放行
+     *  （浏览器历史 / Service Worker 缓存回源带旧签名 URL 的场景） */
+    @Test
+    void staleSig_withValidAdminJwt_shouldPass() throws Exception {
+        when(jwtService.verify("tok")).thenReturn(claims);
+        when(claims.get("role", String.class)).thenReturn("admin");
+
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/photos/42/file");
+        request.setRequestURI("/api/v1/photos/42/file");
+        request.addParameter("sig", sigService.sign(42) + "x"); // 失效签名
+        request.addHeader("Authorization", "Bearer tok");       // 有效 admin JWT
+        response = new MockHttpServletResponse();
+        filter.doFilter(request, response, (req, res) -> chainCalled = true);
+
+        assertThat(response.getStatus()).isNotEqualTo(403);
+        assertThat(chainCalled).isTrue();
+    }
+
+    /** P1 回归：失效签名 + 有效 viewer DB token → 回落 token 分支，白名单校验照常执行 */
+    @Test
+    void staleSig_withValidDbShareToken_shouldPass() throws Exception {
+        when(shareTokenRepository.findByToken("db-tok")).thenReturn(Optional.of(
+                shareToken("db-tok", "[1]", "view", LocalDateTime.now().plusDays(1), null)));
+
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/photos/1/thumbnail");
+        request.setRequestURI("/api/v1/photos/1/thumbnail");
+        request.addParameter("sig", sigService.sign(1) + "x");
+        request.addParameter("token", "db-tok");
+        response = new MockHttpServletResponse();
+        filter.doFilter(request, response, (req, res) -> chainCalled = true);
+
+        assertThat(response.getStatus()).isNotEqualTo(403);
+        assertThat(chainCalled).isTrue();
+        assertThat(request.getAttribute("sharePhotoIds")).isEqualTo(List.of(1L));
+    }
+
+    /** P1 回归：失效签名 + 白名单外 viewer token → 仍 403（回落不放松权限） */
+    @Test
+    void staleSig_withOutOfWhitelistViewerToken_shouldBe403() throws Exception {
+        when(shareTokenRepository.findByToken("db-tok")).thenReturn(Optional.of(
+                shareToken("db-tok", "[2]", "view", LocalDateTime.now().plusDays(1), null)));
+
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/photos/1/file");
+        request.setRequestURI("/api/v1/photos/1/file");
+        request.addParameter("sig", sigService.sign(1) + "x");
+        request.addParameter("token", "db-tok");
+        response = new MockHttpServletResponse();
+        filter.doFilter(request, response, (req, res) -> chainCalled = true);
+
+        assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(chainCalled).isFalse();
+    }
+
     @Test
     void garbageSig_shouldBe403() throws Exception {
         MockHttpServletResponse res = applySig("/api/v1/photos/42/file", "not-a-signature");

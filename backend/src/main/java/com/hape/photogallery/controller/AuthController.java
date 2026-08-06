@@ -49,9 +49,12 @@ public class AuthController {
                             description = "IP 已被封禁（15 分钟）")
             })
     @PostMapping("/api/v1/auth/unlock")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> unlock(@RequestBody Map<String, Object> body,
+    public ResponseEntity<ApiResponse<Map<String, Object>>> unlock(@RequestBody Object body,
                                                     HttpServletRequest request) {
-        // 请求上下文（IP 解析）留在 MVC 层，作为参数传入 service
+        // 请求上下文（IP 解析）留在 MVC 层，作为参数传入 service。
+        // body 类型为 Object：JSON 数组/字符串/字面量 null 若绑定 Map 会在 Jackson 阶段
+        // 抛 HttpMessageNotReadableException（400 但不记失败计数）——下沉到 service
+        // 统一 instanceof 校验，畸形输入一律计入 5 次封禁
         String ip = ipResolver.resolve(request);
         AuthResult result = authService.unlock(ip, body);
         if (result.data() != null) {

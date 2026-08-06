@@ -59,28 +59,39 @@ public class AuthService {
     }
 
     /** Konami 解锁校验（Challenge-Response 第二步） */
-    public AuthResult unlock(String ip, Map<String, Object> body) {
+    public AuthResult unlock(String ip, Object body) {
         // 封禁检查
         if (failedAttemptStore.isBlocked(ip)) {
             return new AuthResult(403, "尝试次数过多，请 15 分钟后再试", null);
         }
 
+        // 类型校验先行：无检查强转（nonce 非字符串 / keys 非数组 / 元素非字符串）
+        // 曾抛 ClassCastException → 500，且异常发生在 recordFailure 之前——
+        // 畸形输入既不触发封禁计数还可无限刷 500，契约要求 400 + 计数。
+        // 参数为 Object（controller 不再预绑定 Map）：JSON 数组/字符串/字面量 null
+        // 也走到这里统一记失败，不留「绑定阶段 400 不计数」的旁路。
+        // 只校验类型不校验数量：nonce 失效语义仍优先于「输入不完整」（与拆出前一致）
+        if (!(body instanceof Map<?, ?> map) || !(map.get("nonce") instanceof String nonce)) {
+            return recordFailure(ip, "请求格式有误");
+        }
+        if (!(map.get("keys") instanceof List<?> rawKeys)
+                || rawKeys.stream().anyMatch(k -> !(k instanceof String))) {
+            return recordFailure(ip, "请求格式有误");
+        }
+        @SuppressWarnings("unchecked")
+        List<String> keys = (List<String>) rawKeys;
+
         // nonce 校验（一次性消费）
-        String nonce = (String) body.get("nonce");
-        if (nonce == null || !nonceStore.consume(nonce)) {
+        if (!nonceStore.consume(nonce)) {
             failedAttemptStore.recordFailure(ip);
             int remaining = failedAttemptStore.remainingAttempts(ip);
             log.warn("Invalid/expired nonce from IP: {}, remaining attempts: {}", ip, remaining);
             return new AuthResult(400, "请求无效或已过期，请重试（剩余 " + remaining + " 次）", null);
         }
 
-        // 按键序列校验
-        @SuppressWarnings("unchecked")
-        List<String> keys = (List<String>) body.get("keys");
-        if (keys == null || keys.size() != 12) {
-            failedAttemptStore.recordFailure(ip);
-            int remaining = failedAttemptStore.remainingAttempts(ip);
-            return new AuthResult(400, "输入不完整（剩余 " + remaining + " 次）", null);
+        // 按键数量校验（nonce 已消费——与旧行为一致：输入不完整也消耗 nonce）
+        if (keys.size() != 12) {
+            return recordFailure(ip, "输入不完整");
         }
 
         String actual = String.join(",", keys);
@@ -98,6 +109,14 @@ public class AuthService {
         return new AuthResult(200, null, Map.of("token", token, "expiresIn", 86400));
     }
 
+    /** 畸形输入统一记账并返回 400（与 nonce/序列错误同一计数体系，防绕过封禁） */
+    private AuthResult recordFailure(String ip, String message) {
+        failedAttemptStore.recordFailure(ip);
+        int remaining = failedAttemptStore.remainingAttempts(ip);
+        log.warn("Malformed unlock request from IP: {}, remaining attempts: {}", ip, remaining);
+        return new AuthResult(400, message + "（剩余 " + remaining + " 次）", null);
+    }
+
     /**
      * 生成分享链接（DB token + 幂等复用，替代 7 天 viewer JWT——JWT 退出分享签发）。
      * 同 photoIds+permission 的未撤销未过期 token 存在时返回现有 URL（弹窗里的「撤销」即撤销该链接，
@@ -106,6 +125,11 @@ public class AuthService {
      * 并发双写：同 photoIds 并发两次可能各插一条（无唯一约束兜底），单管理员场景可接受。
      */
     public AuthResult generateShare(List<Long> photoIds, String permission, int expireDays) {
+        // 防御：@Pattern 不拦 null（显式 "permission": null 曾 NPE → 500 / null 权限落库），
+        // 绕过 controller 直调时同样 400
+        if (permission == null) {
+            throw new BusinessException(400, "分享权限不能为空");
+        }
         LocalDateTime now = LocalDateTime.now();
         String normalized = normalizePhotoIds(photoIds);
         Optional<ShareToken> existing = shareTokenRepository

@@ -78,6 +78,9 @@ class PhotoProcessorTest {
 
         // 失败路径手动清缓存（@CacheEvict 后置在异常时不生效）
         verify(cacheManager, times(1)).getCache("photos");
+        // 状态写入已上移调用方（P2 修复核心契约）：普通失败不得由 processor 落 FAILED——
+        // 曾在此落 FAILED 与 rabbit 重试并存导致状态翻转，此断言防回归
+        verify(photoRepo, never()).save(any(Photo.class));
     }
 
     @Test

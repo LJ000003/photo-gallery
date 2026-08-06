@@ -37,13 +37,16 @@ class TrashServiceTest {
     @Mock private PhotoRepository photoRepo;
     @Mock private ExifDataRepository exifRepo;
     @Mock private StorageService storage;
+    @Mock private AlbumService albumService;
+    @Mock private PhotoQueryService photoQueryService;
 
     private TrashService service;
 
     @BeforeEach
     void setUp() {
         // 真实 FilePathResolver：删除文件走 storage.deleteFile（原图 + 缩略图×2 + webp）
-        service = new TrashService(photoRepo, exifRepo, new FilePathResolver(photoRepo, storage));
+        service = new TrashService(photoRepo, exifRepo, new FilePathResolver(photoRepo, storage),
+                albumService, photoQueryService);
     }
 
     @Test
@@ -86,6 +89,8 @@ class TrashServiceTest {
         verify(photoRepo).delete(p);
         // 真实 FilePathResolver：原图 + 缩略图(含 200) + webp 四文件清理
         verify(storage, times(4)).deleteFile(any());
+        // 封面重选接入点（硬删路径）——与软删路径同标准验证，防回归
+        verify(albumService).reselectCoversAfterPhotoDeletion(1L);
     }
 
     @Test
@@ -113,6 +118,9 @@ class TrashServiceTest {
         verify(photoRepo).delete(p1);
         verify(photoRepo).delete(p2);
         verify(storage, atLeast(8)).deleteFile(any());
+        // 30 天定时清理的封面重选接入点——防回归
+        verify(albumService).reselectCoversAfterPhotoDeletion(1L);
+        verify(albumService).reselectCoversAfterPhotoDeletion(2L);
     }
 
     @Test

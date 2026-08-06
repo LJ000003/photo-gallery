@@ -5,8 +5,10 @@ import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.security.MessageDigest;
@@ -202,6 +204,8 @@ public class PhotoService {
             photo.setCreatedAt(now);
             photo.setProcessingStatus(ProcessingStatus.PROCESSING);
             photo.setFileHash(hash);
+            // 水印落库（V11）：重试/兜底重扫补发消息时从 DB 恢复，消息丢失不再丢水印
+            photo.setWatermark(p.watermark());
 
             if (p.tagIds() != null && !p.tagIds().isEmpty()) {
                 photo.setTags(new HashSet<>(tagRepo.findAllById(p.tagIds())));
@@ -226,7 +230,8 @@ public class PhotoService {
         }
     }
 
-    @CacheEvict(value = {"photos", "timeline", "map", "stats"}, allEntries = true)
+    // 注：syncPhotoAlbums 会改相册成员关系，必须连带失效 albums（否则相册 photoCount 最长 30s 过期）
+    @CacheEvict(value = {"photos", "timeline", "map", "albums", "stats"}, allEntries = true)
     @Transactional
     public PhotoResponse update(Long id, PhotoUpdateRequest req) {
         Photo photo = photoQueryService.getById(id);
@@ -266,6 +271,8 @@ public class PhotoService {
         photo.setDeletedAt(LocalDateTime.now());
         photo.setFileHash(null);
         repo.save(photo);
+        // 以其为封面的相册重选（否则封面悬空：软删照片 viewer 404、彻底删除后封面永久失效）
+        albumService.reselectCoversAfterPhotoDeletion(id);
     }
 
     @Transactional
@@ -278,6 +285,9 @@ public class PhotoService {
             p.setFileHash(null);
         }
         repo.saveAll(photos);
+        for (Long id : ids) {
+            albumService.reselectCoversAfterPhotoDeletion(id);
+        }
         return photos.size();
     }
 
@@ -347,8 +357,25 @@ public class PhotoService {
         final Long photoId = id;
         final Path sendTarget = target;
         final FilePathResolver.FilePathParts sendParts = parts;
-        TransactionSynchronizationManager.registerSynchronization(new SendAfterCommit(() ->
-                processingSender.send(photoId, sendTarget, sendParts.dateDir(), sendParts.baseName(), null)));
+        // 水印从 DB 读（事务内取标量存 final——事务提交后不再访问实体，避免懒加载代理问题）
+        final String wm = photo.getWatermark();
+        // 与 upload 的 fail-open 同法：发送失败不抛给调用方（状态已落库 PROCESSING），
+        // 靠 5 分钟定时重扫兜底；无事务直调分支也保持相同行为
+        Runnable send = () -> {
+            try {
+                processingSender.send(photoId, sendTarget,
+                        sendParts.dateDir(), sendParts.baseName(), wm);
+            } catch (Exception e) {
+                log.warn("处理消息发送失败 photo={}: {}", photoId, e.getMessage());
+            }
+        };
+        // 与 upload 的 SendAfterCommit 同法：事务提交后发送（消息需在 photoId 状态落库后投递）；
+        // 无活动事务（直接调用/测试）时立即发送，语义一致
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new SendAfterCommit(send));
+        } else {
+            send.run();
+        }
     }
 
     /** 启动时立即恢复一次 + 每 5 分钟兜底重扫：DiscardPolicy 丢弃的处理消息在此补发 */
@@ -364,14 +391,17 @@ public class PhotoService {
 
     /** 扫描 PROCESSING 照片重新发送处理消息（幂等：处理链可重复执行） */
     void recoverStuckProcessing() {
+        // 事务内读取标量字段（fileName + watermark），避免事务外懒加载
+        // （赋值消费返回值，spotbugs RV 干净）
+        Map<Long, String> watermarks = new HashMap<>();
         List<Photo> stuck = transactionTemplate.execute(status -> {
             List<Photo> result = repo.findByProcessingStatus(ProcessingStatus.PROCESSING);
-            // 事务内读取标量字段（fileName），避免事务外懒加载（赋值消费返回值，spotbugs RV 干净）
             for (Photo p : result) {
                 String fileName = p.getFileName();
                 if (fileName == null) {
                     log.warn("PROCESSING 照片缺少文件路径 photo={}", p.getId());
                 }
+                watermarks.put(p.getId(), p.getWatermark());
             }
             return result;
         });
@@ -381,21 +411,18 @@ public class PhotoService {
             try {
                 Path target = storage.getUploadDir().resolve(p.getFileName());
                 FilePathResolver.FilePathParts parts = filePathResolver.parseFilePath(p.getFileName());
-                processingSender.send(p.getId(), target, parts.dateDir(), parts.baseName(), null);
+                // 水印从 DB 读（V11）：消息丢失后重扫补发不再丢水印
+                processingSender.send(p.getId(), target, parts.dateDir(), parts.baseName(),
+                        watermarks.get(p.getId()));
                 sent++;
             } catch (Exception e) {
-                log.error("启动恢复失败 photo={}: {}", p.getId(), e.getMessage());
-                final Long photoId = p.getId();
-                final String errMsg = e.getMessage();
-                transactionTemplate.execute(status -> {
-                    Photo photo = repo.findById(photoId).orElse(null);
-                    if (photo != null) {
-                        photo.setProcessingStatus(ProcessingStatus.FAILED);
-                        photo.setErrorMessage("启动恢复失败: " + errMsg);
-                        repo.save(photo);
-                    }
-                    return null;
-                });
+                // 发送失败不落 FAILED（P0 修复）：dev 模式 @Async 异常在线程池内被
+                // AsyncImageProcessor 自身捕获，同步调用方不会走到这里——此分支只可能由
+                // Rabbit broker 抖动等临时故障触发，落 FAILED 会把全部 PROCESSING 照片
+                // 一次性判死且恢复后不再重扫。保持 PROCESSING 等下次 5 分钟重扫，
+                // 与 upload/retryProcessing 的 fail-open 语义一致。
+                log.warn("处理消息发送失败 photo={}（保持 PROCESSING，等待下次重扫）: {}",
+                        p.getId(), e.getMessage());
             }
         }
         if (sent > 0) {
