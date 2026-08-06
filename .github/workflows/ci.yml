@@ -55,7 +55,8 @@ jobs:
         with:
           name: frontend-dist
           path: frontend/dist
-      - run: node frontend/scripts/copy-dist.mjs
+      # backend job 默认 working-directory=backend，脚本需用 ../ 回到仓库根
+      - run: node ../frontend/scripts/copy-dist.mjs
       - run: mvn test --batch-mode
       - run: mvn spotbugs:check --batch-mode
       - run: mvn package -DskipTests --batch-mode
