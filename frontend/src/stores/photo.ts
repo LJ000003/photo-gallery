@@ -50,10 +50,17 @@ export const usePhotoStore = defineStore('photo', () => {
       return json.data ?? null
     },
     (payload) => {
-      if (payload.content && payload.content.length) photos.value.push(...payload.content)
+      if (payload.content && payload.content.length) {
+        // 重载的新对象合并媒体版本号（transform 后 bump 的版本在对象外持久）
+        payload.content.forEach((p) => {
+          const v = mediaVersions.get(p.id)
+          if (v) p.version = v
+        })
+        photos.value.push(...payload.content)
+      }
     },
   )
-  const { page, hasMore, loading, totalCount, loadMore } = pagination
+  const { page, hasMore, loading, totalCount, error: loadError, loadMore } = pagination
 
   function resetAndReload(): void {
     photos.value = []
@@ -106,6 +113,20 @@ export const usePhotoStore = defineStore('photo', () => {
     })
   }
 
+  /**
+   * 图片变换（旋转/镜像/裁剪）成功后递增媒体版本号：
+   * 缩略图/WebP 响应带 7 天 Cache-Control + Workbox CacheFirst，
+   * URL 不加版本参数会命中旧图缓存——version 拼进 URL（?v=）强制回源。
+   * 版本存 store 级 Map（重载列表后按 id 合并回新对象），不依赖对象存活。
+   */
+  const mediaVersions = new Map<number, number>()
+  function bumpMediaVersion(id: number): void {
+    const v = Date.now()
+    mediaVersions.set(id, v)
+    const p = photos.value.find((x) => x.id === id)
+    if (p) p.version = v
+  }
+
   const polling = useProcessingPolling({
     getPhotos: () => photos.value,
     patch: (updated) => {
@@ -122,6 +143,7 @@ export const usePhotoStore = defineStore('photo', () => {
     hasMore,
     loading,
     totalCount,
+    loadError,
     sortBy,
     sortOrder,
     selectedTagIds,
@@ -135,6 +157,7 @@ export const usePhotoStore = defineStore('photo', () => {
     removePhoto,
     removePhotos,
     applyBatchEdit,
+    bumpMediaVersion,
     startProcessingPoll: polling.start,
     stopProcessingPoll: polling.stop,
     syncUrlState,

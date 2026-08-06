@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { LeftOutlined, RightOutlined } from '@ant-design/icons-vue'
-import { appendMediaParams } from '../../utils/token'
+import { appendMediaParams, mediaUrlWithVersion } from '../../utils/token'
 import { webpUrl } from '../../utils/webp'
 import type { Photo } from '../../types/photo'
 
@@ -41,14 +41,19 @@ const { t } = useI18n()
     <div class="img-wrap" @click.stop>
       <img
         class="img-thumb"
-        :src="appendMediaParams(`/api/v1/photos/${photo.id}/thumbnail`, photo)"
+        :src="
+          mediaUrlWithVersion(
+            appendMediaParams(`/api/v1/photos/${photo.id}/thumbnail`, photo),
+            photo,
+          )
+        "
         :alt="photo.name"
         decoding="async"
       />
       <img
         class="img-full"
         :class="{ show: fullLoaded }"
-        :src="appendMediaParams(webpUrl(photo.id), photo)"
+        :src="mediaUrlWithVersion(appendMediaParams(webpUrl(photo.id), photo), photo)"
         :alt="photo.name"
         decoding="async"
         @load="emit('loaded')"

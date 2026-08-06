@@ -34,7 +34,8 @@ export function usePhotoActions() {
     }
   }
 
-  async function deletePhoto(id: number): Promise<void> {
+  /** @returns 是否删除成功（查看器等调用方据此决定是否导航） */
+  async function deletePhoto(id: number): Promise<boolean> {
     try {
       const res = await api(`/api/photos/${id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error(await extractErrorMessage(res))
@@ -43,8 +44,10 @@ export function usePhotoActions() {
         label: i18n.global.t('actions.undo'),
         onClick: () => restorePhoto(id),
       })
+      return true
     } catch (err) {
       toast.error(err instanceof Error ? err.message : i18n.global.t('actions.deleteFailed'))
+      return false
     }
   }
 

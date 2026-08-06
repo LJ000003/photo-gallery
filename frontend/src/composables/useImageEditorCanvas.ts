@@ -277,6 +277,8 @@ export function useImageEditorCanvas(
     const rotated = rotation.value === 90 || rotation.value === 270
     const outW = rotated ? srcH : srcW
     const outH = rotated ? srcW : srcH
+    // 全图裁剪（cw/ch≈1）后端会静默跳过（cw<1 条件）——统一视为不裁剪
+    const isFullCrop = crop.value.w >= 0.999 && crop.value.h >= 0.999
 
     const srcCanvas = document.createElement('canvas')
     srcCanvas.width = srcW
@@ -310,13 +312,18 @@ export function useImageEditorCanvas(
     }
 
     const mirror: MirrorMode = mirrorH.value ? 'horizontal' : mirrorV.value ? 'vertical' : 'none'
+    // 后端顺序为「按原图坐标裁剪 → 旋转 → 镜像」，而本组件裁剪框画在变换后的
+    // 显示图上——必须把 crop 坐标逆映射回原图坐标系，否则 rotate/mirror 非恒等时
+    // 保存结果与预览不一致（数据损坏）。
+    const sourceCrop =
+      cropMode.value && !isFullCrop ? mapCropToSource(crop.value, rotation.value, mirror) : null
     const transformParams: TransformParams = {
       rotate: rotation.value,
       mirror,
-      cx: cropMode.value ? crop.value.x : null,
-      cy: cropMode.value ? crop.value.y : null,
-      cw: cropMode.value ? crop.value.w : null,
-      ch: cropMode.value ? crop.value.h : null,
+      cx: sourceCrop?.x ?? null,
+      cy: sourceCrop?.y ?? null,
+      cw: sourceCrop?.w ?? null,
+      ch: sourceCrop?.h ?? null,
     }
 
     // 透明像素保持 PNG 编码（JPEG 会把透明填黑）。
@@ -346,5 +353,42 @@ export function useImageEditorCanvas(
     doReset,
     toggleCropMode,
     confirm,
+  }
+}
+
+export interface CropBox {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+/**
+ * 把「变换后图像」上的归一化裁剪框逆映射回「原图」归一化坐标。
+ * 裁剪框画在旋转/镜像后的显示图上，而后端按原图坐标先裁剪再变换
+ * （PhotoTransformService）——归一化坐标下映射为纯坐标置换/翻转：
+ * 先镜像取反（mirror 作用于旋转后的结果，自逆），再旋转逆变换。
+ * 返回的坐标已保证落在 [0,1]（后端另有 clamp 兜底）。
+ */
+export function mapCropToSource(crop: CropBox, rotation: number, mirror: MirrorMode): CropBox {
+  const { w, h } = crop
+  let x = crop.x
+  let y = crop.y
+  if (mirror === 'horizontal') {
+    x = 1 - (x + w)
+  } else if (mirror === 'vertical') {
+    y = 1 - (y + h)
+  }
+  switch (rotation) {
+    case 90:
+      // 顺时针 90°：输出 (x,y,w,h) → 原图 (y, 1-x-w, h, w)
+      return { x: y, y: 1 - x - w, w: h, h: w }
+    case 180:
+      return { x: 1 - x - w, y: 1 - y - h, w, h }
+    case 270:
+      // 逆时针 90°：输出 (x,y,w,h) → 原图 (1-y-h, x, h, w)
+      return { x: 1 - y - h, y: x, w: h, h: w }
+    default:
+      return { x, y, w, h }
   }
 }

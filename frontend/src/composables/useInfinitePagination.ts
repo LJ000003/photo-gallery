@@ -22,6 +22,8 @@ export function useInfinitePagination<T>(
   const hasMore = ref(true)
   const loading = ref(false)
   const totalCount = ref(0)
+  /** 最近一次加载是否失败（视图层据此渲染错误态而非空白/空态） */
+  const error = ref(false)
   let requestId = 0
 
   /** @returns 是否成功加载了一页（失败时调用方应终止循环，避免死循环重试） */
@@ -37,11 +39,13 @@ export function useInfinitePagination<T>(
       page.value++
       hasMore.value = page.value < payload.totalPages
       totalCount.value = payload.totalElements
+      error.value = false
       return true
     } catch (err) {
       if (!(err instanceof AuthError)) {
         logError(err, '加载照片失败')
       }
+      error.value = true
       return false
     } finally {
       if (myId === requestId) loading.value = false
@@ -55,7 +59,8 @@ export function useInfinitePagination<T>(
     page.value = 0
     hasMore.value = true
     loading.value = false
+    error.value = false
   }
 
-  return { page, hasMore, loading, totalCount, loadMore, reset }
+  return { page, hasMore, loading, totalCount, error, loadMore, reset }
 }

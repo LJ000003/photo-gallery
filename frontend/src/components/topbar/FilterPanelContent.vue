@@ -106,7 +106,6 @@ async function addTag(): Promise<void> {
 
 async function saveEditCat(id: number): Promise<void> {
   const name = editCatName.value.trim()
-  editingCatId.value = null
   if (!name) return
   try {
     const res = await api(`/api/categories/${id}`, {
@@ -114,6 +113,8 @@ async function saveEditCat(id: number): Promise<void> {
       body: JSON.stringify({ name }),
     })
     if (!res.ok) throw new Error()
+    // 成功后才退出编辑态（失败保留输入，旧实现失败后输入被丢弃）
+    editingCatId.value = null
     await data.refreshCategories()
   } catch {
     toast.error(t('common.unknownError'))
@@ -122,7 +123,6 @@ async function saveEditCat(id: number): Promise<void> {
 
 async function saveEditTag(id: number): Promise<void> {
   const name = editTagName.value.trim()
-  editingTagId.value = null
   if (!name) return
   try {
     const res = await api(`/api/tags/${id}`, {
@@ -130,6 +130,8 @@ async function saveEditTag(id: number): Promise<void> {
       body: JSON.stringify({ name, color: editTagColor.value }),
     })
     if (!res.ok) throw new Error()
+    // 成功后才退出编辑态（失败保留输入）
+    editingTagId.value = null
     await data.refreshTags()
   } catch {
     toast.error(t('common.unknownError'))

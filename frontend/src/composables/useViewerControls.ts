@@ -104,7 +104,21 @@ export function useViewerControls(
   watch(canSlideshow, () => syncSlideTimer())
 
   /* ---------- 键盘 ---------- */
+  /** 焦点在交互元素上时不响应快捷键（否则按钮 click 与按键双触发，如 Space 播放） */
+  function isInteractiveTarget(e: KeyboardEvent): boolean {
+    const el = e.target as HTMLElement | null
+    if (!el) return false
+    return (
+      el.tagName === 'BUTTON' ||
+      el.tagName === 'INPUT' ||
+      el.tagName === 'TEXTAREA' ||
+      el.tagName === 'A' ||
+      el.isContentEditable
+    )
+  }
+
   function onKeydown(e: KeyboardEvent): void {
+    if (isInteractiveTarget(e)) return
     switch (e.key) {
       case 'Escape':
         // 分层处理：全屏中先退全屏（浏览器也拦截 Esc），不关闭灯箱

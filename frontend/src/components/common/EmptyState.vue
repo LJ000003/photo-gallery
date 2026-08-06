@@ -25,6 +25,7 @@ defineProps<{
     </div>
     <h3 class="empty-title">{{ title }}</h3>
     <p class="empty-hint">{{ hint }}</p>
+    <slot name="action" />
   </div>
 </template>
 

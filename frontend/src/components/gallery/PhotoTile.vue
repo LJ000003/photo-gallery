@@ -11,7 +11,7 @@ import {
 } from '@ant-design/icons-vue'
 import { Modal } from 'ant-design-vue'
 import { thumbUrl } from '../../utils/webp'
-import { appendMediaParams, appendTokenParam } from '../../utils/token'
+import { appendMediaParams, appendTokenParam, mediaUrlWithVersion } from '../../utils/token'
 import { formatSize } from '../../utils/format'
 import { api } from '../../api'
 import { useToastStore } from '../../stores/toast'
@@ -64,10 +64,12 @@ function highlightSegments(text: string | undefined): HighlightSegment[] {
 
 const nameSegments = computed(() => highlightSegments(props.photo.name))
 
-/** 缩略图 URL：优先 per-photo 短时签名，缺失时回退显式 token（分享页） */
+/** 缩略图 URL：优先 per-photo 短时签名，缺失时回退显式 token（分享页）；
+ *  版本号兜底拼接（transform 后绕过 7 天缓存） */
 function tileSrc(p: Photo, w: number): string {
   const base = thumbUrl(p.id, w)
-  return p.mediaToken ? appendMediaParams(base, p) : appendTokenParam(base, props.token)
+  const signed = p.mediaToken ? appendMediaParams(base, p) : appendTokenParam(base, props.token)
+  return mediaUrlWithVersion(signed, p)
 }
 
 /* ---------- 处理失败重试 ---------- */
@@ -126,6 +128,8 @@ function onLeave(): void {
 
 /* ---------- 键盘可达性 ---------- */
 function onKeydown(e: KeyboardEvent): void {
+  // 焦点在内嵌按钮（编辑/删除/重试）时不拦截：Enter/Space 应激活按钮而非打开查看器
+  if (e.target !== e.currentTarget) return
   if (e.key === 'Enter' || e.key === ' ') {
     e.preventDefault()
     emit('view', props.photo)
@@ -159,9 +163,9 @@ function onKeydown(e: KeyboardEvent): void {
         decoding="async"
       />
 
-      <!-- 悬停操作层 -->
+      <!-- 悬停操作层（分享页等纯浏览场景 selectable=false 时隐藏：事件无人监听） -->
       <div class="tile-overlay">
-        <div class="overlay-actions">
+        <div v-if="selectable" class="overlay-actions">
           <button
             class="action-btn"
             :aria-label="t('actions.edit')"
@@ -207,8 +211,8 @@ function onKeydown(e: KeyboardEvent): void {
         <span>{{ t('gallery.processing') }}</span>
       </div>
 
-      <!-- 处理失败 -->
-      <div v-if="photo.processingStatus === 'FAILED'" class="tile-status failed">
+      <!-- 处理失败（遮罩点击不穿透打开查看器——图片可能不存在） -->
+      <div v-if="photo.processingStatus === 'FAILED'" class="tile-status failed" @click.stop>
         <WarningOutlined class="warn-icon" />
         <span class="warn-text">{{ photo.errorMessage || t('gallery.processFailed') }}</span>
         <button class="retry-btn" :disabled="retrying" @click.stop="retryProcessing">

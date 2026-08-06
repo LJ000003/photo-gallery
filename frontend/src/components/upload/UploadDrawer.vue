@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { CloudUploadOutlined, InboxOutlined, ScissorOutlined } from '@ant-design/icons-vue'
 import { Button, Drawer, Input, Progress, Select, Spin } from 'ant-design-vue'
@@ -30,6 +30,10 @@ const data = useDataStore()
 const MAX_BATCH = 50
 
 const fileInput = ref<HTMLInputElement | null>(null)
+/** 待上传文件的唯一状态来源：input change / 拖拽 / 粘贴统一写入。
+ *  此前依赖 fileInput.files——抽屉未渲染时 ref 为 null，粘贴文件只进预览
+ *  不落 input，提交时读到空 FileList 静默失败。 */
+const pendingFiles = ref<File[]>([])
 const previews = ref<{ name: string; url: string }[]>([])
 const selectedCount = ref(0)
 const dragOver = ref(false)
@@ -48,31 +52,35 @@ const editorSrc = ref('')
 const editingIndex = ref(-1)
 
 /* ---------- 文件选取 ---------- */
-function onFileChange(e: Event): void {
-  const files = (e.target as HTMLInputElement).files
-  if (!files) return
+function setFiles(files: File[]): void {
   if (files.length > MAX_BATCH) {
     toast.error(t('upload.tooMany'))
     if (fileInput.value) fileInput.value.value = ''
     return
   }
+  pendingFiles.value = files
   revokePreviews()
   editedBlobs.value = {}
   selectedCount.value = files.length
   if (files.length === 0) return
-  previews.value = Array.from(files).map((f) => ({
+  previews.value = files.map((f) => ({
     name: f.name,
     url: URL.createObjectURL(f),
   }))
   void compressSelected()
 }
 
+function onFileChange(e: Event): void {
+  const files = (e.target as HTMLInputElement).files
+  if (!files) return
+  setFiles(Array.from(files))
+}
+
 function processFiles(files: FileList | File[]): void {
   if (!files || files.length === 0) return
-  const dt = new DataTransfer()
-  for (const f of files) dt.items.add(f)
-  if (fileInput.value) fileInput.value.files = dt.files
-  onFileChange({ target: { files: dt.files } } as unknown as Event)
+  // 统一走组件状态（不写 fileInput.files）：抽屉未渲染（forceRender=false）
+  // 时 ref 为 null，旧实现粘贴文件丢失、提交静默失败
+  setFiles(Array.from(files))
 }
 
 function onDragOver(e: DragEvent): void {
@@ -116,18 +124,27 @@ function toggleTag(id: number): void {
 
 function clearSelection(): void {
   selectedCount.value = 0
+  pendingFiles.value = []
   revokePreviews()
   editedBlobs.value = {}
   compressedFiles.value = {}
   if (fileInput.value) fileInput.value.value = ''
 }
 
+// 关闭抽屉即清空选择（旧实现残留：重开显示上次的预览与文件）
+watch(
+  () => props.open,
+  (v) => {
+    if (!v) clearSelection()
+  },
+)
+
 async function compressSelected(): Promise<void> {
-  const files = fileInput.value?.files
+  const files = pendingFiles.value
   if (!files || files.length === 0) return
   compressing.value = true
   try {
-    const results = await compressImages(Array.from(files))
+    const results = await compressImages(files)
     const map: Record<number, File> = {}
     results.forEach((f, i) => {
       map[i] = f
@@ -170,12 +187,10 @@ function buildFile(i: number, original: File): File {
 
 /* ---------- 提交 ---------- */
 async function onSubmit(): Promise<void> {
-  const files = fileInput.value?.files
-  if (!files || files.length === 0) return
-
-  const fileArray = Array.from(files)
+  const fileArray = pendingFiles.value
+  if (!fileArray || fileArray.length === 0) return
   const fd = new FormData()
-  const isBatch = files.length > 1
+  const isBatch = fileArray.length > 1
 
   for (let i = 0; i < fileArray.length; i++) {
     fd.append(isBatch ? 'files' : 'file', buildFile(i, fileArray[i]))
