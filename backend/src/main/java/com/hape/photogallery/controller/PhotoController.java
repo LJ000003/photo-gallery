@@ -15,8 +15,10 @@ import com.hape.photogallery.exception.DuplicateException;
 import com.hape.photogallery.service.AlbumService;
 import com.hape.photogallery.service.FilePathResolver;
 import com.hape.photogallery.service.MigrationService;
+import com.hape.photogallery.service.PhotoQueryService;
 import com.hape.photogallery.service.PhotoService;
 import com.hape.photogallery.service.PhotoTransformService;
+import com.hape.photogallery.service.TrashService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
@@ -46,15 +48,20 @@ import org.springframework.web.multipart.MultipartFile;
 public class PhotoController {
 
     private final PhotoService service;
+    private final PhotoQueryService photoQueryService;
+    private final TrashService trashService;
     private final AlbumService albumService;
     private final MigrationService migrationService;
     private final FilePathResolver filePathResolver;
     private final PhotoTransformService transformService;
 
-    public PhotoController(PhotoService service, AlbumService albumService,
+    public PhotoController(PhotoService service, PhotoQueryService photoQueryService,
+                           TrashService trashService, AlbumService albumService,
                            MigrationService migrationService, FilePathResolver filePathResolver,
                            PhotoTransformService transformService) {
         this.service = service;
+        this.photoQueryService = photoQueryService;
+        this.trashService = trashService;
         this.albumService = albumService;
         this.migrationService = migrationService;
         this.filePathResolver = filePathResolver;
@@ -74,21 +81,22 @@ public class PhotoController {
             @PageableDefault(size = 20) Pageable pageable) {
         if (q != null && !q.isBlank()) {
             // 搜索与标签/分类筛选可组合（交集），不再忽略筛选条件
-            return ApiResponse.success(service.search(q, tagIds, categoryIds, pageable).map(service::toResponse));
+            return ApiResponse.success(photoQueryService.search(q, tagIds, categoryIds, pageable)
+                    .map(photoQueryService::toResponse));
         }
         if (albumId != null) {
             Page<Photo> page = albumId == 0
                     ? albumService.listUnassigned(pageable)
                     : albumService.listPhotos(albumId, pageable);
-            return ApiResponse.success(page.map(service::toResponse));
+            return ApiResponse.success(page.map(photoQueryService::toResponse));
         }
-        return ApiResponse.success(service.listAllResponses(tagIds, categoryIds, pageable));
+        return ApiResponse.success(photoQueryService.listAllResponses(tagIds, categoryIds, pageable));
     }
 
     @Operation(summary = "照片详情", description = "含 EXIF、标签、分类、相册与媒体签名")
     @GetMapping("/photos/{id}")
     public ApiResponse<PhotoResponse> get(@PathVariable Long id) {
-        return ApiResponse.success(service.getPhotoResponse(id));
+        return ApiResponse.success(photoQueryService.getPhotoResponse(id));
     }
 
     @Operation(summary = "上传单张照片",
@@ -107,7 +115,7 @@ public class PhotoController {
             throws IOException {
         try {
             UploadParams params = new UploadParams(name, description, tagIds, categoryId, watermark);
-            return ResponseEntity.ok(ApiResponse.success(service.toResponse(service.upload(file, params))));
+            return ResponseEntity.ok(ApiResponse.success(photoQueryService.toResponse(service.upload(file, params))));
         } catch (DuplicateException e) {
             return ResponseEntity.status(409).body(ApiResponse.error(409, e.getMessage(), e.getExisting()));
         }
@@ -129,7 +137,7 @@ public class PhotoController {
         }
         UploadParams params = new UploadParams(name, description, tagIds, categoryId, watermark);
         List<PhotoResponse> result = service.batchUpload(files, params)
-                .stream().map(service::toResponse).toList();
+                .stream().map(photoQueryService::toResponse).toList();
         return ApiResponse.success(result);
     }
 
@@ -161,7 +169,7 @@ public class PhotoController {
 
     @PostMapping("/photos/{id}/restore")
     public ApiResponse<String> restore(@PathVariable Long id) {
-        service.restore(id);
+        trashService.restore(id);
         return ApiResponse.success("恢复成功");
     }
 
@@ -256,7 +264,7 @@ public class PhotoController {
     public ApiResponse<Page<TimelineItem>> timeline(
             @RequestParam(defaultValue = "desc") String sortOrder,
             @PageableDefault(size = 50) Pageable pageable) {
-        return ApiResponse.success(service.getTimeline(sortOrder, pageable));
+        return ApiResponse.success(photoQueryService.getTimeline(sortOrder, pageable));
     }
 
     @GetMapping("/photos/map")
@@ -265,7 +273,7 @@ public class PhotoController {
             @RequestParam double swLng,
             @RequestParam double neLat,
             @RequestParam double neLng) {
-        return ApiResponse.success(service.getMapPhotos(swLat, swLng, neLat, neLng));
+        return ApiResponse.success(photoQueryService.getMapPhotos(swLat, swLng, neLat, neLng));
     }
 
     @PostMapping("/photos/extract-exif")
@@ -276,7 +284,7 @@ public class PhotoController {
 
     @PostMapping("/photos/{id}/extract-exif")
     public ApiResponse<ExifData> extractExif(@PathVariable Long id) {
-        return ApiResponse.success(service.extractExifForPhoto(id));
+        return ApiResponse.success(photoQueryService.extractExifForPhoto(id));
     }
 
     @PostMapping("/photos/{id}/transform")

@@ -1,7 +1,7 @@
 package com.hape.photogallery.controller;
 
 import com.hape.photogallery.service.AlbumService;
-import com.hape.photogallery.service.PhotoService;
+import com.hape.photogallery.service.PhotoQueryService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
@@ -30,7 +30,7 @@ class AlbumControllerTest {
     private AlbumService albumService;
 
     @MockBean
-    private PhotoService photoService;
+    private PhotoQueryService photoQueryService;
 
     @Test
     void listAlbumPhotoIds_shouldReturnIdsOnly() throws Exception {

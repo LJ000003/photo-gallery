@@ -9,8 +9,10 @@ import com.hape.photogallery.entity.Photo;
 import com.hape.photogallery.service.AlbumService;
 import com.hape.photogallery.service.FilePathResolver;
 import com.hape.photogallery.service.MigrationService;
+import com.hape.photogallery.service.PhotoQueryService;
 import com.hape.photogallery.service.PhotoService;
 import com.hape.photogallery.service.PhotoTransformService;
+import com.hape.photogallery.service.TrashService;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -50,6 +52,8 @@ class PhotoControllerTest {
 
     @Autowired private MockMvc mockMvc;
     @MockBean private PhotoService service;
+    @MockBean private PhotoQueryService photoQueryService;
+    @MockBean private TrashService trashService;
     @MockBean private AlbumService albumService;
     @MockBean private MigrationService migrationService;
     @MockBean private FilePathResolver filePathResolver;
@@ -62,7 +66,7 @@ class PhotoControllerTest {
 
     @Test
     void list_shouldReturnPage() throws Exception {
-        when(service.listAllResponses(any(), any(), any(PageRequest.class)))
+        when(photoQueryService.listAllResponses(any(), any(), any(PageRequest.class)))
                 .thenReturn(new PageImpl<>(List.of()));
 
         mockMvc.perform(get("/api/v1/photos?page=0&size=20"))
@@ -73,7 +77,7 @@ class PhotoControllerTest {
 
     @Test
     void list_withFilter_shouldPassParams() throws Exception {
-        when(service.listAllResponses(any(), any(), any(PageRequest.class)))
+        when(photoQueryService.listAllResponses(any(), any(), any(PageRequest.class)))
                 .thenReturn(new PageImpl<>(List.of()));
 
         mockMvc.perform(get("/api/v1/photos?page=0&size=20&tagIds=1&tagIds=2&categoryIds=3"))
@@ -82,22 +86,22 @@ class PhotoControllerTest {
 
     @Test
     void list_withSearch_shouldCallSearch() throws Exception {
-        when(service.search(eq("cat"), isNull(), isNull(), any())).thenReturn(new PageImpl<>(List.of()));
+        when(photoQueryService.search(eq("cat"), isNull(), isNull(), any())).thenReturn(new PageImpl<>(List.of()));
 
         mockMvc.perform(get("/api/v1/photos?q=cat"))
                 .andExpect(status().isOk());
 
-        verify(service).search("cat", null, null, PageRequest.of(0, 20));
+        verify(photoQueryService).search("cat", null, null, PageRequest.of(0, 20));
     }
 
     @Test
     void list_withSearchAndTagFilter_shouldCallSearchWithFilters() throws Exception {
-        when(service.search(eq("cat"), eq(List.of(1L)), isNull(), any())).thenReturn(new PageImpl<>(List.of()));
+        when(photoQueryService.search(eq("cat"), eq(List.of(1L)), isNull(), any())).thenReturn(new PageImpl<>(List.of()));
 
         mockMvc.perform(get("/api/v1/photos?q=cat&tagIds=1"))
                 .andExpect(status().isOk());
 
-        verify(service).search("cat", List.of(1L), null, PageRequest.of(0, 20));
+        verify(photoQueryService).search("cat", List.of(1L), null, PageRequest.of(0, 20));
     }
 
     @Test
@@ -125,7 +129,7 @@ class PhotoControllerTest {
     @Test
     void getById_shouldReturnPhoto() throws Exception {
         Photo p = new Photo(); p.setId(1L); p.setName("照片");
-        when(service.getPhotoResponse(1L)).thenReturn(PhotoResponse.from(p));
+        when(photoQueryService.getPhotoResponse(1L)).thenReturn(PhotoResponse.from(p));
 
         mockMvc.perform(get("/api/v1/photos/1"))
                 .andExpect(status().isOk())
@@ -230,7 +234,7 @@ class PhotoControllerTest {
 
     @Test
     void timeline_shouldReturnList() throws Exception {
-        when(service.getTimeline(eq("desc"), any(PageRequest.class)))
+        when(photoQueryService.getTimeline(eq("desc"), any(PageRequest.class)))
                 .thenReturn(Page.empty());
 
         mockMvc.perform(get("/api/v1/photos/timeline"))
@@ -241,7 +245,7 @@ class PhotoControllerTest {
     @Test
     void mapPhotos_shouldReturnList() throws Exception {
         MapItem item = new MapItem();
-        when(service.getMapPhotos(anyDouble(), anyDouble(), anyDouble(), anyDouble()))
+        when(photoQueryService.getMapPhotos(anyDouble(), anyDouble(), anyDouble(), anyDouble()))
                 .thenReturn(List.of(item));
 
         mockMvc.perform(get("/api/v1/photos/map?swLat=30&swLng=100&neLat=50&neLng=130"))

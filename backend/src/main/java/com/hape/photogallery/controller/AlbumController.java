@@ -9,7 +9,7 @@ import com.hape.photogallery.dto.AlbumRequest;
 import com.hape.photogallery.dto.AlbumResponse;
 import com.hape.photogallery.dto.PhotoResponse;
 import com.hape.photogallery.service.AlbumService;
-import com.hape.photogallery.service.PhotoService;
+import com.hape.photogallery.service.PhotoQueryService;
 
 import jakarta.validation.Valid;
 
@@ -23,13 +23,13 @@ import org.springframework.web.bind.annotation.*;
 public class AlbumController {
 
     private final AlbumService albumService;
-    private final PhotoService photoService;
+    private final PhotoQueryService photoQueryService;
     private final MediaSignatureService mediaSignature;
 
-    public AlbumController(AlbumService albumService, PhotoService photoService,
+    public AlbumController(AlbumService albumService, PhotoQueryService photoQueryService,
                            MediaSignatureService mediaSignature) {
         this.albumService = albumService;
-        this.photoService = photoService;
+        this.photoQueryService = photoQueryService;
         this.mediaSignature = mediaSignature;
     }
 
@@ -72,7 +72,7 @@ public class AlbumController {
             @PathVariable Long id,
             @PageableDefault(size = 20) Pageable pageable) {
         // 走 PhotoResponse（携带图片短时签名），实体直接序列化会让相册详情缩略图无鉴权
-        return ApiResponse.success(albumService.listPhotos(id, pageable).map(photoService::toResponse));
+        return ApiResponse.success(albumService.listPhotos(id, pageable).map(photoQueryService::toResponse));
     }
 
     @GetMapping("/albums/{id}/photo-ids")

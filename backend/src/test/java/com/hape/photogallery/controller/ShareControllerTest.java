@@ -25,7 +25,7 @@ import com.hape.photogallery.config.JwtService;
 import com.hape.photogallery.config.MediaSignatureService;
 import com.hape.photogallery.dto.PhotoResponse;
 import com.hape.photogallery.entity.Photo;
-import com.hape.photogallery.service.PhotoService;
+import com.hape.photogallery.service.PhotoQueryService;
 
 /**
  * 分享查看 API 测试：白名单生效 + mediaToken 剥离（防 view 权限借签名下载原图）。
@@ -42,7 +42,7 @@ class ShareControllerTest {
     private MockMvc mockMvc;
 
     @MockBean
-    private PhotoService photoService;
+    private PhotoQueryService photoQueryService;
 
     @Test
     void view_shouldReturnWhiteListedPhotosWithoutMediaToken() throws Exception {
@@ -50,9 +50,9 @@ class ShareControllerTest {
         photo.setId(7L);
         PhotoResponse resp = new PhotoResponse();
         resp.setMediaToken("signed-token-should-be-stripped");
-        when(photoService.findByIds(eq(List.of(7L)), any(PageRequest.class)))
+        when(photoQueryService.findByIds(eq(List.of(7L)), any(PageRequest.class)))
                 .thenReturn(new PageImpl<>(List.of(photo)));
-        when(photoService.toResponse(any(Photo.class))).thenReturn(resp);
+        when(photoQueryService.toResponse(any(Photo.class))).thenReturn(resp);
 
         mockMvc.perform(get("/api/v1/share/view")
                         .requestAttr("sharePhotoIds", List.of(7L)))

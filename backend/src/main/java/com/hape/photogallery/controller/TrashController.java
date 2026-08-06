@@ -7,7 +7,8 @@ import com.hape.photogallery.ApiResponse;
 import com.hape.photogallery.dto.AlbumResponse;
 import com.hape.photogallery.dto.PhotoResponse;
 import com.hape.photogallery.service.AlbumService;
-import com.hape.photogallery.service.PhotoService;
+import com.hape.photogallery.service.PhotoQueryService;
+import com.hape.photogallery.service.TrashService;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -18,28 +19,31 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/trash")
 public class TrashController {
 
-    private final PhotoService photoService;
+    private final TrashService trashService;
+    private final PhotoQueryService photoQueryService;
     private final AlbumService albumService;
 
-    public TrashController(PhotoService photoService, AlbumService albumService) {
-        this.photoService = photoService;
+    public TrashController(TrashService trashService, PhotoQueryService photoQueryService,
+                           AlbumService albumService) {
+        this.trashService = trashService;
+        this.photoQueryService = photoQueryService;
         this.albumService = albumService;
     }
 
     @GetMapping("/photos")
     public ApiResponse<Page<PhotoResponse>> listPhotos(@PageableDefault(size = 20) Pageable pageable) {
-        return ApiResponse.success(photoService.listDeleted(pageable).map(photoService::toResponse));
+        return ApiResponse.success(trashService.listDeleted(pageable).map(photoQueryService::toResponse));
     }
 
     @PostMapping("/photos/{id}/restore")
     public ApiResponse<String> restorePhoto(@PathVariable Long id) {
-        photoService.restore(id);
+        trashService.restore(id);
         return ApiResponse.success("恢复成功");
     }
 
     @DeleteMapping("/photos/{id}")
     public ApiResponse<String> permanentlyDeletePhoto(@PathVariable Long id) {
-        photoService.permanentlyDelete(id);
+        trashService.permanentlyDelete(id);
         return ApiResponse.success("已彻底删除");
     }
 
