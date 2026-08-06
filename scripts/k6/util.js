@@ -1,6 +1,5 @@
 // k6 共享工具：Konami Challenge-Response 解锁（与前端 requestToken 同构）
 import http from 'k6/http'
-import { check } from 'k6'
 // 注意：open() 是 k6 全局函数（init context），不能从 'k6' 模块导入；
 // 路径相对脚本所在目录（scripts/k6/）解析，与执行时的 cwd 无关
 
@@ -37,8 +36,4 @@ export function makeJpegBytes(seed) {
   bytes[bytes.length - 4] = (bytes[bytes.length - 4] + (seed >> 8)) & 0xff
   // http.file() 只接受 string 或 ArrayBuffer，Uint8Array 会报 "invalid type []uint8"
   return bytes.buffer
-}
-
-export function checkOk(res, name) {
-  check(res, { [name]: (r) => r.status === 200 })
 }

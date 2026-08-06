@@ -45,7 +45,7 @@ Java 17 · Spring Boot 3.3.13 · MySQL 8 (FULLTEXT + ngram) · Redis · RabbitMQ
 
 ## 功能速览
 
-- **照片管理** — 拖拽/批量上传（客户端压缩 + 进度条）、虚拟滚动（万张不卡）、SHA-256 去重、批量编辑/删除、FULLTEXT 中文搜索、时间/名称/大小排序
+- **照片管理** — 拖拽/批量上传（客户端压缩 + 进度条）、虚拟滚动（万张不卡，k6 1 万行实测：缓存命中 p95 8ms / 冷回源 32ms）、SHA-256 去重、批量编辑/删除、FULLTEXT 中文搜索、时间/名称/大小排序
 - **图片处理** — 上传即返回，异步完成 EXIF → 旋转 → 水印 → 缩略图（200/400px）→ WebP；失败一键重试 + 定时兜底重扫
 - **分类体系** — 分类（互斥）/标签（多对多，自定义颜色）/相册（多对多，封面 + 未分配汇总）
 - **EXIF 与浏览** — EXIF 详情面板、时间线、地图（WGS-84 → GCJ-02）
@@ -80,7 +80,7 @@ cd frontend && npm install && npm run dev     # http://localhost:5173
 
 ## 测试与质量
 
-后端 349 条 JUnit（JaCoCo 实测 71.8% 指令）· 前端 113 条 Vitest · 14 条 Playwright E2E · SpotBugs 0 bug · Husky + commitlint · CI 四 job 流水线（frontend → backend → docker/e2e）
+后端 419 条 JUnit（JaCoCo 实测 76% 指令）· 前端 135 条 Vitest · 14 条 Playwright E2E · SpotBugs 0 bug · Husky + commitlint · CI 四 job 流水线（frontend → backend → docker/e2e）
 
 ## 链接
 

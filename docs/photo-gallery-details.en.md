@@ -632,11 +632,20 @@ A four-job pipeline on push/PR to main (`frontend` → `backend` → `docker`/`e
 `scripts/k6/` provides 4 scenarios (smoke / photo-list / upload / share); real results are recorded in [BENCHMARK.md](../BENCHMARK.md):
 
 ```bash
-k6 run scripts/k6/photo-list.js    # 20 VU × 60s, threshold p95<300ms
+k6 run scripts/k6/photo-list.js                    # default MODE=hit (cache-hit state); MODE variants below
+k6 run --env MODE=miss scripts/k6/photo-list.js    # random page 0..499 (mixed state within 30s TTL)
+k6 run --env MODE=deep scripts/k6/photo-list.js    # random deep page 400..499 (OFFSET 8000~10000)
+k6 run --env MODE=search scripts/k6/photo-list.js  # q=风景 FULLTEXT (uncached endpoint, always cache-miss)
 k6 run scripts/k6/upload.js        # 5 VU × 100 iterations (seeded real photos, write throughput, no preseed needed)
 k6 run scripts/k6/smoke.js
 k6 run scripts/k6/share.js
 ```
+
+**Seeding & cache-miss methodology** (measured 2026-08-06):
+
+- **Seeding**: `scripts/k6/seed-10000.sql` — SQL-direct insert of 10k photos (+EXIF/tag/album/category relations, `k6-` prefix for cleanup). The list endpoint never touches files, so SQL seeding is sufficient for query/cache-path testing; real upload throughput is covered by the upload scenario
+- **Measure cache-miss separately**: the list `@Cacheable` key space is bounded (10k ÷ 20 = 500 keys), so random pages fill every key in the first second and cache-miss share is <1% over 60s — measure cold-cache latency with `redis-cli FLUSHDB` + single-concurrency first-request (measured: 10k-row cold cache-miss p95 ≈ 32ms)
+- **Measured**: cache-hit p95 7.96ms (20 VU × 60s, 192k requests) / cold cache-miss 32ms / deep pagination identical to shallow / search 20-concurrency 297.5ms near the 300ms threshold; the benchmark run also surfaced and fixed a prod-only Redis serialization 500 (PhotoResponse entity leakage → DTOs; see doc/photo-gallery-改进方案问题记录.md §2.8/Appendix O)
 
 ## 13. Engineering Conventions
 

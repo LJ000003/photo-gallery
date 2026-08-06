@@ -631,11 +631,20 @@ push / PR 到 main 时的四 job 流水线（`frontend` → `backend` → `docke
 `scripts/k6/` 提供 4 个场景（smoke / photo-list / upload / share），真实压测结果见根目录 [BENCHMARK.md](../BENCHMARK.md)：
 
 ```bash
-k6 run scripts/k6/photo-list.js    # 20 VU × 60s，p95<300ms 阈值
+k6 run scripts/k6/photo-list.js          # 默认 MODE=hit（缓存命中态）；MODE 变体见下
+k6 run --env MODE=miss scripts/k6/photo-list.js   # 随机页 0..499（30s TTL 内混合态）
+k6 run --env MODE=deep scripts/k6/photo-list.js   # 随机深页 400..499（OFFSET 8000~10000）
+k6 run --env MODE=search scripts/k6/photo-list.js # q=风景 FULLTEXT（该接口无缓存，天然全回源）
 k6 run scripts/k6/upload.js        # 5 VU × 100 迭代（种子化真实照片，测写入吞吐，无需预置数据）
 k6 run scripts/k6/smoke.js
 k6 run scripts/k6/share.js
 ```
+
+**造数与回源测试**（2026-08-06 实测方法论）：
+
+- **造数**：`scripts/k6/seed-10000.sql`——SQL 直插 1 万行照片（+EXIF/标签/相册/分类关联，k6- 前缀可清理）。列表接口不读文件，无需真实图片即可测查询/缓存路径；真实上传吞吐用 upload 场景
+- **回源延迟单独测**：列表 `@Cacheable` 键空间有限（1 万行 ÷ 20 = 500 键），随机页在测试首秒即被填满、60s 内回源占比 <1%——回源延迟需 `redis-cli FLUSHDB` 后单并发首查单独测量（实测 1 万行冷回源 p95 ≈ 32ms）
+- **已实测**：缓存命中 p95 7.96ms（20 VU×60s，19.2 万请求）/ 冷回源 32ms / 深翻页与浅页无差异 / 搜索 20 并发 297.5ms 踩 300ms 线；**压测期间发现并修复 Redis 序列化 500 生产缺陷**（PhotoResponse 实体泄漏 → DTO 化，详见 doc/photo-gallery-改进方案问题记录.md §2.8/附录 O）
 
 ## 十三、工程规范
 
