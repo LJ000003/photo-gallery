@@ -256,7 +256,11 @@ photo-gallery/
 │           └── common/                         # ErrorBoundary + ToastStack + ShareDialog + EmptyState
 │
 ├── prometheus/
-│   └── prometheus.yml                          # Prometheus 采集配置（15s scrape，target app:8080）
+│   ├── prometheus.yml                          # Prometheus 采集配置（15s scrape：app:8080 + rabbitmq:15692）
+│   └── grafana-provisioning/                   # Grafana provisioning（P2-#16）
+│       ├── datasources/                        # Prometheus 数据源（uid 固定 prometheus-main）
+│       ├── dashboards/                         # photo-gallery.json 运行面板（JVM/HTTP/上传/队列）
+│       └── alerting/                           # 告警规则（App down / 5xx 速率，单轨制）
 ├── scripts/                                    # 构建/开发脚本（任意位置可运行）
 │   ├── build-docker.sh / .ps1                  # Docker 一键构建 + 启动
 │   ├── build-traditional.sh / .ps1             # 传统 JAR 一键构建（前端内嵌）
@@ -264,7 +268,7 @@ photo-gallery/
 │   └── k6/                                     # k6 压测脚本（smoke/upload/photo-list/share 4 场景）
 ├── .env.example                                # Docker Compose 环境变量模板
 ├── .github/workflows/ci.yml                    # CI：backend / frontend / docker / e2e 四并行 job
-└── docker-compose.yml                          # App + MySQL + Redis + RabbitMQ + Prometheus
+└── docker-compose.yml                          # App + MySQL + Redis + RabbitMQ + Prometheus + Grafana
 ```
 
 ---
@@ -402,7 +406,7 @@ MONITORING_PASSWORD=你的监控密码         # 同上，密码（prometheus.ym
 docker compose up -d --build
 ```
 
-其中包含 5 个服务：`app`（Spring Boot，prod profile）、`mysql`、`redis`、`rabbitmq`、`prometheus`。Compose 内 `app` 固定运行 prod profile（Redis 缓存 + RabbitMQ 处理）；本地开发（非 Docker）只需 MySQL，dev profile 使用 Caffeine + `@Async` 线程池。
+其中包含 6 个服务：`app`（Spring Boot，prod profile）、`mysql`、`redis`、`rabbitmq`、`prometheus`、`grafana`（P2-#16，面板/告警 provisioning 自动加载）。Compose 内 `app` 固定运行 prod profile（Redis 缓存 + RabbitMQ 处理）；本地开发（非 Docker）只需 MySQL，dev profile 使用 Caffeine + `@Async` 线程池。
 
 访问 `http://localhost:8080`（端口仅绑定 127.0.0.1，推荐通过 Nginx 或 cloudflared 反向代理对外暴露）。
 
@@ -413,8 +417,9 @@ docker compose up -d --build
 | App | 768M | JVM 堆 448M + Metaspace 128M（G1GC） |
 | MySQL | 512M | 8.0，InnoDB buffer pool 128M |
 | Redis | 256M | 7 Alpine，maxmemory 128M + allkeys-lru 淘汰 + AOF |
-| RabbitMQ | 256M | 3.13 management-alpine |
+| RabbitMQ | 256M | 3.13 management-alpine（内置 Prometheus 插件，15692 仅容器网络内访问） |
 | Prometheus | 128M | v3.2.0，15 天保留，每 15s scrape |
+| Grafana | 256M | 13.1.0，仅绑定 127.0.0.1:3000 |
 
 所有容器均配置了 Docker healthcheck（`restart: always` 保证容器异常退出时自动拉起）。内存上限合计约 1.9GB，2GB 内存服务器上建议同时关闭本地其他服务。
 
@@ -533,7 +538,9 @@ GET /actuator/prometheus   # 需 Basic Auth（MONITORING_USER/MONITORING_PASSWOR
 → # HELP photo_processing_time_seconds ...
 ```
 
-Docker 中 `app` 容器 healthcheck 每 15 秒执行 `curl /actuator/health`（3 次重试、45s 启动宽限），异常时标记 unhealthy；`restart: always` 保证进程崩溃退出后自动拉起。Prometheus 每 15 秒 scrape `/actuator/prometheus`（`prometheus/prometheus.yml`），Grafana 可本地运行连接服务器 Prometheus 查看仪表盘。
+Docker 中 `app` 容器 healthcheck 每 15 秒执行 `curl /actuator/health`（3 次重试、45s 启动宽限），异常时标记 unhealthy；`restart: always` 保证进程崩溃退出后自动拉起。
+
+**监控可视化（P2-#16）**：Prometheus 每 15 秒 scrape `/actuator/prometheus`（`prometheus/prometheus.yml`，Basic Auth）与 `rabbitmq:15692`（RabbitMQ 内置 Prometheus 插件，3.8+ 默认启用，端口不映射宿主机）。`docker compose up -d grafana` 后访问 `http://127.0.0.1:3000`（管理员密码 = `.env` 的 `GF_SECURITY_ADMIN_PASSWORD`，匿名登录已关闭）——数据源、`Photo Gallery` 面板（JVM 内存 / HTTP 请求量 / 上传总量 / RabbitMQ 队列深度）与告警规则（App down、5xx 速率）均由 `prometheus/grafana-provisioning/` 自动加载，无需手动配置。告警通知渠道未接（单机自用，规则已就位，按需在 Grafana UI 挂 webhook）；内存紧张时可 `docker compose stop grafana` 随时停用。
 
 ---
 

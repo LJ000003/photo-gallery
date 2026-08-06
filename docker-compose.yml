@@ -92,6 +92,34 @@ services:
     networks:
       - app-net
 
+  grafana:
+    # P2-#16：pin 版本（grafana-oss 12.4 后停止更新，官方镜像改名 grafana/grafana）
+    image: grafana/grafana:13.1.0
+    container_name: pg-grafana
+    restart: always
+    ports:
+      # 仅绑定 localhost，cloudflared 通过 localhost 连接
+      - "127.0.0.1:3000:3000"
+    environment:
+      # 管理密码来自 .env（模板见 .env.example），显式关闭匿名登录
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      # datasource/dashboard/alert 由 provisioning 文件驱动（与 compose 同目录，只读挂载）
+      - ./prometheus/grafana-provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    networks:
+      - app-net
+
   app:
     build: ./backend
     container_name: photo-manager
@@ -144,6 +172,7 @@ volumes:
   redis_data:
   rabbitmq_data:
   prometheus_data:
+  grafana_data:
   photo_uploads:
   photo_logs:
 

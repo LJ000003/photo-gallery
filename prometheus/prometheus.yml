@@ -12,3 +12,9 @@ scrape_configs:
       password: ${MONITORING_PASSWORD}
     static_configs:
       - targets: ['app:8080']
+
+  # P2-#16：RabbitMQ 自带 Prometheus 插件（3.8+ 默认启用，15692 已监听）。
+  # 不映射宿主机端口——同 docker 网络直抓，避免多一个无认证的指标端口。
+  - job_name: 'rabbitmq'
+    static_configs:
+      - targets: ['rabbitmq:15692']
