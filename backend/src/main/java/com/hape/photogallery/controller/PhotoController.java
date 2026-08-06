@@ -3,6 +3,7 @@ package com.hape.photogallery.controller;
 import com.hape.photogallery.ApiResponse;
 import com.hape.photogallery.dto.BatchPhotoUpdateRequest;
 import com.hape.photogallery.dto.MapItem;
+import com.hape.photogallery.dto.PhotoProcessingStatusDto;
 import com.hape.photogallery.dto.PhotoResponse;
 import com.hape.photogallery.dto.PhotoUpdateRequest;
 import com.hape.photogallery.dto.TimelineItem;
@@ -98,6 +99,16 @@ public class PhotoController {
     @GetMapping("/photos/{id}")
     public ApiResponse<PhotoResponse> get(@PathVariable Long id) {
         return ApiResponse.success(photoQueryService.getPhotoResponse(id));
+    }
+
+    /** 批量处理状态（前端 3s 轮询专用，轻量 DTO + 不缓存）；字面路径优先于 /photos/{id} */
+    @Operation(summary = "批量查询处理状态", description = "只返回 id/processingStatus/errorMessage，供轮询使用")
+    @GetMapping("/photos/status")
+    public ApiResponse<List<PhotoProcessingStatusDto>> status(@RequestParam List<Long> ids) {
+        if (ids.size() > 100) {
+            throw new BusinessException(400, "单次最多查询 100 张");
+        }
+        return ApiResponse.success(photoQueryService.getProcessingStatuses(ids));
     }
 
     @Operation(summary = "上传单张照片",

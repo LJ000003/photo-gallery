@@ -3,8 +3,6 @@ package com.hape.photogallery.service;
 import java.awt.image.BufferedImage;
 import java.nio.file.Path;
 
-import javax.imageio.ImageIO;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cache.CacheManager;
@@ -82,8 +80,8 @@ public class PhotoProcessor {
                 log.warn("  EXIF 提取失败 photo={}: {}", photoId, e.getMessage());
             }
 
-            // 2. 解码原图
-            BufferedImage img = ImageIO.read(target.toFile());
+            // 2. 解码原图（降采样上限 4096px——448m 堆下全尺寸解码超大图会 OOM）
+            BufferedImage img = imageService.decodeCapped(target);
             if (img == null) {
                 // 确定性终态例外（不走「状态上移」）：文件损坏重试/重扫必然同样失败，
                 // 直接落 FAILED 避免进 rabbit 重试循环；与 catch 路径指标语义对齐
@@ -99,17 +97,22 @@ public class PhotoProcessor {
             log.debug("  [2/5] 自动旋转 photo={}", photoId);
             BufferedImage processed = imageService.autoRotateIfNeeded(img, target);
 
-            // 4. 水印
+            // 4-5. 水印 + 写回原图（V12 幂等：original_processed=true 则跳过——重试/重扫
+            // 若重走全链会二次解码「已带水印的原图」再画一层，水印逐层加深。写回成功立即
+            // 落中间态 save：此后崩溃/失败，重试直接跳过本段，防水印叠加与二次有损重编码）
+            boolean alreadyProcessed = photo.isOriginalProcessed();
             boolean hasWatermark = watermark != null && !watermark.isBlank();
-            if (hasWatermark) {
-                log.debug("  [3/5] 水印 photo={}", photoId);
-                imageService.applyWatermark(processed, watermark);
-            }
-
-            // 5. 写回原图（如果被修改）
-            if (processed != img || hasWatermark) {
-                log.debug("  写回原图 photo={}", photoId);
-                imageService.writeOriginalJpeg(processed, target);
+            if (!alreadyProcessed) {
+                if (hasWatermark) {
+                    log.debug("  [3/5] 水印 photo={}", photoId);
+                    imageService.applyWatermark(processed, watermark);
+                }
+                if (processed != img || hasWatermark) {
+                    log.debug("  写回原图 photo={}", photoId);
+                    imageService.writeOriginalJpeg(processed, target);
+                    photo.setOriginalProcessed(true);
+                    photoRepo.save(photo);
+                }
             }
 
             // 6. 缩略图

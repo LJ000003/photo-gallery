@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.hape.photogallery.config.MediaSignatureService;
 import com.hape.photogallery.dto.MapItem;
+import com.hape.photogallery.dto.PhotoProcessingStatusDto;
 import com.hape.photogallery.dto.PhotoResponse;
 import com.hape.photogallery.dto.TimelineItem;
 import com.hape.photogallery.entity.ExifData;
@@ -75,6 +76,15 @@ public class PhotoQueryService {
     public Page<PhotoResponse> listAllResponses(List<Long> tagIds, List<Long> categoryIds, Pageable pageable) {
         Pageable validated = validateSort(pageable);
         return listAll(tagIds, categoryIds, validated).map(this::toResponse);
+    }
+
+    /**
+     * 批量处理状态（前端 3s 轮询专用）：只投影 id/状态/错误信息，轻量且不缓存
+     * （30s 缓存会废掉轮询实时性）。findAllById 受 @SQLRestriction 约束，软删照片自然缺席。
+     */
+    @Transactional(readOnly = true)
+    public List<PhotoProcessingStatusDto> getProcessingStatuses(List<Long> ids) {
+        return repo.findAllById(ids).stream().map(PhotoProcessingStatusDto::from).toList();
     }
 
     /**

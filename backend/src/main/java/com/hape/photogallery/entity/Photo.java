@@ -34,6 +34,9 @@ public class Photo {
     /** 上传时的水印文案（可为 null）；落库供重试/兜底重扫补发处理消息时恢复（V11） */
     private String watermark;
 
+    /** 原图是否已处理（V12）：writeOriginalJpeg 成功后立即置 true，重试时跳过水印/写回（防水印叠加） */
+    private boolean originalProcessed;
+
     @ManyToMany
     @JoinTable(name = "photo_tags",
         joinColumns = @JoinColumn(name = "photo_id"),
@@ -84,6 +87,8 @@ public class Photo {
 
     public String getWatermark() { return watermark; }
     public void setWatermark(String watermark) { this.watermark = watermark; }
+    public boolean isOriginalProcessed() { return originalProcessed; }
+    public void setOriginalProcessed(boolean originalProcessed) { this.originalProcessed = originalProcessed; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

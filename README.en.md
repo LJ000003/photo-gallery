@@ -20,12 +20,12 @@ flowchart LR
         F3[JwtAuthFilter JWT / share token / image signature]
     end
     subgraph Application
-        C[Controller] --> S[Service] --> R[Repository] --> DB[(MySQL<br/>Flyway V1-V11)]
+        C[Controller] --> S[Service] --> R[Repository] --> DB[(MySQL<br/>Flyway V1-V12)]
         S <--> CACHE[(Cache<br/>dev Caffeine / prod Redis)]
     end
     subgraph Image processing
         A1[AsyncImageProcessor<br/>dev @Async pool]
-        A2[RabbitMQ durable queue<br/>prod 3 retries + DLQ]
+        A2[RabbitMQ durable queue<br/>prod 3 retries + DLQ<br/>DlqRequeuer auto-recovery]
         PROC[PhotoProcessor<br/>EXIF → rotate → watermark → thumbnails → WebP]
     end
     subgraph Monitoring

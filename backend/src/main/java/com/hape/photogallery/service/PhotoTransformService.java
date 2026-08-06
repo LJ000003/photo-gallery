@@ -71,6 +71,9 @@ public class PhotoTransformService {
                 Photo managed = repo.findById(id)
                         .orElseThrow(() -> new BusinessException(404, "该照片已被删除或不存在"));
                 managed.setFileSize(newFileSize);
+                // transform 重写原图（可能裁掉/翻转水印）→ 复位 original_processed，
+                // 下次 retry/重扫处理时重新打水印（V12 幂等标记联动）
+                managed.setOriginalProcessed(false);
                 // EXIF 移入事务：save 失败回滚时 EXIF 同步回滚，与恢复的原图保持一致
                 try {
                     exifService.extractAndSave(managed, filePath);
@@ -118,7 +121,7 @@ public class PhotoTransformService {
     /** 事务外执行变换：photo 仅用于读标量 fileName 推导相对路径，脱管实体访问安全 */
     private void doTransformPhoto(Photo photo, Path filePath, int rotate, String mirror,
                                   Double cx, Double cy, Double cw, Double ch) throws IOException {
-        BufferedImage img = ImageIO.read(filePath.toFile());
+        BufferedImage img = imageService.decodeCapped(filePath);
         if (img == null) {
             throw new IOException("ImageIO.read returned null");
         }

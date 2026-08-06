@@ -34,6 +34,13 @@ export interface Photo {
   version?: number
 }
 
+/** 批量状态端点（/api/photos/status）返回项：只含状态字段，轮询时合并进 Photo */
+export interface PhotoProcessingStatus {
+  id: number
+  processingStatus?: string
+  errorMessage?: string
+}
+
 export interface PhotoPatch {
   name?: string
   description?: string

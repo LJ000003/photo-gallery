@@ -89,12 +89,17 @@ public class FilePathResolver {
         return null;
     }
 
-    /** 删除照片全部磁盘产物（原图/缩略图×2/WebP） */
-    public void deletePhotoFiles(Photo photo) {
-        storage.deleteFile(photo.getFileName());
+    /**
+     * 删除照片全部磁盘产物（原图/缩略图×2/WebP）。
+     * 返回是否全部删除成功（原图删除结果为主，其余 best-effort）——失败由调用方
+     * 记录日志/告警（行已删的孤儿文件无自动回收，需可观测）。
+     */
+    public boolean deletePhotoFiles(Photo photo) {
+        boolean ok = storage.deleteFile(photo.getFileName());
         FilePathParts parts = parseFilePath(photo.getFileName());
         storage.deleteFile(parts.dateDir + "/thumbnails/" + parts.baseName);
         storage.deleteFile(parts.dateDir + "/thumbnails/200/" + parts.baseName);
         storage.deleteFile(parts.dateDir + "/webp/" + parts.baseName + ".webp");
+        return ok;
     }
 }

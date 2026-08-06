@@ -69,8 +69,7 @@
     "loadFailed": "加载失败，请稍后重试",
     "loadFailedTitle": "照片加载失败",
     "loadFailedHint": "请检查网络连接后重试",
-    "processingTimeout": "部分照片处理超时，已标记为失败，可点击重试",
-    "processingTimeoutMessage": "处理超时，可点击重试",
+    "processingTimeout": "部分照片仍在处理中（服务器处理较慢），请稍后刷新查看",
     "loadMore": "加载更多"
   },
   "selection": {

@@ -20,12 +20,12 @@ flowchart LR
         F3[JwtAuthFilter JWT / 分享 token / 图片签名]
     end
     subgraph 应用
-        C[Controller] --> S[Service] --> R[Repository] --> DB[(MySQL<br/>Flyway V1-V10)]
+        C[Controller] --> S[Service] --> R[Repository] --> DB[(MySQL<br/>Flyway V1-V12)]
         S <--> CACHE[(缓存<br/>dev Caffeine / prod Redis)]
     end
     subgraph 图片处理
         A1[AsyncImageProcessor<br/>dev @Async 线程池]
-        A2[RabbitMQ 持久队列<br/>prod 3 次重试 + DLQ]
+        A2[RabbitMQ 持久队列<br/>prod 3 次重试 + DLQ<br/>DlqRequeuer 自动恢复]
         PROC[PhotoProcessor<br/>EXIF → 旋转 → 水印 → 缩略图 → WebP]
     end
     subgraph 监控

@@ -17,9 +17,12 @@ import java.util.UUID;
 
 import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
+import javax.imageio.ImageReadParam;
+import javax.imageio.ImageReader;
 import javax.imageio.ImageWriteParam;
 import javax.imageio.ImageWriter;
 import javax.imageio.stream.FileImageOutputStream;
+import javax.imageio.stream.ImageInputStream;
 
 import com.hape.photogallery.exception.InvalidFileTypeException;
 
@@ -37,11 +40,48 @@ public class ImageProcessingService {
 
     private final ExifService exifService;
     private final Path uploadDir;
+    private final int maxDecodeDim;
 
     public ImageProcessingService(ExifService exifService,
-                                  @Value("${photo.upload-dir:uploads}") String uploadDir) {
+                                  @Value("${photo.upload-dir:uploads}") String uploadDir,
+                                  @Value("${photo.processing.max-decode-dim:4096}") int maxDecodeDim) {
         this.exifService = exifService;
         this.uploadDir = Path.of(uploadDir).toAbsolutePath().normalize();
+        this.maxDecodeDim = maxDecodeDim;
+    }
+
+    /**
+     * 降采样解码：长边超过 maxDecodeDim（默认 4096）时按比例缩小（单系数两轴同用，保长宽比）。
+     * 生产容器 -Xmx448m 下全尺寸解码一张超大图（如 8000px+）即可能 OOM——降采样后最坏
+     * 4096²×4B ≈ 67MB/张，2-4 并发消费者可承受。
+     * 解码失败/文件损坏 → null（对齐 ImageIO.read 语义，调用方按"确定性失败"处理）。
+     * 绝不做全尺寸兜底解码——448MB 堆下兜底 = OOM。
+     */
+    public BufferedImage decodeCapped(Path file) {
+        try (ImageInputStream iis = ImageIO.createImageInputStream(file.toFile())) {
+            if (iis == null) return null;
+            java.util.Iterator<ImageReader> readers = ImageIO.getImageReaders(iis);
+            if (!readers.hasNext()) return null;
+            ImageReader reader = readers.next();
+            try {
+                reader.setInput(iis, true, true);
+                int w = reader.getWidth(0);
+                int h = reader.getHeight(0);
+                if (w <= 0 || h <= 0) return null;
+                int factor = Math.max(w, h) > maxDecodeDim
+                        ? (int) Math.ceil((double) Math.max(w, h) / maxDecodeDim)
+                        : 1;
+                ImageReadParam param = reader.getDefaultReadParam();
+                param.setSourceSubsampling(factor, factor, 0, 0);
+                return reader.read(0, param);
+            } catch (IOException | RuntimeException e) {
+                return null;
+            } finally {
+                reader.dispose();
+            }
+        } catch (IOException e) {
+            return null;
+        }
     }
 
     public void validateImageMagicBytes(InputStream in) throws IOException {
@@ -166,6 +206,8 @@ public class ImageProcessingService {
             return;
         }
         Path webpPath = webpDir.resolve(baseName + ".webp");
+        // 原子写：tmp + ATOMIC_MOVE（与 writeAtomic 同构），失败只留 tmp、目标完好
+        Path tmp = webpPath.resolveSibling(webpPath.getFileName() + "." + UUID.randomUUID() + ".tmp");
         try {
             java.util.Iterator<ImageWriter> writers = ImageIO.getImageWritersByMIMEType("image/webp");
             if (!writers.hasNext()) {
@@ -180,15 +222,22 @@ public class ImageProcessingService {
                     param.setCompressionType("Lossy");
                     param.setCompressionQuality(0.8f);
                 }
-                try (FileImageOutputStream ios = new FileImageOutputStream(webpPath.toFile())) {
+                try (FileImageOutputStream ios = new FileImageOutputStream(tmp.toFile())) {
                     writer.setOutput(ios);
                     writer.write(null, new IIOImage(img, null, null), param);
                 }
             } finally {
                 writer.dispose();
             }
+            moveAtomic(tmp, webpPath);
         } catch (Throwable e) {
             log.warn("WebP 生成失败: {}", webpPath, e);
+        } finally {
+            try {
+                Files.deleteIfExists(tmp);
+            } catch (IOException ignored) {
+                // 清理失败仅留残留文件
+            }
         }
     }
 
@@ -201,10 +250,47 @@ public class ImageProcessingService {
     }
 
     private void writeJpeg(BufferedImage image, Path path) throws IOException {
-        writeJpeg(image, path, 0.75f);
+        writeAtomic(image, path, 0.75f);
     }
 
     private void writeJpeg(BufferedImage image, Path path, float quality) throws IOException {
+        writeAtomic(image, path, quality);
+    }
+
+    /**
+     * 原子写 JPEG：先写同目录唯一 .tmp 再 ATOMIC_MOVE 替换——中途失败（磁盘满/IO 错误）
+     * 只损坏 .tmp，目标文件完好可重试；曾原地截断重写，失败即毁目标文件 → 永久 FAILED。
+     * tmp 用 UUID 唯一命名：同照片并发处理（retry-processing 与在途消息/重扫并存）时
+     * 各自写独立临时文件，后到者覆盖先到者，绝不交错写坏（固定 .tmp 名会互踩字节）。
+     * 缩略图/原图写回共用本模板（webp 在 generateWebp 内同构处理）。
+     */
+    private void writeAtomic(BufferedImage image, Path path, float quality) throws IOException {
+        Path tmp = path.resolveSibling(path.getFileName() + "." + UUID.randomUUID() + ".tmp");
+        try {
+            writeJpegTo(image, tmp, quality);
+            moveAtomic(tmp, path);
+        } catch (IOException e) {
+            // 编码失败（磁盘满等）或 move 失败：清理 .tmp，目标文件完好
+            try {
+                Files.deleteIfExists(tmp);
+            } catch (IOException ignored) {
+                // 清理失败仅留残留文件，不影响目标文件完好性
+            }
+            throw e;
+        }
+    }
+
+    /** ATOMIC_MOVE 替换（不支持时降级普通 move），供 webp 原子写复用 */
+    private void moveAtomic(Path tmp, Path target) throws IOException {
+        try {
+            Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+            Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
+    /** 实际 JPEG 编码（不涉及原子性，写给定路径；调用方负责 tmp/move 语义） */
+    private void writeJpegTo(BufferedImage image, Path path, float quality) throws IOException {
         java.util.Iterator<ImageWriter> writers = ImageIO.getImageWritersByFormatName("jpeg");
         if (writers.hasNext()) {
             ImageWriter writer = writers.next();
@@ -224,31 +310,9 @@ public class ImageProcessingService {
         }
     }
 
-    /**
-     * 高质量写回原文件（旋转/水印后覆盖原图）。
-     * 原子写：先写同目录唯一 .tmp 再 ATOMIC_MOVE 替换——中途失败（磁盘满/IO 错误）
-     * 只损坏 .tmp，原图完好可重试；曾原地截断重写，失败即毁源文件 → 永久 FAILED。
-     * tmp 用 UUID 唯一命名：同照片并发处理（retry-processing 与在途消息/重扫并存）时
-     * 各自写独立临时文件，后到者覆盖先到者，绝不交错写坏（固定 .tmp 名会互踩字节）。
-     */
+    /** 高质量写回原文件（旋转/水印后覆盖原图），原子写语义见 writeAtomic */
     public void writeOriginalJpeg(BufferedImage image, Path path) throws IOException {
-        Path tmp = path.resolveSibling(path.getFileName() + "." + UUID.randomUUID() + ".tmp");
-        try {
-            writeJpeg(image, tmp, 0.92f);
-            try {
-                Files.move(tmp, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (java.nio.file.AtomicMoveNotSupportedException e) {
-                Files.move(tmp, path, StandardCopyOption.REPLACE_EXISTING);
-            }
-        } catch (IOException e) {
-            // 编码失败（磁盘满等）或 move 失败：清理 .tmp，原图完好
-            try {
-                Files.deleteIfExists(tmp);
-            } catch (IOException ignored) {
-                // 清理失败仅留残留文件，不影响原图完好性
-            }
-            throw e;
-        }
+        writeAtomic(image, path, 0.92f);
     }
 
     // === 原 Path 版重载（供外部调用） ===
@@ -262,7 +326,7 @@ public class ImageProcessingService {
             default -> 0;
         };
         if (degrees > 0) {
-            BufferedImage img = ImageIO.read(path.toFile());
+            BufferedImage img = decodeCapped(path);
             if (img == null) return;
             BufferedImage rotated = rotateImage(img, degrees);
             String format = getFormat(path);
@@ -271,7 +335,7 @@ public class ImageProcessingService {
     }
 
     public void applyWatermark(Path filePath, String text) throws IOException {
-        BufferedImage img = ImageIO.read(filePath.toFile());
+        BufferedImage img = decodeCapped(filePath);
         if (img == null) return;
         applyWatermark(img, text);
         String format = getFormat(filePath);
@@ -283,7 +347,7 @@ public class ImageProcessingService {
     }
 
     public void generateThumbnail(Path original, String dateDir, String baseName, int width) throws IOException {
-        BufferedImage image = ImageIO.read(original.toFile());
+        BufferedImage image = decodeCapped(original);
         if (image == null) return;
         generateThumbnail(image, dateDir, baseName, width);
     }
@@ -298,19 +362,17 @@ public class ImageProcessingService {
             return;
         }
         Path webpPath = webpDir.resolve(baseName + ".webp");
-
-        if (lower.endsWith(".webp")) {
-            try {
-                Files.copy(original, webpPath, StandardCopyOption.REPLACE_EXISTING);
-            } catch (IOException e) {
-                log.warn("WebP 文件复制失败: {} → {}", original, webpPath, e);
-            }
-            return;
-        }
-
-        // 捕 Throwable（native 编码器初始化失败可能抛 Error 而非 IOException）
+        // 原子写：tmp + ATOMIC_MOVE，失败只留 tmp、目标完好；tmp 清理放 finally（编码器可能抛 Error）
+        Path tmp = webpPath.resolveSibling(webpPath.getFileName() + "." + UUID.randomUUID() + ".tmp");
         try {
-            BufferedImage img = ImageIO.read(original.toFile());
+            if (lower.endsWith(".webp")) {
+                Files.copy(original, tmp, StandardCopyOption.REPLACE_EXISTING);
+                moveAtomic(tmp, webpPath);
+                return;
+            }
+
+            // 捕 Throwable（native 编码器初始化失败可能抛 Error 而非 IOException）
+            BufferedImage img = decodeCapped(original);
             if (img == null) return;
             java.util.Iterator<ImageWriter> writers = ImageIO.getImageWritersByMIMEType("image/webp");
             if (!writers.hasNext()) {
@@ -325,15 +387,22 @@ public class ImageProcessingService {
                     param.setCompressionType("Lossy");
                     param.setCompressionQuality(0.8f);
                 }
-                try (FileImageOutputStream ios = new FileImageOutputStream(webpPath.toFile())) {
+                try (FileImageOutputStream ios = new FileImageOutputStream(tmp.toFile())) {
                     writer.setOutput(ios);
                     writer.write(null, new IIOImage(img, null, null), param);
                 }
             } finally {
                 writer.dispose();
             }
+            moveAtomic(tmp, webpPath);
         } catch (Throwable e) {
             log.warn("WebP 生成失败: {}", webpPath, e);
+        } finally {
+            try {
+                Files.deleteIfExists(tmp);
+            } catch (IOException ignored) {
+                // 清理失败仅留残留文件
+            }
         }
     }
 

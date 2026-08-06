@@ -2,6 +2,7 @@ package com.hape.photogallery.controller;
 
 import com.hape.photogallery.dto.BatchPhotoUpdateRequest;
 import com.hape.photogallery.dto.MapItem;
+import com.hape.photogallery.dto.PhotoProcessingStatusDto;
 import com.hape.photogallery.dto.PhotoResponse;
 import com.hape.photogallery.dto.PhotoUpdateRequest;
 import com.hape.photogallery.dto.TimelineItem;
@@ -27,7 +28,9 @@ import com.hape.photogallery.repository.ShareTokenRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
+import org.mockito.ArgumentCaptor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -49,7 +52,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(value = PhotoController.class,
             excludeAutoConfiguration = SecurityAutoConfiguration.class)
-@org.springframework.context.annotation.Import({com.hape.photogallery.config.JwtService.class, com.hape.photogallery.config.ClientIpResolver.class, com.hape.photogallery.config.MediaSignatureService.class})
+@org.springframework.context.annotation.Import({com.hape.photogallery.config.JwtService.class, com.hape.photogallery.config.ClientIpResolver.class, com.hape.photogallery.config.MediaSignatureService.class, com.hape.photogallery.config.PageableConfig.class})
 class PhotoControllerTest {
     @MockBean private ShareTokenRepository shareTokenRepository;
 
@@ -76,6 +79,48 @@ class PhotoControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.totalElements").value(0));
+    }
+
+    @Test
+    void list_sizeOverMax_shouldClampTo100() throws Exception {
+        // pageSize 钳制（PageableConfig maxPageSize=100，2C4G 部署 P0——size=100000 可撑爆 448m 堆）
+        when(photoQueryService.listAllResponses(any(), any(), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        mockMvc.perform(get("/api/v1/photos?size=100000"))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
+        verify(photoQueryService).listAllResponses(any(), any(), captor.capture());
+        assertThat(captor.getValue().getPageSize()).isEqualTo(100);
+    }
+
+    // ==================== status（批量处理状态轮询端点） ====================
+
+    @Test
+    void status_shouldReturnProcessingStatuses() throws Exception {
+        PhotoProcessingStatusDto dto = new PhotoProcessingStatusDto();
+        dto.setId(1L);
+        dto.setProcessingStatus("DONE");
+        when(photoQueryService.getProcessingStatuses(List.of(1L, 2L)))
+                .thenReturn(List.of(dto));
+
+        mockMvc.perform(get("/api/v1/photos/status").param("ids", "1,2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data[0].id").value(1))
+                .andExpect(jsonPath("$.data[0].processingStatus").value("DONE"));
+    }
+
+    @Test
+    void status_overMaxIds_should400() throws Exception {
+        StringBuilder ids = new StringBuilder();
+        for (int i = 1; i <= 101; i++) ids.append(i).append(',');
+        ids.setLength(ids.length() - 1);
+
+        mockMvc.perform(get("/api/v1/photos/status").param("ids", ids.toString()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400));
     }
 
     @Test

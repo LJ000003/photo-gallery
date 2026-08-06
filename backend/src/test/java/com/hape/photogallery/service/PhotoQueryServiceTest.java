@@ -2,11 +2,13 @@ package com.hape.photogallery.service;
 
 import com.hape.photogallery.config.MediaSignatureService;
 import com.hape.photogallery.dto.MapItem;
+import com.hape.photogallery.dto.PhotoProcessingStatusDto;
 import com.hape.photogallery.dto.PhotoResponse;
 import com.hape.photogallery.dto.TimelineItem;
 import com.hape.photogallery.entity.Category;
 import com.hape.photogallery.entity.ExifData;
 import com.hape.photogallery.entity.Photo;
+import com.hape.photogallery.entity.ProcessingStatus;
 import com.hape.photogallery.exception.BusinessException;
 import com.hape.photogallery.repository.ExifDataRepository;
 import com.hape.photogallery.repository.PhotoRepository;
@@ -82,6 +84,37 @@ class PhotoQueryServiceTest {
         when(metaData.getDatabaseProductName()).thenReturn(productName);
         return new PhotoQueryService(photoRepo, exifRepo, exifService, MEDIA_SIGNATURE, storage,
                 new FullTextProbe(dataSource));
+    }
+
+    // ==================== getProcessingStatuses（批量轮询端点，P0） ====================
+
+    @Test
+    void getProcessingStatuses_shouldMapOnlyStatusFields() {
+        Photo p1 = new Photo();
+        p1.setId(1L);
+        p1.setName("name-should-not-leak");
+        p1.setProcessingStatus(ProcessingStatus.PROCESSING);
+        p1.setErrorMessage("slow");
+        Photo p2 = new Photo();
+        p2.setId(2L);
+        p2.setProcessingStatus(ProcessingStatus.DONE);
+        when(photoRepo.findAllById(List.of(1L, 2L))).thenReturn(List.of(p1, p2));
+
+        List<PhotoProcessingStatusDto> result = service.getProcessingStatuses(List.of(1L, 2L));
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).getId()).isEqualTo(1L);
+        assertThat(result.get(0).getProcessingStatus()).isEqualTo("PROCESSING");
+        assertThat(result.get(0).getErrorMessage()).isEqualTo("slow");
+        assertThat(result.get(1).getProcessingStatus()).isEqualTo("DONE");
+    }
+
+    @Test
+    void getProcessingStatuses_softDeleted_shouldBeAbsent() {
+        // findAllById 受 @SQLRestriction 约束——软删照片自然缺席（删除的照片本已从列表移除）
+        when(photoRepo.findAllById(List.of(1L))).thenReturn(List.of());
+
+        assertThat(service.getProcessingStatuses(List.of(1L))).isEmpty();
     }
 
     // ==================== listAll ====================

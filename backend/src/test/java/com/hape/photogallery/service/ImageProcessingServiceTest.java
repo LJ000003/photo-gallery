@@ -15,7 +15,8 @@ class ImageProcessingServiceTest {
     @TempDir Path tempDir;
 
     private ImageProcessingService newService() {
-        return new ImageProcessingService(mock(ExifService.class), tempDir.toString());
+        // maxDecodeDim 传小值（50）便于测试解码上限；线上默认 4096
+        return new ImageProcessingService(mock(ExifService.class), tempDir.toString(), 50);
     }
 
     // ==================== getFormat（按实际字节魔数判断，P2 修复） ====================
@@ -51,6 +52,93 @@ class ImageProcessingServiceTest {
         ImageProcessingService svc = newService();
         assertThat(svc.getFormat(writeFile("a.txt"))).isEqualTo("JPEG");
         assertThat(svc.getFormat(writeFile("noext"))).isEqualTo("JPEG");
+    }
+
+    // ==================== decodeCapped（降采样解码上限，2C4G 部署 P0） ====================
+
+    /** 写一张真实 JPEG 到临时目录，返回路径 */
+    private Path writeJpegImage(String name, int w, int h) throws IOException {
+        Path p = tempDir.resolve(name);
+        java.awt.image.BufferedImage img =
+                new java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_RGB);
+        javax.imageio.ImageIO.write(img, "jpeg", p.toFile());
+        return p;
+    }
+
+    @Test
+    void decodeCapped_largeImage_shouldDownsamplePreservingAspectRatio() throws IOException {
+        ImageProcessingService svc = newService(); // maxDecodeDim=50
+        Path big = writeJpegImage("big.jpg", 200, 100);
+
+        java.awt.image.BufferedImage decoded = svc.decodeCapped(big);
+
+        // 长边 ≤50 且长宽比保持 2:1（单系数两轴同用——各轴独立取整会失真为 1.2:1）
+        assertThat(decoded).isNotNull();
+        assertThat(decoded.getWidth()).isLessThanOrEqualTo(50);
+        assertThat((double) decoded.getWidth() / decoded.getHeight()).isCloseTo(2.0,
+                org.assertj.core.data.Offset.offset(0.05));
+    }
+
+    @Test
+    void decodeCapped_smallImage_shouldReturnAsIs() throws IOException {
+        ImageProcessingService svc = newService();
+        Path small = writeJpegImage("small.jpg", 40, 20);
+
+        java.awt.image.BufferedImage decoded = svc.decodeCapped(small);
+
+        assertThat(decoded).isNotNull();
+        assertThat(decoded.getWidth()).isEqualTo(40);
+        assertThat(decoded.getHeight()).isEqualTo(20);
+    }
+
+    @Test
+    void decodeCapped_corruptedFile_shouldReturnNull() throws IOException {
+        ImageProcessingService svc = newService();
+        Path broken = tempDir.resolve("broken.jpg");
+        Files.write(broken, new byte[]{(byte) 0xFF, (byte) 0xD8, 0x00, 0x01, 0x02});
+
+        assertThat(svc.decodeCapped(broken)).isNull();
+    }
+
+    @Test
+    void decodeCapped_missingFile_shouldReturnNull() {
+        ImageProcessingService svc = newService();
+        assertThat(svc.decodeCapped(tempDir.resolve("nope.jpg"))).isNull();
+    }
+
+    // ==================== 缩略图/WebP 原子写（P0：非原子直写会留下损坏产物） ====================
+
+    @Test
+    void generateThumbnail_shouldLeaveNoTmpResidue() throws IOException {
+        ImageProcessingService svc = newService();
+        java.awt.image.BufferedImage img =
+                new java.awt.image.BufferedImage(100, 50, java.awt.image.BufferedImage.TYPE_INT_RGB);
+
+        svc.generateThumbnail(img, "2024/01", "base.jpg", 400);
+
+        try (var stream = Files.list(tempDir.resolve("2024/01/thumbnails"))) {
+            assertThat(stream.map(p -> p.getFileName().toString())
+                    .filter(n -> n.endsWith(".tmp"))).isEmpty();
+        }
+        assertThat(Files.exists(tempDir.resolve("2024/01/thumbnails/base.jpg"))).isTrue();
+    }
+
+    @Test
+    void generateWebp_shouldLeaveNoTmpResidue() throws IOException {
+        ImageProcessingService svc = newService();
+        java.awt.image.BufferedImage img =
+                new java.awt.image.BufferedImage(64, 64, java.awt.image.BufferedImage.TYPE_INT_RGB);
+
+        // 有/无 webp 编码器都不得残留 tmp（编码器缺失时 tmp 从未创建；存在时 finally 兜底清理）
+        svc.generateWebp(img, "2024/01", "base");
+
+        Path webpDir = tempDir.resolve("2024/01/webp");
+        if (Files.exists(webpDir)) {
+            try (var stream = Files.list(webpDir)) {
+                assertThat(stream.map(p -> p.getFileName().toString())
+                        .filter(n -> n.endsWith(".tmp"))).isEmpty();
+            }
+        }
     }
 
     // ==================== magic bytes（顺带覆盖既有行为） ====================

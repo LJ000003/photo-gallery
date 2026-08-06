@@ -48,6 +48,9 @@ class PhotoRepositoryTest {
     @Autowired
     private EntityManagerFactory emf;
 
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbc;
+
     private Category cat1, cat2;
     private Tag tag1, tag2;
 
@@ -65,6 +68,26 @@ class PhotoRepositoryTest {
         Photo p3 = new Photo(); p3.setName("c"); p3.setCategory(cat2); p3.setFileName("c.jpg");
         p3.getTags().add(tag2);
         photoRepo.saveAll(List.of(p1, p2, p3));
+    }
+
+    @Test
+    void findByProcessingStatus_shouldFilterByStatusAndPaginate() {
+        Photo done = new Photo(); done.setName("done"); done.setFileName("d.jpg");
+        done.setProcessingStatus(com.hape.photogallery.entity.ProcessingStatus.DONE);
+        Photo processing = new Photo(); processing.setName("processing"); processing.setFileName("p.jpg");
+        processing.setProcessingStatus(com.hape.photogallery.entity.ProcessingStatus.PROCESSING);
+        photoRepo.saveAll(List.of(done, processing));
+
+        Page<Photo> page = photoRepo.findByProcessingStatus(
+                com.hape.photogallery.entity.ProcessingStatus.DONE, PageRequest.of(0, 10));
+        // setUp 3 张默认 DONE + 新造 1 张 DONE = 4；PROCESSING 那张被排除
+        assertThat(page.getTotalElements()).isEqualTo(4);
+        assertThat(page.getContent()).extracting(Photo::getName).contains("done");
+
+        Page<Photo> procPage = photoRepo.findByProcessingStatus(
+                com.hape.photogallery.entity.ProcessingStatus.PROCESSING, PageRequest.of(0, 10));
+        assertThat(procPage.getTotalElements()).isEqualTo(1);
+        assertThat(procPage.getContent().get(0).getName()).isEqualTo("processing");
     }
 
     @Test
@@ -192,6 +215,51 @@ class PhotoRepositoryTest {
         List<Photo> expired = photoRepo.findDeletedBefore(
                 java.time.LocalDateTime.now().minusDays(30));
         assertThat(expired).hasSize(1);
+    }
+
+    // ==================== hardDeleteIfStillDeleted（purge 条件删除，P0） ====================
+
+    @Test
+    void hardDeleteIfStillDeleted_deletedRow_shouldDeleteRow() {
+        Photo toDelete = photoRepo.findAll(PageRequest.of(0, 10))
+                .getContent().get(0);
+        toDelete.setDeletedAt(java.time.LocalDateTime.now());
+        photoRepo.save(toDelete);
+        em.flush(); // native 查询不触发自动 flush，先落库
+        Long id = toDelete.getId();
+        // H2 测试库 schema 由 JPA create-drop 生成，关联表 FK 无 ON DELETE CASCADE
+        // （生产 MySQL 由 V2/V4 迁移 FK CASCADE 级联）——先清关联行避免 FK 约束
+        jdbc.update("DELETE FROM photo_tags WHERE photo_id = ?", id);
+        jdbc.update("DELETE FROM photo_albums WHERE photo_id = ?", id);
+        jdbc.update("DELETE FROM exif_data WHERE photo_id = ?", id);
+
+        int affected = photoRepo.hardDeleteIfStillDeleted(id);
+
+        assertThat(affected).isEqualTo(1);
+        assertThat(photoRepo.findDeletedById(id)).isEmpty();
+    }
+
+    @Test
+    void hardDeleteIfStillDeleted_restoredRow_shouldReturnZeroAndKeepRow() {
+        Photo toDelete = photoRepo.findAll(PageRequest.of(0, 10))
+                .getContent().get(0);
+        toDelete.setDeletedAt(java.time.LocalDateTime.now());
+        photoRepo.save(toDelete);
+        em.flush();
+        toDelete.setDeletedAt(null); // 模拟 purge 快照后被恢复
+        photoRepo.save(toDelete);
+        em.flush();
+
+        assertThat(photoRepo.hardDeleteIfStillDeleted(toDelete.getId())).isZero();
+        assertThat(photoRepo.findById(toDelete.getId())).isPresent();
+    }
+
+    @Test
+    void hardDeleteIfStillDeleted_activeRow_shouldReturnZero() {
+        Photo active = photoRepo.findAll(PageRequest.of(0, 10)).getContent().get(0);
+
+        assertThat(photoRepo.hardDeleteIfStillDeleted(active.getId())).isZero();
+        assertThat(photoRepo.findById(active.getId())).isPresent();
     }
 
     // ==================== findForBackup（备份导出筛选） ====================

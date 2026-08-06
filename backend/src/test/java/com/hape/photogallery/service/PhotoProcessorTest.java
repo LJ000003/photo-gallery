@@ -54,6 +54,7 @@ class PhotoProcessorTest {
         // 解码返回 null → 走「无法解码」分支：save FAILED 后正常 return（后置 @CacheEvict 生效）
         Path target = tempDir.resolve("bad.jpg");
         Files.writeString(target, "not an image");
+        when(imageService.decodeCapped(any())).thenReturn(null);
 
         processor.process(1L, target, "2024/08", "bad.jpg", null);
 
@@ -65,10 +66,11 @@ class PhotoProcessorTest {
         Photo photo = new Photo();
         photo.setId(1L);
         when(photoRepo.findById(1L)).thenReturn(Optional.of(photo));
-        // 合法图片 → 流程走到 autoRotateIfNeeded 才抛异常（否则 ImageIO 解码失败走「无法解码」分支）
+        // 合法图片 → 流程走到 autoRotateIfNeeded 才抛异常
         BufferedImage img = new BufferedImage(100, 100, BufferedImage.TYPE_INT_RGB);
         Path target = tempDir.resolve("x.jpg");
-        javax.imageio.ImageIO.write(img, "jpg", target.toFile());
+        Files.writeString(target, "x");
+        when(imageService.decodeCapped(any())).thenReturn(img);
         when(imageService.autoRotateIfNeeded(any(), any())).thenThrow(new RuntimeException("boom"));
         Cache cache = mock(Cache.class);
         when(cacheManager.getCache("photos")).thenReturn(cache);
@@ -89,18 +91,68 @@ class PhotoProcessorTest {
         photo.setId(1L);
         when(photoRepo.findById(1L)).thenReturn(Optional.of(photo));
 
-        // 创建有效的测试图片
         BufferedImage img = new BufferedImage(100, 100, BufferedImage.TYPE_INT_RGB);
-        Path imgPath = tempDir.resolve("2024/08");
-        Files.createDirectories(imgPath);
-        Path target = imgPath.resolve("test.jpg");
-        javax.imageio.ImageIO.write(img, "jpg", target.toFile());
-
+        Path target = tempDir.resolve("x.jpg");
+        Files.writeString(target, "x");
+        when(imageService.decodeCapped(any())).thenReturn(img);
         when(imageService.autoRotateIfNeeded(any(), any())).thenReturn(img);
         when(imageService.downscaleToDisplay(any())).thenReturn(img);
 
-        processor.process(1L, target, "2024/08", "test.jpg", null);
+        processor.process(1L, target, "2024/08", "x.jpg", null);
 
+        // 无水印且无旋转（processed == img）→ 不写回、不置 flag，仅 DONE 一次 save
+        verify(imageService, never()).writeOriginalJpeg(any(), any());
         verify(photoRepo, times(1)).save(any(Photo.class));
+    }
+
+    // ==================== V12 水印幂等（originalProcessed 分支） ====================
+
+    @Test
+    void process_originalProcessedTrue_shouldSkipWatermarkAndWriteBack() throws Exception {
+        Photo photo = new Photo();
+        photo.setId(1L);
+        photo.setOriginalProcessed(true); // 原图已处理过（写回已带水印）→ 重试不得再打水印
+        when(photoRepo.findById(1L)).thenReturn(Optional.of(photo));
+
+        BufferedImage img = new BufferedImage(100, 100, BufferedImage.TYPE_INT_RGB);
+        Path target = tempDir.resolve("x.jpg");
+        Files.writeString(target, "x");
+        when(imageService.decodeCapped(any())).thenReturn(img);
+        when(imageService.autoRotateIfNeeded(any(), any())).thenReturn(img);
+        when(imageService.downscaleToDisplay(any())).thenReturn(img);
+
+        processor.process(1L, target, "2024/08", "x.jpg", "我的水印");
+
+        // 核心断言：水印/写回被跳过（水印叠加 = 用户内容被重复篡改）
+        verify(imageService, never()).applyWatermark(any(BufferedImage.class), anyString());
+        verify(imageService, never()).writeOriginalJpeg(any(), any());
+        // 缩略图/webp 仍生成，仅 DONE 一次 save
+        verify(imageService, times(1)).generateThumbnail(any(BufferedImage.class), anyString(), anyString());
+        verify(imageService, times(1)).generateThumbnail(any(BufferedImage.class), anyString(), anyString(), anyInt());
+        verify(imageService, times(1)).generateWebp(any(BufferedImage.class), anyString(), anyString());
+        verify(photoRepo, times(1)).save(any(Photo.class));
+    }
+
+    @Test
+    void process_originalProcessedFalse_shouldSaveFlagAfterWriteBack() throws Exception {
+        Photo photo = new Photo();
+        photo.setId(1L);
+        photo.setOriginalProcessed(false);
+        when(photoRepo.findById(1L)).thenReturn(Optional.of(photo));
+
+        BufferedImage img = new BufferedImage(100, 100, BufferedImage.TYPE_INT_RGB);
+        Path target = tempDir.resolve("x.jpg");
+        Files.writeString(target, "x");
+        when(imageService.decodeCapped(any())).thenReturn(img);
+        when(imageService.autoRotateIfNeeded(any(), any())).thenReturn(img);
+        when(imageService.downscaleToDisplay(any())).thenReturn(img);
+
+        processor.process(1L, target, "2024/08", "x.jpg", "我的水印");
+
+        // 有水印 → 打水印 + 写回，且写回后立即 save 置 flag（中途 save：此后崩溃重试跳过水印）
+        verify(imageService, times(1)).applyWatermark(any(BufferedImage.class), eq("我的水印"));
+        verify(imageService, times(1)).writeOriginalJpeg(any(), any());
+        // flag 中途 save + DONE save：写回时已置位，两次 save 实体均带 flag=true
+        verify(photoRepo, times(2)).save(argThat(p -> ((Photo) p).isOriginalProcessed()));
     }
 }

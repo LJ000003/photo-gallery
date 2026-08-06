@@ -36,10 +36,14 @@ public class RabbitMQConfig {
     public static final String DLQ_ROUTING_KEY = "photo.processing.dlq";
     /** TTL 重试队列——consumer 失败时显式重投到此队列，TTL 到期死信回主队列重试；
      *  重试次数由自定义 header x-retry-count 记录（随显式重投持久化，与 broker 版本无关——
-     *  实测 RabbitMQ 4.x 死信时 x-death 被重置而非合并递增，不可依赖） */
+     *  实测 RabbitMQ 4.x 死信时 x-death 被重置而非合并递增，不可依赖）。
+     *  注意：TTL 是队列参数，改动需先删旧队列（rabbitmqctl delete_queue pg.photo.processing.retry），
+     *  否则声明 406 PRECONDITION_FAILED 启动失败 */
     public static final String RETRY_QUEUE = "pg.photo.processing.retry";
     public static final String RETRY_ROUTING_KEY = "photo.processing.retry";
-    public static final long RETRY_TTL_MS = 10_000;
+    /** 10s → 30s：2 核慢机器上瞬时抖动（DB 抖动/磁盘满/连接池耗尽）常超过 10s，
+     *  过窄窗口会把在途照片批量判死 FAILED（P0 修复，配合 DlqRequeuer 自动恢复） */
+    public static final long RETRY_TTL_MS = 30_000;
 
     /** 处理队列（持久、含 DLX） */
     @Bean

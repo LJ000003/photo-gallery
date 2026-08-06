@@ -14,6 +14,7 @@ import { thumbUrl } from '../../utils/webp'
 import { appendMediaParams, appendTokenParam, mediaUrlWithVersion } from '../../utils/token'
 import { formatSize } from '../../utils/format'
 import { api } from '../../api'
+import { usePhotoStore } from '../../stores/photo'
 import { useToastStore } from '../../stores/toast'
 import type { Photo } from '../../types/photo'
 
@@ -84,6 +85,8 @@ async function retryProcessing(): Promise<void> {
       props.photo.processingStatus = 'PROCESSING'
       /* eslint-disable-next-line vue/no-mutating-props */
       props.photo.errorMessage = undefined
+      // 重启轮询：重试后照片回到 PROCESSING，需持续跟踪到 DONE/FAILED（此前轮询已 stop 且不会自动重启）
+      usePhotoStore().startProcessingPoll()
       toast.success(t('gallery.retryProcessing'))
     } else {
       toast.error(t('common.unknownError'))

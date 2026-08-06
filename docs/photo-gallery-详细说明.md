@@ -16,10 +16,13 @@
 
 ### 图片处理
 
-- **异步处理管线** — 上传后立即返回，EXIF 提取 → 自动旋转 → 水印 → 缩略图（200px + 400px）→ WebP 由后台完成。dev 环境使用 `@Async` 线程池（队列满丢弃，不在请求线程同步执行），prod 环境切换 RabbitMQ 消息队列（持久队列 + TTL 延迟重试队列 10s + 3 次后进死信队列）。照片卡片自动轮询状态更新，无需手动刷新。失败可一键重试（`POST /photos/{id}/retry-processing`），启动时立即恢复一次 + 每 5 分钟定时重扫卡在 PROCESSING 状态的照片
+- **异步处理管线** — 上传后立即返回，EXIF 提取 → 自动旋转 → 水印 → 缩略图（200px + 400px）→ WebP 由后台完成。dev 环境使用 `@Async` 线程池（队列满丢弃，不在请求线程同步执行），prod 环境切换 RabbitMQ 消息队列（持久队列 + TTL 延迟重试队列 30s + 3 次后进死信队列）。解码上限 4096px（`photo.processing.max-decode-dim`）——448m 堆容器全尺寸解码超大图会 OOM。照片卡片自动轮询状态更新（`GET /photos/status` 批量轻量端点，每 3s 单请求；20 轮超时只停止轮询，不再把仍在处理的照片误标失败）。失败可一键重试（`POST /photos/{id}/retry-processing`），启动时立即恢复一次 + 每 5 分钟定时重扫卡在 PROCESSING 状态的照片
+- **DLQ 自动恢复** — 消费者 3 次重试耗尽后照片落 FAILED、消息进死信队列；`DlqRequeuer` 每 2 分钟 drain 死信队列，把 FAILED 照片翻回 PROCESSING 并重新入队（先落状态再发布，发布失败由 5 分钟重扫兜底）——瞬时故障（DB 抖动/磁盘满）不再批量判死且永不恢复
+- **水印幂等 + 原子写** — 原图写回成功立即落 `original_processed` 标记（V12），重试/重扫跳过水印与写回，杜绝水印重复叠加；transform 重写原图后自动复位标记。原图/缩略图/WebP 全部先写同目录唯一 `.tmp` 再 ATOMIC_MOVE 替换——中途失败或并发处理不会产生半写损坏文件
+- **启动自动补生成** — 应用每次启动时异步扫描 DONE 状态照片，缺失的缩略图/WebP 自动补生成（幂等：已存在跳过；只处理 DONE，避免与处理链并发写文件），防止历史数据/迁移遗留导致画廊回退下载原图。可通过 `photo.startup-backfill.enabled=false` 关闭；手动触发见迁移端点（`POST /photos/migrate-thumbnails` / `migrate-webp`，同样只处理 DONE 照片）
 - **响应式缩略图** — 上传自动生成 200px + 400px JPEG 双档，前端 `srcset` + `sizes` 按视口和 DPR 自动选择
 - **编辑器** — Canvas 全分辨率旋转（任意角度）/镜像（水平/垂直）/裁剪
-- **水印** — 右下角半透明白色文字，字号自适应图片宽度，字体/字号比例/透明度可配置（`photo.watermark.*`）
+- **水印** — 右下角半透明白色文字，字号自适应图片宽度，字体/字号比例/透明度可配置（`photo.watermark.*`）；重试不重复叠加（`original_processed` 幂等标记，V12）
 - **WebP** — 上传自动生成 Lossy WebP 副本，运行时检测浏览器支持
 - **EXIF 自动旋转** — 根据 Orientation 标签自动纠正方向
 
@@ -47,7 +50,7 @@
 - **SHA-256 去重** — 上传时计算文件哈希（事务外计算，不持数据库连接），检测重复上传，单张返回 409 + 已有照片数据，批量静默跳过
 - **统一参数校验** — 缺必填参数、参数类型错误、非法枚举统一返回 400 + 参数名（`GlobalExceptionHandler` 兜底，不落 500）
 - **缓存策略** — dev 使用 Caffeine 本地缓存（30s TTL），prod 切换 Redis 分布式缓存（JSON 序列化 + PageImpl mixin 反序列化），所有写操作自动驱逐相关缓存
-- **软删除 + 回收站** — 删除标记 `deleted_at`（Hibernate `@SQLRestriction` 全局过滤），删除时清空哈希允许重新上传。5 秒 Toast 撤销 + 回收站可恢复/彻底删除，每天凌晨 3 点自动清理 30 天前记录
+- **软删除 + 回收站** — 删除标记 `deleted_at`（Hibernate `@SQLRestriction` 全局过滤），删除时清空哈希允许重新上传。5 秒 Toast 撤销 + 回收站可恢复/彻底删除，每天凌晨 3 点自动清理 30 天前记录（每张独立事务 + 条件删除：期间被恢复的照片自动跳过；先删行后删文件，崩溃不留幽灵记录）
 - **备份导出** — 标题栏一键下载 `photo-gallery-backup-YYYY-MM-DD.zip`：全部原始照片 + 数据库元数据（photos/exif/tags/categories/albums JSON，关联内嵌），java.util.zip 流式打包不占服务器内存（零第三方依赖），预生成缓存 + 数据指纹比对（数据未变直接秒回），可选按相册/分类/日期筛选，响应禁止缓存（仅 admin）
 - **前端错误边界** — 组件异常自动捕获，显示降级页面（重试 / 刷新 / 复制错误信息），切换路由自动恢复
 
@@ -150,7 +153,8 @@ photo-gallery/
 │   │   │   ├── ProcessingMessageSender.java    # 处理消息发送者接口
 │   │   │   ├── ProcessingMessage.java          # 消息体 POJO（photoId/路径/水印）
 │   │   │   ├── RabbitProcessingSender.java     # prod 环境 RabbitMQ 发送者实现
-│   │   │   └── PhotoProcessingConsumer.java    # RabbitMQ 消费者（3 次重试 → DLQ）
+│   │   │   ├── PhotoProcessingConsumer.java    # RabbitMQ 消费者（3 次重试 → DLQ）
+│   │   │   └── DlqRequeuer.java                # DLQ 死信定时 drain（每 2 分钟 FAILED → PROCESSING 重新入队）
 │   │   ├── repository/
 │   │   │   ├── PhotoRepository.java            # JPQL 分页 + 筛选 + FULLTEXT 搜索
 │   │   │   ├── ShareTokenRepository.java       # 分享 token 查询（每请求查表，撤销即时生效）
@@ -168,6 +172,7 @@ photo-gallery/
 │   │   │   └── ShareToken.java                 # 分享凭证（token 唯一 + photoIds 白名单 + permission + 过期/撤销）
 │   │   ├── dto/
 │   │   │   ├── PhotoResponse.java              # 照片响应 DTO
+│   │   │   ├── PhotoProcessingStatusDto.java   # 处理状态轻量 DTO（/photos/status 轮询端点专用）
 │   │   │   ├── PhotoUpdateRequest.java         # 更新请求体（null=不修改 / 0=清除）
 │   │   │   ├── TimelineItem.java               # 时间线项
 │   │   │   ├── MapItem.java                    # 地图项（含 GCJ-02 坐标）
@@ -182,7 +187,8 @@ photo-gallery/
 │   │   ├── config/
 │   │   │   ├── AsyncConfig.java                # @EnableAsync + 图片处理线程池（DiscardPolicy）+ MDC 传播
 │   │   │   ├── RedisConfig.java                # Redis 缓存配置（JSON 序列化 + PageImpl mixin）
-│   │   │   ├── RabbitMQConfig.java             # Queue/Exchange/DLQ 拓扑 + MANUAL ack
+│   │   │   ├── RabbitMQConfig.java             # Queue/Exchange/DLQ 拓扑 + MANUAL ack（重试 TTL 30s）
+│   │   │   ├── PageableConfig.java             # 分页参数钳制（pageSize ≤ 100，防大请求撑爆小堆）
 │   │   │   ├── SecurityConfig.java             # SecurityFilterChain + CORS 白名单 + CSP
 │   │   │   ├── JwtService.java                 # HS256 JWT 签发（admin）与验签（≥32 字节校验）
 │   │   │   ├── MediaSignatureService.java      # 图片短时签名（HMAC 时间桶，JWT 不进 URL）
@@ -208,7 +214,7 @@ photo-gallery/
 │   │   ├── application-prod.yml                # 生产环境（Redis/RabbitMQ/限流受信头，ddl-auto: validate）
 │   │   ├── application-local.yml.example       # 本地敏感配置模板（密码/JWT 密钥，gitignored）
 │   │   ├── logback-spring.xml                  # 控制台 + 按天滚动文件（30/90 天保留）
-│   │   ├── db/migration/                       # Flyway 迁移脚本 V1–V11（含 file_hash 去重 + FULLTEXT/ngram 索引 + share_tokens + 水印落库）
+│   │   ├── db/migration/                       # Flyway 迁移脚本 V1–V12（含 file_hash 去重 + FULLTEXT/ngram 索引 + share_tokens + 水印落库 + original_processed 水印幂等标记）
 │   │   └── static/                             # 前端构建产物 (SPA，npm run build 自动复制，不入库)
 │   ├── Dockerfile                              # JRE 17 Alpine + 文泉驿字体 + curl
 │   └── pom.xml                                 # Maven 配置（JaCoCo ≥35% + SpotBugs 门禁）
@@ -398,6 +404,8 @@ MONITORING_PASSWORD=你的监控密码         # 同上，密码（prometheus.ym
 GF_SECURITY_ADMIN_PASSWORD=你的Grafana密码  # Grafana Web 面板 admin 密码（127.0.0.1:3000）
 ```
 
+> 可靠性/性能加固（解码上限、水印幂等、DLQ 自动恢复、分页钳制、原子写等）均使用代码默认值，**无需新增环境变量**。可选调优：`PHOTO_PROCESSING_MAX_DECODE_DIM`（解码长边上限，默认 4096——448m 堆下不建议调大）。
+
 #### 2. 构建并启动
 
 ```bash
@@ -422,7 +430,17 @@ docker compose up -d --build
 
 所有容器均配置了 Docker healthcheck（`restart: always` 保证容器异常退出时自动拉起）。内存上限合计约 2.1GB（768+512+256+256+128+256），2GB 内存服务器上建议同时关闭本地其他服务。
 
-#### 4. 常用命令
+#### 4. 升级部署注意
+
+- **先删 RabbitMQ 重试队列再启动**：重试队列 TTL 由 10s 调整为 30s，而 RabbitMQ 队列参数不可变——不删旧队列则应用启动报 406 PRECONDITION_FAILED：
+  ```bash
+  docker exec pg-rabbitmq rabbitmqctl delete_queue pg.photo.processing.retry
+  ```
+- **部署顺序先后端后前端**：新前端依赖 `GET /photos/status` 批量状态端点（旧前端继续用逐张轮询端点，兼容）
+- **V12 迁移**（`original_processed` 水印幂等标记）由 Flyway 自动应用，无需手动操作
+- 建议为服务器配置 2-4G swap，防止瞬时内存尖峰触发 OOM killer 误杀容器
+
+#### 5. 常用命令
 
 ```bash
 docker compose ps              # 查看状态

@@ -16,10 +16,13 @@
 
 ### Image processing
 
-- **Async processing pipeline** — upload returns immediately; EXIF extraction → auto-rotate → watermark → thumbnails (200px + 400px) → WebP run in the background. The dev environment uses the `@Async` thread pool (queue overflow drops, never synchronous in the request thread); prod switches to RabbitMQ (durable queue + TTL delayed-retry queue 10s + dead-letter queue after 3 attempts). Photo cards poll for status automatically — no manual refresh needed. Failed photos can be retried with one click (`POST /photos/{id}/retry-processing`); a recovery pass runs once at startup and every 5 minutes for photos stuck in `PROCESSING`
+- **Async processing pipeline** — upload returns immediately; EXIF extraction → auto-rotate → watermark → thumbnails (200px + 400px) → WebP run in the background. The dev environment uses the `@Async` thread pool (queue overflow drops, never synchronous in the request thread); prod switches to RabbitMQ (durable queue + TTL delayed-retry queue 30s + dead-letter queue after 3 attempts). Decode cap 4096px (`photo.processing.max-decode-dim`) — full-size decoding of huge images would OOM the 448m heap container. Photo cards poll for status via the batch endpoint `GET /photos/status` (one lightweight request every 3s; after 20 rounds the poll just stops — no longer marking still-processing photos as failed). Failed photos can be retried with one click (`POST /photos/{id}/retry-processing`); a recovery pass runs once at startup and every 5 minutes for photos stuck in `PROCESSING`
+- **DLQ auto-recovery** — after 3 consumer retries a photo is marked FAILED and its message lands in the dead-letter queue; `DlqRequeuer` drains the DLQ every 2 minutes, flips FAILED photos back to PROCESSING and re-queues them (status first, publish second — a failed publish is covered by the 5-minute rescan). Transient outages (DB hiccups, disk full) no longer batch-kill photos permanently
+- **Watermark idempotency + atomic writes** — the `original_processed` flag (V12) is set right after the original is written back, so retries/rescans skip the watermark and write-back (no more watermark stacking); transform resets the flag after rewriting the original. Originals/thumbnails/WebP are all written to a unique `.tmp` first then ATOMIC_MOVE — a crash or concurrent processing can never leave a half-written file
+- **Startup backfill** — every startup asynchronously scans DONE photos and regenerates missing thumbnails/WebP (idempotent: existing files skipped; DONE-only to avoid racing the processing chain), preventing slow gallery loads caused by old data falling back to full-size originals. Disable via `photo.startup-backfill.enabled=false`; manual triggers are the migration endpoints (`POST /photos/migrate-thumbnails` / `migrate-webp`, also DONE-only)
 - **Responsive thumbnails** — upload generates 200px + 400px JPEG variants; the frontend `srcset` + `sizes` pick per viewport and DPR
 - **Editor** — full-resolution Canvas rotate (any angle) / flip (horizontal/vertical) / crop
-- **Watermark** — semi-transparent white text at bottom-right, font size scales with image width; font/size ratio/opacity configurable (`photo.watermark.*`)
+- **Watermark** — semi-transparent white text at bottom-right, font size scales with image width; font/size ratio/opacity configurable (`photo.watermark.*`); never stacked on retry (`original_processed` idempotency flag, V12)
 - **WebP** — a lossy WebP copy is generated on upload; browser support detected at runtime
 - **EXIF auto-rotation** — orientation corrected from the EXIF Orientation tag
 
@@ -47,7 +50,7 @@
 - **SHA-256 dedup** — file hash computed outside the transaction (no DB connection held); duplicates return 409 with existing photo data (single) or are skipped silently (batch)
 - **Unified validation** — missing required params / type errors / invalid enums → 400 with the param name (`GlobalExceptionHandler` catch-all, never 500)
 - **Caching** — Caffeine local cache in dev (30s TTL), Redis distributed cache in prod (JSON serialization + PageImpl mixin); all write operations evict affected caches
-- **Soft delete + trash** — deletion sets `deleted_at` (Hibernate `@SQLRestriction` global filter) and clears the hash to allow re-upload. 5s toast undo + trash restore/permanent delete; nightly 3 AM purge of 30-day-old records
+- **Soft delete + trash** — deletion sets `deleted_at` (Hibernate `@SQLRestriction` global filter) and clears the hash to allow re-upload. 5s toast undo + trash restore/permanent delete; nightly 3 AM purge of 30-day-old records (per-photo transaction + conditional delete: photos restored meanwhile are skipped; row deleted before files, so a crash never leaves ghost records)
 - **Backup export** — one-click download of `photo-gallery-backup-YYYY-MM-DD.zip` from the header bar: all originals + DB metadata (photos/exif/tags/categories/albums JSON with relations inlined), streamed via `java.util.zip` without holding memory (zero third-party deps), pre-generated cache + data fingerprint check (instant response when unchanged), optional filters by album/category/date range, response never cached (admin only)
 - **Frontend error boundary** — component errors are caught automatically with a degraded page (retry / refresh / copy error info); auto-recovers on route change
 
@@ -150,7 +153,8 @@ photo-gallery/
 │   │   │   ├── ProcessingMessageSender.java    # Processing-message sender interface
 │   │   │   ├── ProcessingMessage.java          # Message POJO (photoId/path/watermark)
 │   │   │   ├── RabbitProcessingSender.java     # prod: RabbitMQ sender implementation
-│   │   │   └── PhotoProcessingConsumer.java    # RabbitMQ consumer (3 retries → DLQ)
+│   │   │   ├── PhotoProcessingConsumer.java    # RabbitMQ consumer (3 retries → DLQ)
+│   │   │   └── DlqRequeuer.java                # DLQ scheduled drain (every 2 min: FAILED → PROCESSING + requeue)
 │   │   ├── repository/
 │   │   │   ├── PhotoRepository.java            # JPQL paging + filters + FULLTEXT search
 │   │   │   ├── ShareTokenRepository.java       # Share-token lookup (per-request DB query → instant revocation)
@@ -168,6 +172,7 @@ photo-gallery/
 │   │   │   └── ShareToken.java                 # Share credential (unique token + photoIds whitelist + permission + expiry/revoke)
 │   │   ├── dto/
 │   │   │   ├── PhotoResponse.java              # Photo response DTO
+│   │   │   ├── PhotoProcessingStatusDto.java   # Lightweight processing-status DTO (for the /photos/status polling endpoint)
 │   │   │   ├── PhotoUpdateRequest.java         # Update request body (null = no change / 0 = clear)
 │   │   │   ├── TimelineItem.java               # Timeline item
 │   │   │   ├── MapItem.java                    # Map item (incl. GCJ-02 coordinates)
@@ -182,7 +187,8 @@ photo-gallery/
 │   │   ├── config/
 │   │   │   ├── AsyncConfig.java                # @EnableAsync + image-processing thread pool (DiscardPolicy) + MDC propagation
 │   │   │   ├── RedisConfig.java                # Redis cache config (JSON serialization + PageImpl mixin)
-│   │   │   ├── RabbitMQConfig.java             # Queue/Exchange/DLQ topology + MANUAL ack
+│   │   │   ├── RabbitMQConfig.java             # Queue/Exchange/DLQ topology + MANUAL ack (retry TTL 30s)
+│   │   │   ├── PageableConfig.java             # Page-size clamp (pageSize ≤ 100 — prevents huge requests blowing up the small heap)
 │   │   │   ├── SecurityConfig.java             # SecurityFilterChain + CORS whitelist + CSP
 │   │   │   ├── JwtService.java                 # HS256 JWT issuance (admin) & validation (≥32-byte key check)
 │   │   │   ├── MediaSignatureService.java      # Short-lived image signatures (HMAC time buckets, JWT never in URL)
@@ -208,7 +214,7 @@ photo-gallery/
 │   │   ├── application-prod.yml                # Prod (Redis/RabbitMQ/rate-limit trusted header; ddl-auto: validate)
 │   │   ├── application-local.yml.example       # Local secrets template (password/JWT secret, gitignored)
 │   │   ├── logback-spring.xml                  # Console + daily rolling files (30/90-day retention)
-│   │   ├── db/migration/                       # Flyway migrations V1–V11 (incl. file_hash dedup + FULLTEXT/ngram index + share_tokens + watermark)
+│   │   ├── db/migration/                       # Flyway migrations V1–V12 (incl. file_hash dedup + FULLTEXT/ngram index + share_tokens + watermark + original_processed idempotency flag)
 │   │   └── static/                             # Frontend build output (SPA, copied by npm run build, not committed)
 │   ├── Dockerfile                              # JRE 17 Alpine + WenQuanYi font + curl
 │   └── pom.xml                                 # Maven config (JaCoCo ≥35% + SpotBugs gate)
@@ -397,6 +403,8 @@ MONITORING_USER=your-monitor-user            # /actuator/prometheus Basic Auth u
 MONITORING_PASSWORD=your-monitor-pass        # Same, password (referenced via ${} in prometheus.yml basic_auth; keep in sync)
 ```
 
+> All reliability/performance hardening (decode cap, watermark idempotency, DLQ auto-recovery, page-size clamp, atomic writes) uses code defaults — **no new environment variables are required**. Optional tuning: `PHOTO_PROCESSING_MAX_DECODE_DIM` (max decode edge, default 4096 — do not raise on a 448m heap).
+
 #### 2. Build and start
 
 ```bash
@@ -421,7 +429,17 @@ Access `http://localhost:8080` (bound to 127.0.0.1 only; expose it via Nginx or 
 
 All containers have Docker healthchecks (`restart: always` restarts containers that exit abnormally). Total memory limits ≈ 2.1GB (768+512+256+256+128+256) — on a 2GB server, consider stopping other local services.
 
-#### 4. Common commands
+#### 4. Upgrade notes
+
+- **Delete the RabbitMQ retry queue before starting**: the retry-queue TTL changed from 10s to 30s, and RabbitMQ queue arguments are immutable — without deleting the old queue, the app fails to start with 406 PRECONDITION_FAILED:
+  ```bash
+  docker exec pg-rabbitmq rabbitmqctl delete_queue pg.photo.processing.retry
+  ```
+- **Deploy the backend before the frontend**: the new frontend depends on the `GET /photos/status` batch endpoint (the old frontend keeps using the per-photo polling endpoint and stays compatible)
+- **V12 migration** (`original_processed` watermark idempotency flag) is applied automatically by Flyway — no manual step
+- Consider adding 2-4G swap on the server to avoid the OOM killer taking down containers during transient memory spikes
+
+#### 5. Common commands
 
 ```bash
 docker compose ps              # Status
