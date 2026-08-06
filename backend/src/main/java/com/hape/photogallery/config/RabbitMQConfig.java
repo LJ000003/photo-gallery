@@ -34,7 +34,7 @@ public class RabbitMQConfig {
     public static final String DLQ = "pg.photo.processing.dlq";
     public static final String ROUTING_KEY = "photo.processing";
     public static final String DLQ_ROUTING_KEY = "photo.processing.dlq";
-    /** P0-#1：TTL 重试队列——consumer 失败时显式重投到此队列，TTL 到期死信回主队列重试；
+    /** TTL 重试队列——consumer 失败时显式重投到此队列，TTL 到期死信回主队列重试；
      *  重试次数由自定义 header x-retry-count 记录（随显式重投持久化，与 broker 版本无关——
      *  实测 RabbitMQ 4.x 死信时 x-death 被重置而非合并递增，不可依赖） */
     public static final String RETRY_QUEUE = "pg.photo.processing.retry";
@@ -83,7 +83,7 @@ public class RabbitMQConfig {
         return BindingBuilder.bind(processingQueue()).to(processingExchange()).with(ROUTING_KEY);
     }
 
-    /** P0-#1：主交换机 → 重试队列（consumer 失败时显式重投的路由） */
+    /** 主交换机 → 重试队列（consumer 失败时显式重投的路由） */
     @Bean
     Binding retryBinding() {
         return BindingBuilder.bind(retryQueue()).to(processingExchange()).with(RETRY_ROUTING_KEY);

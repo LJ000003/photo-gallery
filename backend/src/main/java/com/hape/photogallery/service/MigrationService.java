@@ -15,7 +15,7 @@ import com.hape.photogallery.entity.Photo;
 import com.hape.photogallery.repository.PhotoRepository;
 
 /**
- * 历史数据迁移（P4-#37：从 PhotoService 拆出）——缩略图/WebP 补生成、存量 EXIF 提取。
+ * 历史数据迁移（从 PhotoService 拆出）——缩略图/WebP 补生成、存量 EXIF 提取。
  * 分页游标遍历，幂等（已存在的产物跳过），迁移端点见 PhotoController。
  */
 @Service

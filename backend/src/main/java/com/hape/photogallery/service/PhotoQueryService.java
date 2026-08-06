@@ -27,7 +27,7 @@ import com.hape.photogallery.repository.PhotoRepository;
 import com.hape.photogallery.util.CoordUtil;
 
 /**
- * 照片查询侧服务（P2-#15 从 PhotoService 拆出）：列表/搜索/详情/时间线/地图/DTO 转换。
+ * 照片查询侧服务（从 PhotoService 拆出）：列表/搜索/详情/时间线/地图/DTO 转换。
  * 写路径（PhotoService）单向依赖本服务（getById/toResponse），避免互相注入的循环依赖；
  * 转换方法（toResponse/toTimelineItem/toMapItem）随本服务走，@Cacheable key 与拆出前一致。
  */
@@ -178,7 +178,7 @@ public class PhotoQueryService {
         }).toList();
     }
 
-    // extractExifForExisting（存量 EXIF 批量提取）已随迁移方法拆至 MigrationService（P4-#37）
+    // extractExifForExisting（存量 EXIF 批量提取）已随迁移方法拆至 MigrationService
 
     public ExifData extractExifForPhoto(Long id) {
         Photo photo = getById(id);

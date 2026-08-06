@@ -70,7 +70,7 @@ services:
     container_name: pg-prometheus
     restart: always
     environment:
-      # P0-#4：注入 prometheus.yml basic_auth 引用的抓取凭据（与 app 服务的 MONITORING_* 一致）
+      # 注入 prometheus.yml basic_auth 引用的抓取凭据（与 app 服务的 MONITORING_* 一致）
       MONITORING_USER: ${MONITORING_USER}
       MONITORING_PASSWORD: ${MONITORING_PASSWORD}
     volumes:
@@ -93,7 +93,7 @@ services:
       - app-net
 
   grafana:
-    # P2-#16：pin 版本（grafana-oss 12.4 后停止更新，官方镜像改名 grafana/grafana）
+    # pin 版本（grafana-oss 12.4 后停止更新，官方镜像改名 grafana/grafana）
     image: grafana/grafana:13.1.0
     container_name: pg-grafana
     restart: always
@@ -140,7 +140,7 @@ services:
       RABBIT_PORT: ${RABBIT_PORT:-5672}
       RABBIT_USER: ${RABBIT_USER:-admin}
       RABBIT_PASS: ${RABBIT_PASS:-}
-      # P0-#4：/actuator/prometheus Basic Auth 凭据（ProdSecurityValidator 校验非空）
+      # /actuator/prometheus Basic Auth 凭据（ProdSecurityValidator 校验非空）
       MONITORING_USER: ${MONITORING_USER}
       MONITORING_PASSWORD: ${MONITORING_PASSWORD}
       CORS_ALLOWED_ORIGINS: http://localhost:*,https://hape233.online

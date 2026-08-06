@@ -49,7 +49,7 @@ public class TrashController {
 
     @GetMapping("/albums")
     public ApiResponse<List<AlbumResponse>> listAlbums() {
-        // P4-#38：DTO 化（photoCount 恒 0，回收站 UI 不显示计数）
+        // DTO 化（photoCount 恒 0，回收站 UI 不显示计数）
         return ApiResponse.success(albumService.listDeleted());
     }
 

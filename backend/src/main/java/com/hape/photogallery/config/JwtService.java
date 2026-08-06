@@ -41,7 +41,7 @@ public class JwtService {
                 .signWith(key)
                 .compact();
     }
-    // P0-#6：issueShare 已删除——分享凭证改为 DB 高熵 token（可撤销），JWT 退出分享签发；
+    // issueShare 已删除——分享凭证改为 DB 高熵 token（可撤销），JWT 退出分享签发；
     // JwtAuthFilter 保留 legacy viewer JWT 校验分支过渡（旧链接最长 7 天自然失效）
 
     public Claims verify(String token) {

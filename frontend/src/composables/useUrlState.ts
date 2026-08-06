@@ -3,7 +3,7 @@ import type { RouteLocationNormalizedLoaded, Router } from 'vue-router'
 import type { SortField, SortOrder } from '../types/view'
 
 /**
- * URL query ↔ 列表视图状态双向同步（P2-#17 从 photo store 抽出）。
+ * URL query ↔ 列表视图状态双向同步（从 photo store 抽出）。
  * 行为与原实现完全一致：默认值不写 query（sortBy=time / sortOrder=asc 不出现）、
  * tags/cats 逗号拼接并 filter(Boolean) 去空、searchQuery 空值不写。
  */

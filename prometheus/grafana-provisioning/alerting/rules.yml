@@ -1,4 +1,4 @@
-# P2-#16：Grafana provisioning 告警规则（单轨——不做 Prometheus rule_files，
+# Grafana provisioning 告警规则（单轨——不做 Prometheus rule_files，
 # 无 Alertmanager 时 rule_files 告警发不出去；Grafana 侧告警评估后接通知渠道即可）。
 # 告警查询只用已核实的指标名：photo.upload.* 只有成功侧计数、photo.processing.failures
 # 是处理失败而非上传失败——5xx 率用 http_server_requests_seconds_count 兜底。

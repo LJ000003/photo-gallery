@@ -68,7 +68,7 @@ public class PhotoProcessingConsumer {
             int retryCount = getRetryCount(amqpMsg);
             if (retryCount < MAX_RETRIES) {
                 log.warn("处理失败（第 {} 次重试）photo={}: {}", retryCount + 1, photoId, e.getMessage());
-                // P0-#1：显式重投到 TTL 重试队列（10s 后死信回主队列再尝试），先投后 ack（at-least-once，
+                // 显式重投到 TTL 重试队列（10s 后死信回主队列再尝试），先投后 ack（at-least-once，
                 // processor 幂等可重入，重复仅多一次处理）。
                 // 计数用自定义 header x-retry-count：显式重投是重新发布消息，header 随消息持久化
                 // （AMQP 消息语义，与 broker 版本无关——X-Trace-Id 在 TTL 死信后保留已实测）。
@@ -100,7 +100,7 @@ public class PhotoProcessingConsumer {
         }
     }
 
-    /** P0-#1：读自定义 x-retry-count header（随显式重投持久化）；初投消息无此 header → 0 */
+    /** 读自定义 x-retry-count header（随显式重投持久化）；初投消息无此 header → 0 */
     private int getRetryCount(Message msg) {
         Object count = msg.getMessageProperties().getHeaders().get("x-retry-count");
         if (count instanceof Number n) return n.intValue();

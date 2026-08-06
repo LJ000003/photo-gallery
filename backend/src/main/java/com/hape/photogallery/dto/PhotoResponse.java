@@ -17,7 +17,7 @@ public class PhotoResponse {
     private Long fileSize;
     private Category category;
     private Set<Tag> tags;
-    /** 轻量 DTO（仅 id/name）——P4-#38：避免序列化 Album 实体触发 getPhotoCount() 的整集合懒加载 N+1 */
+    /** 轻量 DTO（仅 id/name）——避免序列化 Album 实体触发 getPhotoCount() 的整集合懒加载 N+1 */
     private Set<AlbumResponse> albums;
     private LocalDateTime createdAt;
     private LocalDateTime deletedAt;

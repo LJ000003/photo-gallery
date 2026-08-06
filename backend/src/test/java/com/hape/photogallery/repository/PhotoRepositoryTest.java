@@ -269,7 +269,7 @@ class PhotoRepositoryTest {
         assertThat(result).isEmpty();
     }
 
-    // ==================== P0-#2：列表页 exifData 懒加载批量（v6 P4-#44 类级 @BatchSize 回归保护） ====================
+    // ==================== 列表页 exifData 懒加载批量（类级 @BatchSize 回归保护） ====================
     // 先测后改：Photo.exifData 无字段级 @BatchSize，但 ExifData 类级 @BatchSize(20) 已生效——
     // 期望不加任何代码此用例即通过（查询数 ≈ 3 而非 N+1 的 27），作为回归防护留存。
 

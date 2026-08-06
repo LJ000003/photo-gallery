@@ -18,7 +18,7 @@ public class ProdSecurityValidator {
             @Value("${REDIS_PASSWORD:}") String redisPassword,
             @Value("${RABBIT_PASS:}") String rabbitPassword,
             @Value("${RABBIT_USER:admin}") String rabbitUser,
-            // P0-#4：监控抓取 Basic Auth 凭据（/actuator/prometheus 已改 hasRole(MONITOR)）
+            // 监控抓取 Basic Auth 凭据（/actuator/prometheus 已改 hasRole(MONITOR)）
             @Value("${MONITORING_USER:}") String monitoringUser,
             @Value("${MONITORING_PASSWORD:}") String monitoringPassword) {
         if (redisPassword == null || redisPassword.isBlank()) {

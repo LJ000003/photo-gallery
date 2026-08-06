@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 图片短时签名（P1-11）：sign/verify 往返、篡改/非法输入拒绝、
+ * 图片短时签名：sign/verify 往返、篡改/非法输入拒绝、
  * 滑动时间桶（前一桶仍有效、跨两桶过期）。
  */
 class MediaSignatureServiceTest {

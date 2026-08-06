@@ -4,7 +4,7 @@ global:
 scrape_configs:
   - job_name: 'photo-gallery'
     metrics_path: '/actuator/prometheus'
-    # P0-#4：端点已加 Basic Auth（MONITOR 角色）。
+    # 端点已加 Basic Auth（MONITOR 角色）。
     # ${VAR} 由 Prometheus 进程环境变量替换（docker-compose 给本服务透传 MONITORING_USER/PASSWORD，
     # 与 app 服务 / .env 保持一致，勿在仓库提交明文密码）
     basic_auth:
@@ -13,7 +13,7 @@ scrape_configs:
     static_configs:
       - targets: ['app:8080']
 
-  # P2-#16：RabbitMQ 自带 Prometheus 插件（3.8+ 默认启用，15692 已监听）。
+  # RabbitMQ 自带 Prometheus 插件（3.8+ 默认启用，15692 已监听）。
   # 不映射宿主机端口——同 docker 网络直抓，避免多一个无认证的指标端口。
   - job_name: 'rabbitmq'
     static_configs:

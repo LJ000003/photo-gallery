@@ -36,10 +36,10 @@ public class Photo {
     @JoinTable(name = "photo_tags",
         joinColumns = @JoinColumn(name = "photo_id"),
         inverseJoinColumns = @JoinColumn(name = "tag_id"))
-    @org.hibernate.annotations.BatchSize(size = 20) // P4-#44：列表页 N+1 → 每页 20 张照片批量 1-2 次查询
+    @org.hibernate.annotations.BatchSize(size = 20) // 列表页 N+1 → 每页 20 张照片批量 1-2 次查询
     private Set<Tag> tags = new HashSet<>();
 
-    @ManyToOne(fetch = FetchType.LAZY) // P4-#44：EAGER → LAZY，由 Category 类级 @BatchSize 批取代理
+    @ManyToOne(fetch = FetchType.LAZY) // EAGER → LAZY，由 Category 类级 @BatchSize 批取代理
     @JoinColumn(name = "category_id")
     private Category category;
 

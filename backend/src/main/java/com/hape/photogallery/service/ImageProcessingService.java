@@ -344,7 +344,7 @@ public class ImageProcessingService {
         if (name.endsWith(".png")) return "PNG";
         if (name.endsWith(".gif")) return "GIF";
         if (name.endsWith(".bmp")) return "BMP";
-        // P4-#48①：.webp 返回 "WebP"（webp-imageio/sejda SPI 注册名，与 MIME image/webp 对应），
+        // .webp 返回 "WebP"（webp-imageio/sejda SPI 注册名，与 MIME image/webp 对应），
         // 而非 "JPEG"——曾把 JPEG 字节写进 .webp 文件名并丢失 alpha。
         // 无 WebP writer（native 库加载失败）时 ImageIO.write 返回 false 不改文件，
         // 由调用方（doTransformPhoto）判定为处理失败。

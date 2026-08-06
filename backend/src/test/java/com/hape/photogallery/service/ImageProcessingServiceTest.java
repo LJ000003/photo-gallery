@@ -18,7 +18,7 @@ class ImageProcessingServiceTest {
         return new ImageProcessingService(mock(ExifService.class), tempDir.toString());
     }
 
-    // ==================== getFormat（P4-#48①） ====================
+    // ==================== getFormat ====================
 
     @Test
     void getFormat_jpeg_shouldReturnJpeg() throws IOException {
@@ -37,7 +37,7 @@ class ImageProcessingServiceTest {
 
     @Test
     void getFormat_webp_shouldReturnWebpNotJpeg() throws IOException {
-        // P4-#48① 回归：曾返回 "JPEG" 导致 JPEG 字节写进 .webp 文件名并丢 alpha
+        // 回归：曾返回 "JPEG" 导致 JPEG 字节写进 .webp 文件名并丢 alpha
         ImageProcessingService svc = newService();
         assertThat(svc.getFormat(writeFile("a.webp"))).isEqualTo("WebP");
         assertThat(svc.getFormat(writeFile("a.webp"))).isNotEqualTo("JPEG");

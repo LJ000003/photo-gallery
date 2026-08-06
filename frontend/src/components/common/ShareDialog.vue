@@ -6,7 +6,7 @@ import { Button, Input, Modal, Popconfirm, Spin } from 'ant-design-vue'
 import { usePhotoActions } from '../../composables/usePhotoActions'
 
 /**
- * 分享链接弹窗：生成结果展示 + 复制 + 撤销（P0-#6）
+ * 分享链接弹窗：生成结果展示 + 复制 + 撤销
  * 状态来自 usePhotoActions 单例（shareModal/shareUrl/shareLoading/shareRevoking）
  */
 const { t } = useI18n()

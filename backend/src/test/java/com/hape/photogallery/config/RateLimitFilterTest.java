@@ -14,7 +14,7 @@ class RateLimitFilterTest {
 
     private final RateLimitFilter filter = new RateLimitFilter(new ClientIpResolver(""));
 
-    /** 带受信头配置的独立 filter：验证不同客户端 IP 分桶互不影响（P0-5） */
+    /** 带受信头配置的独立 filter：验证不同客户端 IP 分桶互不影响 */
     private final RateLimitFilter trustedFilter = new RateLimitFilter(new ClientIpResolver("Cf-Connecting-Ip"));
 
     private MockHttpServletResponse apply(String method, String path) throws Exception {

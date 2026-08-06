@@ -24,7 +24,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.*;
 
-/** 照片变换（P4-#37 拆分自 PhotoService；P4-#40 事务边界 + 补偿） */
+/** 照片变换（拆分自 PhotoService； 事务边界 + 补偿） */
 @ExtendWith(MockitoExtension.class)
 @org.mockito.junit.jupiter.MockitoSettings(strictness = org.mockito.quality.Strictness.LENIENT)
 class PhotoTransformServiceTest {
@@ -55,7 +55,7 @@ class PhotoTransformServiceTest {
 
     @Test
     void transform_saveFailure_shouldRestoreOriginalFileAndCleanupBackup() throws IOException {
-        // P4-#40：变换成功写回 → 事务内 save 失败 → 补偿恢复原图（磁盘与 DB 一致），备份文件清理
+        // 变换成功写回 → 事务内 save 失败 → 补偿恢复原图（磁盘与 DB 一致），备份文件清理
         Path filePath = tempDir.resolve("2026/07/t.jpg");
         Files.createDirectories(filePath.getParent());
         java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(8, 8,

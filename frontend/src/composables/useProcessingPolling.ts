@@ -12,7 +12,7 @@ export interface ProcessingPollingOptions {
 }
 
 /**
- * 处理中照片状态轮询（P2-#17 从 photo store 抽出）：
+ * 处理中照片状态轮询（从 photo store 抽出）：
  * 3s 间隔并行拉取全部 PROCESSING 照片（非串行逐张）；20 轮（60s）超时本地标 FAILED
  * + toast（FAILED 态出现重试按钮），不再静默停止。行为与原实现完全一致。
  */

@@ -27,7 +27,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
- * 回收站端点切片测试（P1-#14：回收站恢复边界）。
+ * 回收站端点切片测试（回收站恢复边界）。
  * 基建照抄 PhotoControllerTest：@WebMvcTest 会注册 @Component 过滤器
  * （JwtAuthFilter/RateLimitFilter），其依赖 JwtService/MediaSignatureService/ShareTokenRepository
  * 必须显式提供。
@@ -93,7 +93,7 @@ class TrashControllerTest {
         mockMvc.perform(get("/api/v1/trash/albums"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].name").value("已删相册"))
-                // P4-#38：回收站 UI 不显示计数，photoCount 恒 0
+                // 回收站 UI 不显示计数，photoCount 恒 0
                 .andExpect(jsonPath("$.data[0].photoCount").value(0));
     }
 

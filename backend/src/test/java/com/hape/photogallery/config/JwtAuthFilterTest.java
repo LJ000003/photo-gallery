@@ -22,9 +22,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
 /**
- * 分享权限强制执行测试（P0-4）：view 权限禁止下载原图（/file），
+ * 分享权限强制执行测试：view 权限禁止下载原图（/file），
  * download 权限与缩略图/WebP 端点不受影响；photoId 白名单越界仍 403。
- * 图片短时签名（P1-11）：有效签名直接放行（不携带会话凭证），
+ * 图片短时签名：有效签名直接放行（不携带会话凭证），
  * 绑定 photoId 不符/篡改签名一律 403，非图片端点忽略签名参数。
  */
 @ExtendWith(MockitoExtension.class)
@@ -42,14 +42,14 @@ class JwtAuthFilterTest {
     @BeforeEach
     void setUp() {
         sigService = new MediaSignatureService("test-secret-0123456789abcdef0123456789abcdef", 300);
-        // P4-#48③：错误响应改 ApiResponse JSON，注入 ObjectMapper
+        // 错误响应改 ApiResponse JSON，注入 ObjectMapper
         filter = new JwtAuthFilter(jwtService, sigService,
                 new com.fasterxml.jackson.databind.ObjectMapper(), shareTokenRepository);
         chainCalled = false;
         SecurityContextHolder.clearContext();
     }
 
-    /** 构造 DB 分享 token（P0-#6） */
+    /** 构造 DB 分享 token */
     private ShareToken shareToken(String token, String photoIds, String permission,
                                   LocalDateTime expiresAt, LocalDateTime revokedAt) {
         ShareToken st = new ShareToken();
@@ -150,7 +150,7 @@ class JwtAuthFilterTest {
         assertThat(chainCalled).isFalse();
     }
 
-    /* ---------- DB share token（P0-#6：JWT 校验失败 → 查表，撤销/过期即失效） ---------- */
+    /* ---------- DB share token（JWT 校验失败 → 查表，撤销/过期即失效） ---------- */
 
     @Test
     void dbShareToken_valid_thumbnail_shouldSetViewerAttributes() throws Exception {
@@ -236,7 +236,7 @@ class JwtAuthFilterTest {
         assertThat(chainCalled).isTrue();
     }
 
-    /* ---------- 图片短时签名（P1-11） ---------- */
+    /* ---------- 图片短时签名 ---------- */
 
     private MockHttpServletResponse applySig(String uri, String sig) throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", uri);

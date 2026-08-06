@@ -14,9 +14,14 @@ export const options = {
   },
 }
 
-const token = konamiUnlock(BASE)
+// setup 执行一次 Konami Challenge-Response（认证端点限流 10 req/s/IP，不能每 VU 都解锁；
+// 且 HTTP 不能在 init context 发起）
+export function setup() {
+  return { token: konamiUnlock(BASE) }
+}
 
-export default function () {
+export default function (data) {
+  const { token } = data
   // 1. 取一张照片（分享需要真实 photoId）
   const list = http.get(`${BASE}/api/v1/photos?page=0&size=1`, {
     headers: { Authorization: `Bearer ${token}` },

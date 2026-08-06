@@ -29,7 +29,7 @@ import com.hape.photogallery.service.AuthService;
 import com.hape.photogallery.service.AuthService.AuthResult;
 
 /**
- * AuthController HTTP 层测试（P4-#48④ 抽 AuthService 后：校验逻辑移至 AuthServiceTest，
+ * AuthController HTTP 层测试（抽 AuthService 后：校验逻辑移至 AuthServiceTest，
  * 此处只测 MVC 胶水：状态码/响应体转发；IP 解析留 controller）。
  * 三件套 @Import：@WebMvcTest 会加载 Filter 类型的 JwtAuthFilter，其构造依赖
  * JwtService + MediaSignatureService（现有 Controller 测试模板同源）。

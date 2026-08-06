@@ -10,7 +10,7 @@ import type { ApiResponse, PageResponse } from '../types/api'
 import type { SortField } from '../types/view'
 
 /**
- * 照片列表 store（P2-#17 状态层分层）：
+ * 照片列表 store（状态层分层）：
  * 仅保留列表状态与编排——URL 双向同步（useUrlState）、分页/竞态（useInfinitePagination）、
  * 处理轮询（useProcessingPolling）均为独立 composables，store 不手写 URL 拼接与定时器。
  */

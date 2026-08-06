@@ -65,7 +65,7 @@ function toggleIn(list: number[], other: number[], id: number): void {
   if (oi > -1) other.splice(oi, 1)
 }
 
-// api() 在非 2xx 时直接 throw ApiError——失败必须 try/catch 才有反馈（P4-#47：此前失败静默为未处理 rejection）
+// api() 在非 2xx 时直接 throw ApiError——失败必须 try/catch 才有反馈（此前失败静默为未处理 rejection）
 async function addTag(): Promise<void> {
   if (!newTagName.value.trim()) return
   try {

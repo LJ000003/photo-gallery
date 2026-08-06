@@ -1,4 +1,4 @@
-# P2-#16：面板 provider 注册——加载同目录下的 JSON 面板文件。
+# 面板 provider 注册——加载同目录下的 JSON 面板文件。
 apiVersion: 1
 
 providers:

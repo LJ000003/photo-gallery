@@ -21,12 +21,12 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm install --no-audit
-      # P1-#14：test:coverage 让 vitest.config.ts 的 thresholds 生效（此前 vitest run 不带 --coverage，门槛从未触发）
+      # test:coverage 让 vitest.config.ts 的 thresholds 生效（此前 vitest run 不带 --coverage，门槛从未触发）
       - run: npm run test:coverage
-      # P2-#18：lint 入 CI——ESLint 不再只靠 pre-commit 钩子（--no-verify 可绕过）
+      # lint 入 CI——ESLint 不再只靠 pre-commit 钩子（--no-verify 可绕过）
       - run: npm run lint
       - run: npm run build
-      # P2-#18：dist 产物供 backend job 打含前端静态资源的最终 JAR
+      # dist 产物供 backend job 打含前端静态资源的最终 JAR
       - uses: actions/upload-artifact@v4
         with:
           name: frontend-dist
@@ -50,7 +50,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      # P2-#18：复用 frontend job 的 dist 产物（copy-dist 在 mvn test 前执行无碍，static 含 dist 不影响测试）
+      # 复用 frontend job 的 dist 产物（copy-dist 在 mvn test 前执行无碍，static 含 dist 不影响测试）
       - uses: actions/download-artifact@v4
         with:
           name: frontend-dist
@@ -59,7 +59,7 @@ jobs:
       - run: mvn test --batch-mode
       - run: mvn spotbugs:check --batch-mode
       - run: mvn package -DskipTests --batch-mode
-      # P2-#18：含前端静态资源的最终 JAR，供 docker/e2e job 直接使用
+      # 含前端静态资源的最终 JAR，供 docker/e2e job 直接使用
       - uses: actions/upload-artifact@v4
         with:
           name: backend-jar
@@ -72,7 +72,7 @@ jobs:
     needs: backend
     steps:
       - uses: actions/checkout@v4
-      # P2-#18：JAR 由 backend job 产出，本 job 不再需要 setup-java/setup-node 与任何构建
+      # JAR 由 backend job 产出，本 job 不再需要 setup-java/setup-node 与任何构建
       - uses: actions/download-artifact@v4
         with:
           name: backend-jar
@@ -90,7 +90,7 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      # P2-#18：JAR 由 backend job 产出（e2e 前端走 Vite dev server，JAR 不需要内嵌前端资源）
+      # JAR 由 backend job 产出（e2e 前端走 Vite dev server，JAR 不需要内嵌前端资源）
       - uses: actions/download-artifact@v4
         with:
           name: backend-jar

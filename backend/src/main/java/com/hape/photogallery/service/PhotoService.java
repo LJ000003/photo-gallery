@@ -47,7 +47,7 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Metrics;
 
 /**
- * 照片写路径核心服务（P2-#15 职责边界重构）：
+ * 照片写路径核心服务（职责边界重构）：
  * 上传/更新/删除/批量/处理恢复。查询侧（列表/搜索/DTO 转换/回收站）已拆至
  * PhotoQueryService 与 TrashService——本服务单向依赖 PhotoQueryService
  * （getById/toResponse 走跨 bean 代理，事务/缓存注解生效），避免互相注入的循环依赖。
@@ -107,7 +107,7 @@ public class PhotoService {
     }
 
     /**
-     * 上传单张照片（P4-#41①/#46 事务边界重构）：
+     * 上传单张照片（事务边界重构）：
      *  - 魔数校验 + SHA-256 在事务外计算，不持数据库连接做秒级哈希/读文件；
      *  - transactionTemplate 只包 DB 段（查重 → 落盘 → 保存）；落盘/save 失败删除已写文件再抛出，不留孤儿文件；
      *  - execute 返回即已提交，随后发送异步处理消息（若存在外层事务则回退 afterCommit 注册，语义不变）。
@@ -144,7 +144,7 @@ public class PhotoService {
             throw e.getCause();
         } catch (DataIntegrityViolationException e) {
             // 并发同 hash 上传：check-then-insert 竞态撞唯一索引 → 删残留文件后重查，
-            // 找到则返回 DuplicateException 语义（携带已有照片），否则原样抛出（P4-#42）
+            // 找到则返回 DuplicateException 语义（携带已有照片），否则原样抛出
             deleteStoredSafely(storedName);
             Photo existing = repo.findWithDetailsByFileHash(hash).orElse(null);
             if (existing != null) {
@@ -165,7 +165,7 @@ public class PhotoService {
                 processingSender.send(photoId, target, dateDir, baseName, wm);
             } catch (Exception e) {
                 // Rabbit 挂/队列满等：不把 500 抛给请求（DB 已提交、缓存已清），
-                // 靠 5 分钟定时重扫兜底恢复（P4-#41②）
+                // 靠 5 分钟定时重扫兜底恢复
                 log.warn("处理消息发送失败 photo={}: {}", photoId, e.getMessage());
             }
         };
@@ -254,7 +254,7 @@ public class PhotoService {
 
     // === 文件路径 ===
 
-    // 路径解析/产物路径已拆至 FilePathResolver（P4-#37）：PhotoController 直调 resolver，
+    // 路径解析/产物路径已拆至 FilePathResolver：PhotoController 直调 resolver，
     // PhotoService 内部用 resolver.parseFilePath/deletePhotoFiles。
 
     // === 删除（软删除） ===
@@ -351,7 +351,7 @@ public class PhotoService {
                 processingSender.send(photoId, sendTarget, sendParts.dateDir(), sendParts.baseName(), null)));
     }
 
-    /** 启动时立即恢复一次 + 每 5 分钟兜底重扫（P4-#41②）：DiscardPolicy 丢弃的处理消息在此补发 */
+    /** 启动时立即恢复一次 + 每 5 分钟兜底重扫：DiscardPolicy 丢弃的处理消息在此补发 */
     @PostConstruct
     public void recoverStuckOnStartup() {
         recoverStuckProcessing();
@@ -405,7 +405,7 @@ public class PhotoService {
 
     // === 批量上传 ===
     /**
-     * 批量上传（P4-#46）：逐文件独立事务——单张失败/重复只跳过自己，不拖垮整批；
+     * 批量上传：逐文件独立事务——单张失败/重复只跳过自己，不拖垮整批；
      * 不再有整批 @Transactional（否则一个坏文件回滚 50 张且磁盘留孤儿文件）。
      * 重复照片计数跳过，其余异常 log 原因后继续。响应仍是成功列表（形状不变）。
      */

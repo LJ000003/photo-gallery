@@ -44,7 +44,7 @@ class AlbumServiceTest {
         when(photoRepo.countByAlbum()).thenReturn(List.<Object[]>of(new Object[]{1L, 3L}));
         var result = service.listAll();
         assertThat(result).hasSize(1);
-        // P4-#38：photoCount 来自分组计数查询（一次查询填全量），不再逐相册懒加载
+        // photoCount 来自分组计数查询（一次查询填全量），不再逐相册懒加载
         assertThat(result.get(0).getPhotoCount()).isEqualTo(3);
     }
 
@@ -207,7 +207,7 @@ class AlbumServiceTest {
         assertThat(a2.getPhotos()).doesNotContain(p);
     }
 
-    // ==================== 回收站：恢复 / 永久删除 / 列表（P1-#14） ====================
+    // ==================== 回收站：恢复 / 永久删除 / 列表 ====================
 
     @Test
     void restore_success_shouldClearDeletedAt() {
@@ -263,7 +263,7 @@ class AlbumServiceTest {
 
         var result = service.listDeleted();
 
-        // P4-#38：回收站 UI 不显示计数，photoCount 一律 0（即使实体仍有关联照片）
+        // 回收站 UI 不显示计数，photoCount 一律 0（即使实体仍有关联照片）
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getPhotoCount()).isZero();
     }

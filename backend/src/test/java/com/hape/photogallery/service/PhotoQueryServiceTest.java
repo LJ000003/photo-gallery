@@ -40,7 +40,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 照片查询侧服务测试（P2-#15 从 PhotoServiceTest 拆出）：
+ * 照片查询侧服务测试（从 PhotoServiceTest 拆出）：
  * 列表/搜索（FULLTEXT 与 LIKE fallback）/详情/时间线/地图/DTO 转换。
  * 用例自原 PhotoServiceTest 原样搬移，不删改断言。
  */
@@ -238,7 +238,7 @@ class PhotoQueryServiceTest {
         verify(photoRepo, never()).searchByLike(any(), any());
     }
 
-    // ==================== FULLTEXT 运算符剥离（P0-3） ====================
+    // ==================== FULLTEXT 运算符剥离 ====================
 
     @Test
     void search_unpairedQuote_shouldStripOperator() {
@@ -274,7 +274,7 @@ class PhotoQueryServiceTest {
         assertThat(PhotoQueryService.sanitizeFullText("\"phrase\" @x ~y")).isEqualTo("phrase x y");
     }
 
-    // ==================== ORDER BY 白名单（P0-2） ====================
+    // ==================== ORDER BY 白名单 ====================
 
     @Test
     void search_sortBySqlInjection_shouldReject400() {

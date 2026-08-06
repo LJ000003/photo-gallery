@@ -45,7 +45,7 @@ public class SecurityConfig {
         this.objectMapper = objectMapper;
     }
 
-    /** 认证失败响应统一 ApiResponse JSON（P4-#48③：默认 entry point 返回空体 403） */
+    /** 认证失败响应统一 ApiResponse JSON（默认 entry point 返回空体 403） */
     private void writeAuthError(HttpServletResponse response, int status, String message) throws IOException {
         response.setStatus(status);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
@@ -82,12 +82,12 @@ public class SecurityConfig {
             )
             .csrf(csrf -> csrf.disable())
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            // P0-#4：启用 Basic Auth——仅 /actuator/prometheus（hasRole MONITOR）实际受保护，
+            // 启用 Basic Auth——仅 /actuator/prometheus（hasRole MONITOR）实际受保护，
             // 其余端点仍走 JWT 过滤器链；未带 Basic 凭据的 API 请求不受影响。
             // 注意必须在本处先于 exceptionHandling 配置——Spring Security 6 中 httpBasic()
             // 会覆盖 authenticationEntryPoint，若在其后调用会破坏下方自定义 JSON 401 响应
             .httpBasic(h -> {})
-            // P4-#48③：未认证 401 / 权限不足 403 统一 ApiResponse JSON（此前默认空体；前端对 401/403 同样登出处理，无影响）
+            // 未认证 401 / 权限不足 403 统一 ApiResponse JSON（此前默认空体；前端对 401/403 同样登出处理，无影响）
             .exceptionHandling(eh -> eh
                 .authenticationEntryPoint((req, res, ex) ->
                         writeAuthError(res, HttpServletResponse.SC_UNAUTHORIZED, "未登录或登录已过期"))
@@ -112,7 +112,7 @@ public class SecurityConfig {
                 .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/api/v1/**"))
                     .hasAuthority("ROLE_admin")
                 .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/actuator/health")).permitAll()
-                // P0-#4：prometheus 指标公网裸奔 → Basic Auth（MONITOR 角色，凭据来自 env，
+                // prometheus 指标公网裸奔 → Basic Auth（MONITOR 角色，凭据来自 env，
                 // 未配置时 Boot 默认用户非 MONITOR → 403，端点仍不可访问）
                 .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/actuator/prometheus"))
                     .hasRole("MONITOR")
@@ -138,7 +138,7 @@ public class SecurityConfig {
     }
 
     /**
-     * P0-#4：监控抓取凭据（Grafana/Prometheus basic_auth 对应）。
+     * 监控抓取凭据（Grafana/Prometheus basic_auth 对应）。
      * 条件加载：dev/test 未配置 monitoring.* 时该 Bean 不存在，
      * Boot 默认随机密码用户无 MONITOR 角色 → 端点恒 403，不泄漏指标。
      * {noop} 明码：内网 localhost 抓取凭据，可接受；如需更强可换 {bcrypt} 预哈希。

@@ -9,7 +9,7 @@ import org.springframework.jdbc.datasource.DataSourceUtils;
 import org.springframework.stereotype.Component;
 
 /**
- * MySQL 风格 FULLTEXT（MATCH...AGAINST）支持探测（P2-#15 从 PhotoService 拆出）：
+ * MySQL 风格 FULLTEXT（MATCH...AGAINST）支持探测（从 PhotoService 拆出）：
  * 仅 MySQL/MariaDB 支持，H2 等不支持（FULLTEXT 查询在 H2 上直接语法错误 → 500）。
  * 惰性探测一次后缓存；探测失败或未注入 DataSource（单测 mock 场景）按「支持」处理，
  * 保证 MySQL 生产语义不变。

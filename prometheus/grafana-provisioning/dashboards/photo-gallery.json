@@ -1,7 +1,7 @@
 {
   "title": "Photo Gallery",
   "uid": "photo-gallery-dash",
-  "description": "Photo Gallery 运行面板（P2-#16）：全部使用现有指标，无新增后端埋点。",
+  "description": "Photo Gallery 运行面板：全部使用现有指标，无新增后端埋点。",
   "schemaVersion": 39,
   "version": 1,
   "timezone": "browser",

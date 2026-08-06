@@ -23,7 +23,7 @@ import com.hape.photogallery.exception.BusinessException;
 import com.hape.photogallery.repository.ShareTokenRepository;
 
 /**
- * 认证逻辑（P4-#48④：从 AuthController 抽出）。
+ * 认证逻辑（从 AuthController 抽出）。
  * 请求上下文（IP 解析）留在 MVC 层，IP 作为参数传入——封禁/计数不依赖 servlet API，可单测。
  */
 @Service
@@ -99,7 +99,7 @@ public class AuthService {
     }
 
     /**
-     * 生成分享链接（P0-#6：DB token + 幂等复用，替代 7 天 viewer JWT——JWT 退出分享签发）。
+     * 生成分享链接（DB token + 幂等复用，替代 7 天 viewer JWT——JWT 退出分享签发）。
      * 同 photoIds+permission 的未撤销未过期 token 存在时返回现有 URL（弹窗里的「撤销」即撤销该链接，
      * 之前发出的旧链接=同一链接，天然一致）；否则生成高熵随机 token 落库。
      * photoIds 规范化（排序去重）后序列化，保证集合比较稳定。
@@ -136,7 +136,7 @@ public class AuthService {
                 "expiresIn", String.valueOf(expireDays * 86400)));
     }
 
-    /** 撤销分享链接（P0-#6：不存在 404；已撤销幂等——多端并发撤销不报错） */
+    /** 撤销分享链接（不存在 404；已撤销幂等——多端并发撤销不报错） */
     public void revokeShare(String token) {
         ShareToken st = shareTokenRepository.findByToken(token)
                 .orElseThrow(() -> new BusinessException(404, "分享链接不存在"));

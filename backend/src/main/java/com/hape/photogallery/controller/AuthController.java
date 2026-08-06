@@ -37,7 +37,7 @@ public class AuthController {
         return ApiResponse.success(Map.of("nonce", authService.generateNonce()));
     }
 
-    /** Konami 解锁 —— 前端传来 nonce + 按键序列，后端验证（逻辑在 AuthService，P4-#48④） */
+    /** Konami 解锁 —— 前端传来 nonce + 按键序列，后端验证（逻辑在 AuthService） */
     @Operation(summary = "Konami 解锁",
             description = "提交 nonce + 12 键序列，后端比对配置中的序列；错误计数 5 次封禁 15 分钟；签发 24h admin JWT",
             responses = {
@@ -63,7 +63,7 @@ public class AuthController {
 
     /** 管理员生成分享链接 */
     @Operation(summary = "生成分享链接",
-            description = "生成 DB 分享 token（P0-#6：同内容幂等复用，photoIds 白名单 + permission view/download，非法 permission 400）")
+            description = "生成 DB 分享 token（同内容幂等复用，photoIds 白名单 + permission view/download，非法 permission 400）")
     @PostMapping("/api/v1/share/generate")
     public ApiResponse<Map<String, Object>> generateShare(@Valid @RequestBody ShareGenerateRequest req) {
         AuthResult result = authService.generateShare(req.getPhotoIds(), req.getPermission(),
@@ -71,7 +71,7 @@ public class AuthController {
         return ApiResponse.success(result.data());
     }
 
-    /** 撤销分享链接（P0-#6：admin；幂等——撤销后旧链接立即 403/404） */
+    /** 撤销分享链接（admin；幂等——撤销后旧链接立即 403/404） */
     @Operation(summary = "撤销分享链接",
             description = "按 token 撤销（幂等；不存在 404），撤销后该分享立即失效")
     @PostMapping("/api/v1/share/{token}/revoke")

@@ -29,7 +29,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 解锁校验逻辑（P4-#48④ 从 AuthController 抽入 AuthService 后）：
+ * 解锁校验逻辑（从 AuthController 抽入 AuthService 后）：
  * 封禁 403 / nonce 失效 400 / 序列错 401 / 不完整 400 / 成功签发 + reset；分享生成。
  * konami-sequence 经 @Value 注入，单测用 ReflectionTestUtils 设置。
  */
@@ -137,7 +137,7 @@ class AuthServiceTest {
         verify(failedAttemptStore).reset("1.2.3.4");
     }
 
-    // ==================== 分享 token（P0-#6：DB token + 幂等复用） ====================
+    // ==================== 分享 token（DB token + 幂等复用） ====================
 
     @Test
     void generateShare_shouldPersistShareToken() {

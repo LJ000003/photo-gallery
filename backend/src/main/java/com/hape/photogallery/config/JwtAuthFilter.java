@@ -42,7 +42,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         this.shareTokenRepository = shareTokenRepository;
     }
 
-    /** 错误响应统一走 ApiResponse JSON（P4-#48③：此前 sendError 是纯 Servlet 错误体，与接口契约不一致） */
+    /** 错误响应统一走 ApiResponse JSON（此前 sendError 是纯 Servlet 错误体，与接口契约不一致） */
     private void writeError(HttpServletResponse response, int status, String message) throws IOException {
         response.setStatus(status);
         response.setContentType("application/json;charset=UTF-8");
@@ -112,7 +112,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                     }
                 }
             } else {
-                // P0-#6：JWT 校验失败 → DB share token（新分享链接；撤销/过期即失效）。
+                // JWT 校验失败 → DB share token（新分享链接；撤销/过期即失效）。
                 // 热路径代价：每张图一次 token 唯一索引查询——刻意不缓存以保持撤销即时生效。
                 ShareToken st = shareTokenRepository.findByToken(token).orElse(null);
                 if (st != null && st.getRevokedAt() == null && st.getExpiresAt() != null

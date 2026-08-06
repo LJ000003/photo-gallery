@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import java.time.LocalDateTime;
 
 /**
- * 相册响应 DTO（P4-#38：替代 JPA 实体序列化）。
+ * 相册响应 DTO（替代 JPA 实体序列化）。
  * - photoCount 由分组计数查询填充，不再触发 Album.getPhotoCount() 的整集合懒加载（N+1）；
  * - mediaToken 为封面图短时签名（HMAC 时间桶），序列化进响应但不落库，分享上下文剥离；
  * - deletedAt 可空，回收站列表需要（与前端 types/album.ts 字段对齐）。

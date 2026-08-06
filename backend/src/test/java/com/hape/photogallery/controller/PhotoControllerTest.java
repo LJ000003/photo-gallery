@@ -304,7 +304,7 @@ class PhotoControllerTest {
                 .andExpect(jsonPath("$.data.extracted").value(5));
     }
 
-    // ==================== thumbnail / webp（P0-#3：回退原图绕过封堵）====================
+    // ==================== thumbnail / webp（回退原图绕过封堵）====================
 
     @AfterEach
     void clearSecurityContext() {

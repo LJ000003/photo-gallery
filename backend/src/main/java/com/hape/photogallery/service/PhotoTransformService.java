@@ -19,7 +19,7 @@ import com.hape.photogallery.exception.BusinessException;
 import com.hape.photogallery.repository.PhotoRepository;
 
 /**
- * 照片变换（P4-#37 从 PhotoService 拆出；P4-#40 事务边界重构）：
+ * 照片变换（从 PhotoService 拆出； 事务边界重构）：
  *  - 备份原图 → 事务外执行变换（秒级图像处理不持数据库连接）→ 事务内保存（fileSize/EXIF/save 原子）；
  *  - 任何一步失败：恢复备份原图并重生成缩略图/webp，消除「DB 回滚但磁盘已被覆盖」的不一致；
  *  - 图片无法解码/编码（损坏文件、webp native 库不可用）→ 400 业务错误而非 500。
@@ -145,7 +145,7 @@ public class PhotoTransformService {
 
         String format = imageService.getFormat(filePath);
         if (!ImageIO.write(img, format, filePath.toFile())) {
-            // 无对应 ImageWriter（如 webp 原图 native 库加载失败）→ 明确失败，而非静默不改文件（P4-#48①）
+            // 无对应 ImageWriter（如 webp 原图 native 库加载失败）→ 明确失败，而非静默不改文件
             throw new IOException("No ImageWriter for format " + format);
         }
 

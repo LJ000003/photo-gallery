@@ -51,7 +51,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 照片写路径服务测试（P2-#15 从原 981 行拆出后保留的写路径用例）：
+ * 照片写路径服务测试（从原 981 行拆出后保留的写路径用例）：
  * 上传/批量上传/更新/删除/批量删除/批量编辑。查询与回收站用例已迁至
  * PhotoQueryServiceTest / TrashServiceTest，本类用例原样保留不删改断言。
  */
@@ -103,14 +103,14 @@ class PhotoServiceTest {
         }).when(storage).deleteFile(any());
 
         // upload/batchUpload/transform 走 transactionTemplate：桩执行真实回调，
-        // mock TransactionStatus 防止回调内 setRollbackOnly()/isRollbackOnly() 对 null NPE（P4-#46）
+        // mock TransactionStatus 防止回调内 setRollbackOnly()/isRollbackOnly() 对 null NPE
         when(transactionTemplate.execute(any())).thenAnswer(inv -> {
             @SuppressWarnings("unchecked")
             TransactionCallback<Object> cb = inv.getArgument(0);
             return cb.doInTransaction(mock(TransactionStatus.class));
         });
 
-        // 查询侧走真实 PhotoQueryService（P2-#15）：getById/toResponse 经跨 bean 代理语义；
+        // 查询侧走真实 PhotoQueryService：getById/toResponse 经跨 bean 代理语义；
         // FullTextProbe(dataSource=null) → 按「支持 FULLTEXT」处理（与拆出前默认 service 一致）
         MediaSignatureService mediaSignature = new MediaSignatureService(
                 "test-secret-0123456789abcdef0123456789abcdef", 300);
@@ -184,7 +184,7 @@ class PhotoServiceTest {
 
     @Test
     void upload_concurrentDuplicate_shouldReturnExistingPhotoAndCleanupFile() throws IOException {
-        // 并发同 hash 上传：check-then-insert 竞态撞唯一索引 → 删残留文件 + 重查返回 DuplicateException（P4-#42）
+        // 并发同 hash 上传：check-then-insert 竞态撞唯一索引 → 删残留文件 + 重查返回 DuplicateException
         // 第一次调用是事务内查重（返回空、正常进入插入），save 抛唯一索引冲突后外层重查返回已有照片
         MockMultipartFile file = new MockMultipartFile("file", "dup.jpg", "image/jpeg", JPEG_BYTES);
         when(photoRepo.save(any(Photo.class))).thenThrow(new DataIntegrityViolationException("dup key"));

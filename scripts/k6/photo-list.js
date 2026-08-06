@@ -16,10 +16,14 @@ export const options = {
   },
 }
 
-// 循环外执行一次 Konami Challenge-Response（认证端点限流 10 req/s/IP，不能每 VU 都解锁）
-const token = konamiUnlock(BASE)
+// setup 执行一次 Konami Challenge-Response（认证端点限流 10 req/s/IP，不能每 VU 都解锁；
+// 且 HTTP 不能在 init context 发起）
+export function setup() {
+  return { token: konamiUnlock(BASE) }
+}
 
-export default function () {
+export default function (data) {
+  const { token } = data
   const params = { headers: { Authorization: `Bearer ${token}` } }
   const res = http.get(`${BASE}/api/v1/photos?page=0&size=20&sort=createdAt,desc`, params)
   check(res, {

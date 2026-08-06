@@ -18,7 +18,7 @@ import com.hape.photogallery.repository.ExifDataRepository;
 import com.hape.photogallery.repository.PhotoRepository;
 
 /**
- * 回收站服务（P2-#15 从 PhotoService 拆出）：软删除照片的列表/恢复/彻底删除/30 天定时清理。
+ * 回收站服务（从 PhotoService 拆出）：软删除照片的列表/恢复/彻底删除/30 天定时清理。
  * @Scheduled 定时注解随方法迁移，清理频率与拆出前一致（每日 3:00 Asia/Shanghai，
  * 独立 Bean 保证跨类调用走 @Transactional 代理——与 BackupScheduler 同法）。
  */

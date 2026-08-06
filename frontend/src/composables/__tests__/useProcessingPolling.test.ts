@@ -36,7 +36,7 @@ function mkPolling() {
   return { photos, polling }
 }
 
-describe('useProcessingPolling — 处理轮询（P2-#17 从 photo store 抽出，行为与原实现一致）', () => {
+describe('useProcessingPolling — 处理轮询（从 photo store 抽出，行为与原实现一致）', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.useFakeTimers()

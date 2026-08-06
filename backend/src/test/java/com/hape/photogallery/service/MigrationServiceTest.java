@@ -18,7 +18,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/** 迁移服务（P4-#37 拆分自 PhotoService）：分页游标遍历，空库/空数据安全返回 0 */
+/** 迁移服务（拆分自 PhotoService）：分页游标遍历，空库/空数据安全返回 0 */
 @ExtendWith(MockitoExtension.class)
 class MigrationServiceTest {
 

@@ -20,7 +20,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 /**
- * P0-#3：缩略图/WebP 缺失时必须返回 null（不回退原图），
+ * 缩略图/WebP 缺失时必须返回 null（不回退原图），
  * 回退策略由调用方（PhotoController）按角色决定。
  */
 @ExtendWith(MockitoExtension.class)

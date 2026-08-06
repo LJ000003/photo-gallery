@@ -13,7 +13,7 @@ import org.testcontainers.utility.DockerImageName;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * P0-#5：Flyway 迁移在真实 MySQL 上的集成验证（H2 测试从不跑 Flyway，V1-V10 此前只在本地 MySQL 跑过）。
+ * Flyway 迁移在真实 MySQL 上的集成验证（H2 测试从不跑 Flyway，V1-V10 此前只在本地 MySQL 跑过）。
  * <p>
  * 价值点：V9 的 ngram FULLTEXT 与 ddl-auto=validate（实体 ↔ 迁移 schema 一致性）只有真实 MySQL 能验——
  * 一个 migration 写错则 CI 全绿、生产启动即挂，本测试把这条防线搬进 CI。
@@ -50,7 +50,7 @@ class FlywayMySqlMigrationTest {
         Integer count = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE()"
                         + " AND table_name = 'share_tokens'", Integer.class);
-        assertThat(count).isEqualTo(1); // V10（P0-#6）迁移落地
+        assertThat(count).isEqualTo(1); // V10迁移落地
     }
 
     @Test

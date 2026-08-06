@@ -25,7 +25,7 @@ const mkPhoto = () => ({
 
 /**
  * fetch 桩：GET（onMounted 的 loadAll 拉标签/分类/相册）返回空列表成功；
- * POST（行内新建）返回 400 失败——api() 对非 2xx 直接 throw ApiError（P4-#47 修复点）。
+ * POST（行内新建）返回 400 失败——api() 对非 2xx 直接 throw ApiError（修复点）。
  */
 function stubFetchFail(): void {
   vi.stubGlobal(
@@ -64,7 +64,7 @@ function findInBody<T extends Element>(sel: string): T {
   return el
 }
 
-describe('PhotoEditDrawer 行内新建失败提示（P4-#47）', () => {
+describe('PhotoEditDrawer 行内新建失败提示', () => {
   beforeEach(() => {
     vi.unstubAllGlobals()
     document.body.innerHTML = ''

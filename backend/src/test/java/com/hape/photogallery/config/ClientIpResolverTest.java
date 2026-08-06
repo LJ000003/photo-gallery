@@ -6,7 +6,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * IP 解析策略测试（P0-5）：只信任配置的受信头，头缺失/非法一律回退连接地址，
+ * IP 解析策略测试：只信任配置的受信头，头缺失/非法一律回退连接地址，
  * 可伪造的 X-Forwarded-For 永不信任。
  */
 class ClientIpResolverTest {

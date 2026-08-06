@@ -197,7 +197,7 @@ public class PhotoController {
         MediaType mediaType = MediaType.parseMediaType("image/webp");
         Path path = filePathResolver.getWebpPath(id);
         if (path == null || !Files.exists(path)) {
-            // P0-#3：webp 缺失——admin 回退原图（功能无损），viewer 一律 404
+            // webp 缺失——admin 回退原图（功能无损），viewer 一律 404
             // （此前 view-only 分享可借 /webp 端点回退下载原图，已封堵）
             if (!isAdmin()) {
                 throw new BusinessException(404, "图片不存在");
@@ -217,7 +217,7 @@ public class PhotoController {
     @GetMapping("/photos/{id}/thumbnail")
     public ResponseEntity<Resource> getThumbnail(@PathVariable Long id,
                                                  @RequestParam(defaultValue = "400") int w) {
-        // P0-#3：w 白名单——全仓仅生成 200/400 两档（PhotoProcessor/AsyncImageProcessor），
+        // w 白名单——全仓仅生成 200/400 两档（PhotoProcessor/AsyncImageProcessor），
         // 任意 w 此前可借回退路径探测磁盘（回退 400 → 原图）
         if (w != 200 && w != 400) {
             throw new BusinessException(400, "缩略图宽度仅支持 200/400");
@@ -229,7 +229,7 @@ public class PhotoController {
         MediaType mediaType = MediaType.IMAGE_JPEG;
         Path path = filePathResolver.getThumbnailPath(id, w);
         if (path == null || !Files.exists(path)) {
-            // P0-#3：缩略图缺失——admin 回退原图（功能无损），viewer 一律 404
+            // 缩略图缺失——admin 回退原图（功能无损），viewer 一律 404
             // （此前 view-only 分享可借缩略图缺失回退下载原图，已封堵）
             if (!isAdmin()) {
                 throw new BusinessException(404, "缩略图不存在");

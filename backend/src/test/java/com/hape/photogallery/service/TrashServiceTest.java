@@ -27,7 +27,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 回收站服务测试（P2-#15 从 PhotoServiceTest 拆出）：
+ * 回收站服务测试（从 PhotoServiceTest 拆出）：
  * 恢复/永久删除/30 天定时清理。用例自原 PhotoServiceTest 原样搬移，不删改断言。
  */
 @ExtendWith(MockitoExtension.class)

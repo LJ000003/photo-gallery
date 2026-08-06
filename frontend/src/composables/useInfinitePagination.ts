@@ -9,7 +9,7 @@ export interface PagePayload<T> {
 }
 
 /**
- * 无限滚动分页骨架（P2-#17 从 photo store 抽出）：page/hasMore/loading/totalCount
+ * 无限滚动分页骨架（从 photo store 抽出）：page/hasMore/loading/totalCount
  * 状态 + requestId 竞态防护（丢弃过期响应，防止旧响应覆盖新筛选结果）。
  * fetchPage 由调用方提供（URL 构造是业务领域知识，不进通用骨架）；
  * 失败返回 false 供调用方终止循环（防死循环重试），hasMore 不翻转（失败≠到底）。

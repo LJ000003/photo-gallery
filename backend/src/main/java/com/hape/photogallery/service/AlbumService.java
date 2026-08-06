@@ -37,7 +37,7 @@ public class AlbumService {
 
     @Cacheable("albums")
     public List<AlbumResponse> listAll() {
-        // P4-#38：photoCount 用一次分组查询填充，不触发 getPhotoCount() 的整集合懒加载
+        // photoCount 用一次分组查询填充，不触发 getPhotoCount() 的整集合懒加载
         Map<Long, Integer> counts = photoRepo.countByAlbum().stream()
                 .collect(java.util.stream.Collectors.toMap(
                         row -> (Long) row[0], row -> ((Number) row[1]).intValue()));
@@ -65,7 +65,7 @@ public class AlbumService {
                 albumRepo.save(a);
             }
         }
-        // photoCount 用实际加载数（findAllById 过滤不存在/已删 id），与现状 getPhotoCount() 一致（P4-#38）
+        // photoCount 用实际加载数（findAllById 过滤不存在/已删 id），与现状 getPhotoCount() 一致
         return AlbumResponse.from(a, a.getPhotos().size());
     }
 
@@ -119,7 +119,7 @@ public class AlbumService {
         albumRepo.save(a);
     }
 
-    /** 回收站相册（P4-#38 已 DTO 化；分组计数不含已删相册，photoCount 一律 0——回收站 UI 不显示计数） */
+    /** 回收站相册（已 DTO 化；分组计数不含已删相册，photoCount 一律 0——回收站 UI 不显示计数） */
     public List<AlbumResponse> listDeleted() {
         return albumRepo.findDeleted().stream()
                 .map(a -> AlbumResponse.from(a, 0))

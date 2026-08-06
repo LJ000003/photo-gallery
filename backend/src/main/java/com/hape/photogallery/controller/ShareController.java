@@ -46,7 +46,7 @@ public class ShareController {
             throw new BusinessException(404, "分享链接无效或已过期");
         }
 
-        // P4-#48③：page/size 钳制——size=-1 曾直接 500（PageRequest 校验抛 IllegalArgumentException）
+        // page/size 钳制——size=-1 曾直接 500（PageRequest 校验抛 IllegalArgumentException）
         int clampedPage = Math.max(0, page);
         int clampedSize = Math.max(1, Math.min(100, size));
         Page<PhotoResponse> result = photoQueryService.findByIds(photoIds, PageRequest.of(clampedPage, clampedSize))
