@@ -104,6 +104,9 @@ services:
       # 管理密码来自 .env（模板见 .env.example），显式关闭匿名登录
       GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD}
       GF_AUTH_ANONYMOUS_ENABLED: "false"
+      # 2C4G 下全量模式首启过重（4 个重型内置 app 注册 apiserver + 后台安装器去 grafana.com 查插件，
+      # 服务器连不上 grafana.com 时每个都等超时，实测首启 10+ 分钟），lightweight 模式禁用它们
+      GF_DEFAULT_APP_MODE: lightweight
     volumes:
       # datasource/dashboard/alert 由 provisioning 文件驱动（与 compose 同目录，只读挂载）
       - ./prometheus/grafana-provisioning:/etc/grafana/provisioning:ro
@@ -113,10 +116,11 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+      start_period: 300s  # 2C4G 首启慢，5 分钟内不判失败，避免误报 unhealthy
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 512M     # Grafana 13 内存需求高，256M 过紧会拖慢启动
     networks:
       - app-net
 
@@ -166,6 +170,23 @@ services:
       - photo_logs:/root/logs/photo-manager
     networks:
       - app-net
+
+  # cloudflared 隧道：当前服务器（阿里云）连不上 Cloudflare 边缘（实测 login/api 端点均超时），
+  # 启动即 crash 循环，故注释停用。换网络环境可达的服务器时解开注释即可复用
+  # （凭证仍走 /etc/cloudflared/config.yml + /root/.cloudflared，host 网络直达 localhost:8080/3000）。
+  # cloudflared:
+  #   image: cloudflare/cloudflared:2026.6.1
+  #   container_name: cloudflared
+  #   restart: always
+  #   # 镜像默认非 root，读不了 root 700 的凭证目录，故以 root 运行（与 systemd 时代一致）
+  #   user: "0:0"
+  #   # 必须 host 网络：config.yml ingress 指向宿主机 localhost:8080/3000
+  #   network_mode: host
+  #   volumes:
+  #     # 复用服务器上已有的配置与凭证（systemd 时代遗留，只读挂载）
+  #     - /etc/cloudflared/config.yml:/etc/cloudflared/config.yml:ro
+  #     - /root/.cloudflared:/root/.cloudflared:ro
+  #   command: tunnel --config /etc/cloudflared/config.yml run
 
 volumes:
   mysql_data:

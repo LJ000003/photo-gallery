@@ -77,7 +77,7 @@
 - 移动端响应式（底部导航、中央上传按钮、工具栏居中、hover 降级、地图适配）
 - 安全响应头：CSP（frame-ancestors 'none'）/ HSTS / nosniff / frame-deny
 - SpringDoc `/swagger-ui.html` 交互式 API 文档（开发环境启用，prod 关闭）
-- 客户端 IP 解析：仅信任受信头（prod 默认 `Cf-Connecting-Ip`，适配 cloudflared 隧道；XFF 永不信任）
+- 客户端 IP 解析：仅信任受信头（prod 默认 `X-Real-IP`，适配 nginx 反代；XFF 永不信任）
 
 ## 二、技术栈
 
@@ -192,7 +192,7 @@ photo-gallery/
 │   │   │   ├── SecurityConfig.java             # SecurityFilterChain + CORS 白名单 + CSP
 │   │   │   ├── JwtService.java                 # HS256 JWT 签发（admin）与验签（≥32 字节校验）
 │   │   │   ├── MediaSignatureService.java      # 图片短时签名（HMAC 时间桶，JWT 不进 URL）
-│   │   │   ├── ClientIpResolver.java           # 受信头 IP 解析（Cf-Connecting-Ip，XFF 永不信任）
+│   │   │   ├── ClientIpResolver.java           # 受信头 IP 解析（X-Real-IP，XFF 永不信任）
 │   │   │   ├── ProdSecurityValidator.java      # prod 启动强校验（Redis/Rabbit 密码非空）
 │   │   │   ├── JwtAuthFilter.java              # OncePerRequestFilter + 图片签名优先 / JWT 白名单回落
 │   │   │   ├── RateLimitFilter.java            # 认证端点限流（Caffeine，10 req/s/IP）
@@ -471,7 +471,7 @@ nginx -t && systemctl reload nginx
 certbot --nginx -d 你的域名   # 免费 SSL
 ```
 
-> 客户端 IP 解析（限流/封禁）默认信任 `Cf-Connecting-Ip`（cloudflared 隧道）。改走 Nginx 后需在 `application-prod.yml` 中将 `security.trusted-proxy-header` 改为 `X-Real-IP`，否则取不到真实客户端 IP。
+> 客户端 IP 解析（限流/封禁）信任 `X-Real-IP`（nginx 反代覆写）。改走 cloudflared 隧道时需在 `application-prod.yml` 中将 `security.trusted-proxy-header` 改回 `Cf-Connecting-Ip`，否则取不到真实客户端 IP。
 
 ## 七、PWA 安装
 

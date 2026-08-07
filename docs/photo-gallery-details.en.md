@@ -77,7 +77,7 @@
 - Mobile responsive (bottom nav, centered upload button, hover degradation, map adaptation)
 - Security headers: CSP (frame-ancestors 'none') / HSTS / nosniff / frame-deny
 - SpringDoc `/swagger-ui.html` interactive API docs (dev only, disabled in prod)
-- Client IP resolution trusts only a trusted header (prod default `Cf-Connecting-Ip`, for cloudflared tunnels; X-Forwarded-For never trusted)
+- Client IP resolution trusts only a trusted header (prod default `X-Real-IP`, for nginx reverse proxy; X-Forwarded-For never trusted)
 
 ## 2. Tech Stack
 
@@ -192,7 +192,7 @@ photo-gallery/
 │   │   │   ├── SecurityConfig.java             # SecurityFilterChain + CORS whitelist + CSP
 │   │   │   ├── JwtService.java                 # HS256 JWT issuance (admin) & validation (≥32-byte key check)
 │   │   │   ├── MediaSignatureService.java      # Short-lived image signatures (HMAC time buckets, JWT never in URL)
-│   │   │   ├── ClientIpResolver.java           # Trusted-header IP resolution (Cf-Connecting-Ip; XFF never trusted)
+│   │   │   ├── ClientIpResolver.java           # Trusted-header IP resolution (X-Real-IP; XFF never trusted)
 │   │   │   ├── ProdSecurityValidator.java      # prod startup hard check (Redis/Rabbit passwords non-blank)
 │   │   │   ├── JwtAuthFilter.java              # OncePerRequestFilter + image signature first / JWT whitelist fallback
 │   │   │   ├── RateLimitFilter.java            # Auth-endpoint rate limit (Caffeine, 10 req/s/IP)
@@ -470,7 +470,7 @@ nginx -t && systemctl reload nginx
 certbot --nginx -d your-domain   # Free SSL
 ```
 
-> Client IP resolution (rate limit/ban) trusts `Cf-Connecting-Ip` by default (cloudflared tunnels). If you switch to Nginx, change `security.trusted-proxy-header` to `X-Real-IP` in `application-prod.yml`, otherwise the real client IP won't be seen.
+> Client IP resolution (rate limit/ban) trusts `X-Real-IP` (overwritten by the nginx reverse proxy). If you switch to a cloudflared tunnel, change `security.trusted-proxy-header` back to `Cf-Connecting-Ip` in `application-prod.yml`, otherwise the real client IP won't be seen.
 
 ## 7. PWA Installation
 
