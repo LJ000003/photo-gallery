@@ -30,6 +30,15 @@ export interface Photo {
   errorMessage?: string
   /** 图片 URL 短时签名（HMAC 时间桶），后端仅管理员上下文签发 */
   mediaToken?: string
+  /** 客户端媒体版本号（transform 成功后递增）：拼进图片 URL 绕过 7 天 HTTP 缓存 */
+  version?: number
+}
+
+/** 批量状态端点（/api/photos/status）返回项：只含状态字段，轮询时合并进 Photo */
+export interface PhotoProcessingStatus {
+  id: number
+  processingStatus?: string
+  errorMessage?: string
 }
 
 export interface PhotoPatch {

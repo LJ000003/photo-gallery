@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "exif_data")
 @JsonIgnoreProperties(ignoreUnknown = true)
-@org.hibernate.annotations.BatchSize(size = 20) // P4-#44：mappedBy 单边 OneToOne 只能二次 select，类级 BatchSize 批量
+@org.hibernate.annotations.BatchSize(size = 20) // mappedBy 单边 OneToOne 只能二次 select，类级 BatchSize 批量
 public class ExifData {
 
     @Id

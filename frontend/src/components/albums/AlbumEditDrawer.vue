@@ -37,7 +37,11 @@ const searchQuery = ref('')
 const page = ref(0)
 const hasMore = ref(true)
 const loadingPicker = ref(false)
+/** 预选失败标志：photoIds 整体替换语义下，未加载到旧关联就保存会把相册清空 */
+const preselectFailed = ref(false)
 let searchTimer: number | undefined
+/** 搜索/翻页请求序号：丢弃过期响应（旧 query 晚返回会覆盖新结果） */
+let pickerRequestId = 0
 
 const PICKER_PAGE_SIZE = 50
 
@@ -49,6 +53,7 @@ async function loadPickerPage(reset = false): Promise<void> {
     photos.value = []
   }
   loadingPicker.value = true
+  const myId = ++pickerRequestId
   try {
     const params = new URLSearchParams({ size: String(PICKER_PAGE_SIZE), page: String(page.value) })
     const q = searchQuery.value.trim()
@@ -56,6 +61,7 @@ async function loadPickerPage(reset = false): Promise<void> {
     const res = await api(`/api/photos?${params}`)
     if (!res.ok) throw new Error(String(res.status))
     const data: ApiResponse<PageResponse<Photo>> = await res.json()
+    if (myId !== pickerRequestId) return // 过期响应（新的搜索/重置已发出）
     photos.value = reset
       ? data.data?.content || []
       : [...photos.value, ...(data.data?.content || [])]
@@ -64,7 +70,7 @@ async function loadPickerPage(reset = false): Promise<void> {
   } catch (e) {
     logError(e, '加载照片选择器失败')
   } finally {
-    loadingPicker.value = false
+    if (myId === pickerRequestId) loadingPicker.value = false
   }
 }
 
@@ -89,7 +95,9 @@ onMounted(async () => {
         selectedPhotoIds.value = new Set(data.data || [])
       }
     } catch {
-      /* 预选失败不阻塞浏览（相册可能为空或已删除） */
+      // 预选失败必须拦截保存：photoIds 是整体替换语义，空集合保存会清空相册
+      preselectFailed.value = true
+      toast.error(t('albums.preselectFailed'))
     }
   }
   void loadPickerPage()
@@ -106,6 +114,11 @@ async function onSubmit(): Promise<void> {
   if (!name.value.trim()) {
     // 旧实现弹字段 label「相册名称」而非错误文案
     toast.error(t('albums.nameRequired'))
+    return
+  }
+  if (props.album.id && preselectFailed.value) {
+    // 预选未成功：保存会以空集合整体替换 → 清空相册
+    toast.error(t('albums.preselectFailed'))
     return
   }
   if (submitting.value) return

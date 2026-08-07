@@ -3,8 +3,6 @@ package com.hape.photogallery.service;
 import java.awt.image.BufferedImage;
 import java.nio.file.Path;
 
-import javax.imageio.ImageIO;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cache.CacheManager;
@@ -82,9 +80,12 @@ public class PhotoProcessor {
                 log.warn("  EXIF 提取失败 photo={}: {}", photoId, e.getMessage());
             }
 
-            // 2. 解码原图
-            BufferedImage img = ImageIO.read(target.toFile());
+            // 2. 解码原图（降采样上限 4096px——448m 堆下全尺寸解码超大图会 OOM）
+            BufferedImage img = imageService.decodeCapped(target);
             if (img == null) {
+                // 确定性终态例外（不走「状态上移」）：文件损坏重试/重扫必然同样失败，
+                // 直接落 FAILED 避免进 rabbit 重试循环；与 catch 路径指标语义对齐
+                processingFailureCounter.increment();
                 log.warn("  无法解码图片 photo={}", photoId);
                 photo.setProcessingStatus(ProcessingStatus.FAILED);
                 photo.setErrorMessage("无法解码图片文件");
@@ -96,17 +97,22 @@ public class PhotoProcessor {
             log.debug("  [2/5] 自动旋转 photo={}", photoId);
             BufferedImage processed = imageService.autoRotateIfNeeded(img, target);
 
-            // 4. 水印
+            // 4-5. 水印 + 写回原图（V12 幂等：original_processed=true 则跳过——重试/重扫
+            // 若重走全链会二次解码「已带水印的原图」再画一层，水印逐层加深。写回成功立即
+            // 落中间态 save：此后崩溃/失败，重试直接跳过本段，防水印叠加与二次有损重编码）
+            boolean alreadyProcessed = photo.isOriginalProcessed();
             boolean hasWatermark = watermark != null && !watermark.isBlank();
-            if (hasWatermark) {
-                log.debug("  [3/5] 水印 photo={}", photoId);
-                imageService.applyWatermark(processed, watermark);
-            }
-
-            // 5. 写回原图（如果被修改）
-            if (processed != img || hasWatermark) {
-                log.debug("  写回原图 photo={}", photoId);
-                imageService.writeOriginalJpeg(processed, target);
+            if (!alreadyProcessed) {
+                if (hasWatermark) {
+                    log.debug("  [3/5] 水印 photo={}", photoId);
+                    imageService.applyWatermark(processed, watermark);
+                }
+                if (processed != img || hasWatermark) {
+                    log.debug("  写回原图 photo={}", photoId);
+                    imageService.writeOriginalJpeg(processed, target);
+                    photo.setOriginalProcessed(true);
+                    photoRepo.save(photo);
+                }
             }
 
             // 6. 缩略图
@@ -126,18 +132,15 @@ public class PhotoProcessor {
         } catch (Throwable e) {
             processingFailureCounter.increment();
             log.error("处理失败 photo={}: {}", photoId, e.getMessage(), e);
-            try {
-                String msg = e.getMessage() != null ? e.getMessage() : "未知错误";
-                if (msg.length() > 500) msg = msg.substring(0, 497) + "...";
-                photo.setProcessingStatus(ProcessingStatus.FAILED);
-                photo.setErrorMessage(msg);
-                photoRepo.save(photo);
-            } catch (Throwable inner) {
-                log.error("无法保存失败状态 photo={}", photoId, inner);
-            }
-            // 失败路径已置 FAILED 并落库，手动失效列表缓存（@CacheEvict 后置在异常时不生效）
+            // 状态写入上移到调用方（P2 修复）：rabbit 模式由 consumer 在重试耗尽后落 FAILED
+            // （重试期间不落 FAILED，避免「FAILED → 重试成功翻回 DONE」的状态翻转 + 前端
+            // 误显重试按钮）；dev 模式由 AsyncImageProcessor 落 FAILED 终态。
+            // 这里只做缓存失效（@CacheEvict 后置在异常时不生效，缓存最长 30s 显示 PROCESSING）
             evictListCaches();
-            throw new RuntimeException("Photo processing failed for photo=" + photoId, e);
+            // wrapper 带根因 message：dev/rabbit 两个调用方都取 getMessage() 落 errorMessage，
+            // 不带根因前端只看到固定文案（回归教训，勿再省略）
+            throw new RuntimeException("Photo processing failed for photo=" + photoId
+                    + ": " + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()), e);
         }
     }
 }

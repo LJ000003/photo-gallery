@@ -1,7 +1,7 @@
 package com.hape.photogallery.controller;
 
 import com.hape.photogallery.service.AlbumService;
-import com.hape.photogallery.service.PhotoService;
+import com.hape.photogallery.service.PhotoQueryService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
@@ -30,7 +30,7 @@ class AlbumControllerTest {
     private AlbumService albumService;
 
     @MockBean
-    private PhotoService photoService;
+    private PhotoQueryService photoQueryService;
 
     @Test
     void listAlbumPhotoIds_shouldReturnIdsOnly() throws Exception {
@@ -42,5 +42,29 @@ class AlbumControllerTest {
                 .andExpect(jsonPath("$.data.length()").value(3))
                 .andExpect(jsonPath("$.data[0]").value(3))
                 .andExpect(jsonPath("$.data[2]").value(11));
+    }
+
+    /** 相册详情端点（补缺：此前 GET /albums/{id} 405 → 兜底 500） */
+    @Test
+    void getAlbum_shouldReturnDetailWithMediaToken() throws Exception {
+        com.hape.photogallery.dto.AlbumResponse album = new com.hape.photogallery.dto.AlbumResponse();
+        album.setId(1L);
+        album.setCoverPhotoId(5L);
+        when(albumService.getAlbum(1L)).thenReturn(album);
+
+        mockMvc.perform(get("/api/v1/albums/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.coverPhotoId").value(5))
+                .andExpect(jsonPath("$.data.mediaToken").isNotEmpty());
+    }
+
+    @Test
+    void getAlbum_notFound_should404() throws Exception {
+        when(albumService.getAlbum(99L))
+                .thenThrow(new com.hape.photogallery.exception.BusinessException(404, "相册不存在"));
+
+        mockMvc.perform(get("/api/v1/albums/99"))
+                .andExpect(status().isNotFound());
     }
 }

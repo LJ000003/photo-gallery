@@ -7,7 +7,8 @@ import com.hape.photogallery.entity.Photo;
 import com.hape.photogallery.exception.BusinessException;
 import com.hape.photogallery.repository.ShareTokenRepository;
 import com.hape.photogallery.service.AlbumService;
-import com.hape.photogallery.service.PhotoService;
+import com.hape.photogallery.service.PhotoQueryService;
+import com.hape.photogallery.service.TrashService;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,7 +27,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
- * 回收站端点切片测试（P1-#14：回收站恢复边界）。
+ * 回收站端点切片测试（回收站恢复边界）。
  * 基建照抄 PhotoControllerTest：@WebMvcTest 会注册 @Component 过滤器
  * （JwtAuthFilter/RateLimitFilter），其依赖 JwtService/MediaSignatureService/ShareTokenRepository
  * 必须显式提供。
@@ -42,14 +43,15 @@ class TrashControllerTest {
     @MockBean private ShareTokenRepository shareTokenRepository;
 
     @Autowired private MockMvc mockMvc;
-    @MockBean private PhotoService photoService;
+    @MockBean private TrashService trashService;
+    @MockBean private PhotoQueryService photoQueryService;
     @MockBean private AlbumService albumService;
 
     // ==================== 回收站照片列表 ====================
 
     @Test
     void listPhotos_shouldReturnPage() throws Exception {
-        when(photoService.listDeleted(any())).thenReturn(new PageImpl<>(List.of()));
+        when(trashService.listDeletedResponses(any())).thenReturn(new PageImpl<>(List.of()));
 
         mockMvc.perform(get("/api/v1/trash/photos"))
                 .andExpect(status().isOk())
@@ -59,12 +61,12 @@ class TrashControllerTest {
 
     @Test
     void listPhotos_shouldPassPageable() throws Exception {
-        when(photoService.listDeleted(any())).thenReturn(new PageImpl<>(List.of()));
+        when(trashService.listDeletedResponses(any())).thenReturn(new PageImpl<>(List.of()));
 
         mockMvc.perform(get("/api/v1/trash/photos?page=1&size=5"))
                 .andExpect(status().isOk());
 
-        verify(photoService).listDeleted(PageRequest.of(1, 5));
+        verify(trashService).listDeletedResponses(PageRequest.of(1, 5));
     }
 
     @Test
@@ -72,8 +74,7 @@ class TrashControllerTest {
         Photo p = new Photo();
         p.setId(1L);
         p.setName("已删");
-        when(photoService.listDeleted(any())).thenReturn(new PageImpl<>(List.of(p)));
-        when(photoService.toResponse(any())).thenReturn(PhotoResponse.from(p));
+        when(trashService.listDeletedResponses(any())).thenReturn(new PageImpl<>(List.of(PhotoResponse.from(p))));
 
         mockMvc.perform(get("/api/v1/trash/photos"))
                 .andExpect(status().isOk())
@@ -91,7 +92,7 @@ class TrashControllerTest {
         mockMvc.perform(get("/api/v1/trash/albums"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].name").value("已删相册"))
-                // P4-#38：回收站 UI 不显示计数，photoCount 恒 0
+                // 回收站 UI 不显示计数，photoCount 恒 0
                 .andExpect(jsonPath("$.data[0].photoCount").value(0));
     }
 
@@ -103,12 +104,12 @@ class TrashControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").value("恢复成功"));
 
-        verify(photoService).restore(1L);
+        verify(trashService).restore(1L);
     }
 
     @Test
     void restorePhoto_notFound_should404() throws Exception {
-        doThrow(new BusinessException(404, "未找到可恢复的照片")).when(photoService).restore(99L);
+        doThrow(new BusinessException(404, "未找到可恢复的照片")).when(trashService).restore(99L);
 
         mockMvc.perform(post("/api/v1/trash/photos/99/restore"))
                 .andExpect(status().isNotFound())
@@ -123,12 +124,12 @@ class TrashControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").value("已彻底删除"));
 
-        verify(photoService).permanentlyDelete(1L);
+        verify(trashService).permanentlyDelete(1L);
     }
 
     @Test
     void permanentlyDeletePhoto_notFound_should404() throws Exception {
-        doThrow(new BusinessException(404, "未找到该照片")).when(photoService).permanentlyDelete(99L);
+        doThrow(new BusinessException(404, "未找到该照片")).when(trashService).permanentlyDelete(99L);
 
         mockMvc.perform(delete("/api/v1/trash/photos/99"))
                 .andExpect(status().isNotFound())

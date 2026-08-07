@@ -1,0 +1,13 @@
+# 面板 provider 注册——加载同目录下的 JSON 面板文件。
+apiVersion: 1
+
+providers:
+  - name: photo-gallery
+    orgId: 1
+    folder: Photo Gallery
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 60
+    allowUiUpdates: false
+    options:
+      path: /etc/grafana/provisioning/dashboards

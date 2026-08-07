@@ -12,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 写路径穿越防线测试（P0-1）：store() 必须拒绝逃逸上传目录的目标路径，
+ * 写路径穿越防线测试：store() 必须拒绝逃逸上传目录的目标路径，
  * 与读路径 resolveSafe 的约束对称。
  */
 class LocalStorageServiceTest {

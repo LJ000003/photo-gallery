@@ -7,13 +7,13 @@ import GridSkeleton from './GridSkeleton.vue'
 import SelectionBar from './SelectionBar.vue'
 import EmptyState from '../common/EmptyState.vue'
 import ImageEditor from '../editor/ImageEditor.vue'
-import { Modal } from 'ant-design-vue'
+import { Button, Modal } from 'ant-design-vue'
 
 import { usePhotoStore } from '../../stores/photo'
 import { useUiStore } from '../../stores/ui'
 import { usePhotoActions } from '../../composables/usePhotoActions'
 import { webpUrl } from '../../utils/webp'
-import { appendMediaParams } from '../../utils/token'
+import { appendMediaParams, mediaUrlWithVersion } from '../../utils/token'
 import { api } from '../../api'
 import { useToastStore } from '../../stores/toast'
 import type { Photo } from '../../types/photo'
@@ -159,7 +159,12 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 /* ---------- 图片编辑器（裁剪/旋转，POST transform） ---------- */
 const editorPhoto = ref<Photo | null>(null)
 const editorSrc = computed(() =>
-  editorPhoto.value ? appendMediaParams(webpUrl(editorPhoto.value.id), editorPhoto.value) : '',
+  editorPhoto.value
+    ? mediaUrlWithVersion(
+        appendMediaParams(webpUrl(editorPhoto.value.id), editorPhoto.value),
+        editorPhoto.value,
+      )
+    : '',
 )
 
 function openImageEditor(p: Photo): void {
@@ -177,6 +182,8 @@ async function onImageEditDone({ params }: { params: TransformParams; blob: Blob
     })
     if (res.ok) {
       toast.success(t('edit.saved'))
+      // 媒体 URL 带 7 天缓存——先 bump 版本号再重载，避免旧图缓存不消失
+      photo.bumpMediaVersion(p.id)
       photo.resetAndReload()
     } else {
       toast.error(t('common.unknownError'))
@@ -194,6 +201,8 @@ const hasFilters = computed(
 
 const showSkeleton = computed(() => photo.loading && photo.photos.length === 0)
 const showEmpty = computed(() => !photo.loading && !photo.hasMore && photo.photos.length === 0)
+/** 加载失败：不渲染空网格（旧实现整页静默空白，无错误提示） */
+const showError = computed(() => photo.loadError && photo.photos.length === 0)
 </script>
 
 <template>
@@ -218,6 +227,19 @@ const showEmpty = computed(() => !photo.loading && !photo.hasMore && photo.photo
 
     <!-- 首屏骨架 -->
     <GridSkeleton v-if="showSkeleton" :count="12" />
+
+    <!-- 加载失败（区别于空态：可重试） -->
+    <EmptyState
+      v-else-if="showError"
+      :title="t('gallery.loadFailedTitle')"
+      :hint="t('gallery.loadFailedHint')"
+    >
+      <template #action>
+        <Button type="primary" class="retry-btn" @click="photo.resetAndReload()">
+          {{ t('actions.retry') }}
+        </Button>
+      </template>
+    </EmptyState>
 
     <!-- 空态 -->
     <EmptyState
@@ -262,6 +284,10 @@ const showEmpty = computed(() => !photo.loading && !photo.hasMore && photo.photo
   color: var(--c-text-dim);
   margin-bottom: 12px;
   padding-left: 2px;
+}
+.retry-btn {
+  margin-top: 12px;
+  border-radius: 999px;
 }
 
 @media (max-width: 768px) {

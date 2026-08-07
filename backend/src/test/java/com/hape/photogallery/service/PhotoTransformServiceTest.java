@@ -24,7 +24,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.*;
 
-/** 照片变换（P4-#37 拆分自 PhotoService；P4-#40 事务边界 + 补偿） */
+/** 照片变换（拆分自 PhotoService； 事务边界 + 补偿） */
 @ExtendWith(MockitoExtension.class)
 @org.mockito.junit.jupiter.MockitoSettings(strictness = org.mockito.quality.Strictness.LENIENT)
 class PhotoTransformServiceTest {
@@ -55,7 +55,7 @@ class PhotoTransformServiceTest {
 
     @Test
     void transform_saveFailure_shouldRestoreOriginalFileAndCleanupBackup() throws IOException {
-        // P4-#40：变换成功写回 → 事务内 save 失败 → 补偿恢复原图（磁盘与 DB 一致），备份文件清理
+        // 变换成功写回 → 事务内 save 失败 → 补偿恢复原图（磁盘与 DB 一致），备份文件清理
         Path filePath = tempDir.resolve("2026/07/t.jpg");
         Files.createDirectories(filePath.getParent());
         java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(8, 8,
@@ -70,6 +70,7 @@ class PhotoTransformServiceTest {
         Photo p = new Photo(); p.setId(1L); p.setName("t");
         p.setFileName("2026/07/t.jpg");
         when(photoRepo.findById(1L)).thenReturn(Optional.of(p));
+        when(imageService.decodeCapped(any())).thenReturn(img);
         when(imageService.rotateImage(any(), anyInt())).thenAnswer(inv -> inv.getArgument(0));
         when(imageService.getFormat(any())).thenReturn("JPEG");
         when(photoRepo.save(any())).thenThrow(new RuntimeException("db down"));
@@ -119,11 +120,34 @@ class PhotoTransformServiceTest {
         Photo p = new Photo(); p.setId(1L); p.setName("ok");
         p.setFileName("2026/07/ok.jpg");
         when(photoRepo.findById(1L)).thenReturn(Optional.of(p));
+        when(imageService.decodeCapped(any())).thenReturn(img);
         when(imageService.getFormat(any())).thenReturn("JPEG");
 
         service.transformPhoto(1L, 0, "none", null, null, null, null);
 
         // 事务内 save 被调用且 fileSize 已更新为变换后大小
         verify(photoRepo).save(argThat(saved -> saved.getFileSize() != null));
+    }
+
+    @Test
+    void transform_success_shouldResetOriginalProcessed() throws IOException {
+        // 变换重写原图（可能裁掉/翻转水印）→ original_processed 必须复位，
+        // 否则下次 retry 会跳过水印导致「水印被裁掉后永不再补」（V12 幂等标记联动）
+        Path filePath = tempDir.resolve("2026/07/wm.jpg");
+        Files.createDirectories(filePath.getParent());
+        java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(4, 4,
+                java.awt.image.BufferedImage.TYPE_INT_RGB);
+        javax.imageio.ImageIO.write(img, "jpeg", filePath.toFile());
+
+        Photo p = new Photo(); p.setId(1L); p.setName("wm");
+        p.setFileName("2026/07/wm.jpg");
+        p.setOriginalProcessed(true);
+        when(photoRepo.findById(1L)).thenReturn(Optional.of(p));
+        when(imageService.decodeCapped(any())).thenReturn(img);
+        when(imageService.getFormat(any())).thenReturn("JPEG");
+
+        service.transformPhoto(1L, 0, "none", null, null, null, null);
+
+        verify(photoRepo).save(argThat(saved -> !saved.isOriginalProcessed()));
     }
 }

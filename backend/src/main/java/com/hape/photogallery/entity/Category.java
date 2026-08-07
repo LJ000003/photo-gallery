@@ -7,7 +7,7 @@ import java.util.List;
 
 @Entity
 @Table(name = "categories")
-@org.hibernate.annotations.BatchSize(size = 20) // P4-#44：批量初始化 Photo.category 懒加载代理（替代 EAGER 的逐张查询）
+@org.hibernate.annotations.BatchSize(size = 20) // 批量初始化 Photo.category 懒加载代理（替代 EAGER 的逐张查询）
 public class Category {
 
     @Id

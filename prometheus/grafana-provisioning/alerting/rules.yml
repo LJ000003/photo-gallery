@@ -1,0 +1,99 @@
+# Grafana provisioning 告警规则（单轨——不做 Prometheus rule_files，
+# 无 Alertmanager 时 rule_files 告警发不出去；Grafana 侧告警评估后接通知渠道即可）。
+# 告警查询只用已核实的指标名：photo.upload.* 只有成功侧计数、photo.processing.failures
+# 是处理失败而非上传失败——5xx 率用 http_server_requests_seconds_count 兜底。
+# datasourceUid 与 datasource.yml 的 uid（prometheus-main）一致；folder 由 provisioner 自动创建。
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: photo-gallery-alerts
+    folder: Photo Gallery Alerts
+    interval: 1m
+    rules:
+      - uid: pg-app-down
+        title: Photo Gallery App Down
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus-main
+            model:
+              expr: up{job="photo-gallery"} == 0
+              instant: true
+              refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+          - refId: B
+            datasourceUid: prometheus-main
+            model:
+              expr: vector(1)
+              instant: true
+              refId: B
+            relativeTimeRange:
+              from: 300
+              to: 0
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+                  operator:
+                    type: and
+                  query:
+                    params: [B]
+              refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
+        noDataState: NoData
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Photo Gallery 无法抓取（up==0 持续 5 分钟）
+          description: Prometheus 抓取 /actuator/prometheus 失败，应用可能已宕机
+
+      - uid: pg-http-5xx
+        title: Photo Gallery 5xx Rate High
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus-main
+            model:
+              expr: sum(rate(http_server_requests_seconds_count{status=~"5.."}[5m]))
+              instant: true
+              refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [1]
+                  operator:
+                    type: and
+                  query:
+                    params: []
+              refId: B
+            relativeTimeRange:
+              from: 300
+              to: 0
+        noDataState: NoData
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 5xx 请求速率超过 1 req/s（持续 5 分钟）
+          description: 后端可能发生系统性错误，检查 /actuator/health 与应用日志

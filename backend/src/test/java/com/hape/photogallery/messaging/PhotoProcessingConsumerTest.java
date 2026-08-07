@@ -34,7 +34,7 @@ import com.rabbitmq.client.Channel;
 
 /**
  * 消息消费者 ack / TTL 重试队列 / DLQ 语义测试（直接 new，绕开 @ConditionalOnProperty 的上下文加载）。
- * P0-#1 后语义：失败时显式重投到 TTL 重试队列（rabbitTemplate.send 原样转发，header 递增 x-retry-count）+ ack；
+ *  后语义：失败时显式重投到 TTL 重试队列（rabbitTemplate.send 原样转发，header 递增 x-retry-count）+ ack；
  * 达上限标 FAILED + nack 进 DLQ。计数用自定义 header（随显式重投持久化，与 broker 版本无关）。
  */
 @ExtendWith(MockitoExtension.class)

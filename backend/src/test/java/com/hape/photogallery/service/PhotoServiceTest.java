@@ -1,13 +1,11 @@
 package com.hape.photogallery.service;
 
+import com.hape.photogallery.config.MediaSignatureService;
 import com.hape.photogallery.dto.BatchPhotoUpdateRequest;
-import com.hape.photogallery.dto.MapItem;
 import com.hape.photogallery.dto.PhotoResponse;
 import com.hape.photogallery.dto.PhotoUpdateRequest;
-import com.hape.photogallery.dto.TimelineItem;
 import com.hape.photogallery.dto.UploadParams;
 import com.hape.photogallery.entity.Category;
-import com.hape.photogallery.entity.ExifData;
 import com.hape.photogallery.entity.Photo;
 import com.hape.photogallery.entity.ProcessingStatus;
 import com.hape.photogallery.entity.Tag;
@@ -19,7 +17,6 @@ import com.hape.photogallery.repository.CategoryRepository;
 import com.hape.photogallery.repository.ExifDataRepository;
 import com.hape.photogallery.repository.PhotoRepository;
 import com.hape.photogallery.repository.TagRepository;
-import com.hape.photogallery.service.StorageService;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,34 +24,39 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.transaction.support.TransactionTemplate;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.LocalDateTime;
-import java.util.*;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyDouble;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+/**
+ * 照片写路径服务测试（从原 981 行拆出后保留的写路径用例）：
+ * 上传/批量上传/更新/删除/批量删除/批量编辑。查询与回收站用例已迁至
+ * PhotoQueryServiceTest / TrashServiceTest，本类用例原样保留不删改断言。
+ */
 @ExtendWith(MockitoExtension.class)
 @org.mockito.junit.jupiter.MockitoSettings(strictness = org.mockito.quality.Strictness.LENIENT)
 class PhotoServiceTest {
@@ -69,9 +71,6 @@ class PhotoServiceTest {
     @Mock private StorageService storage;
     @Mock private ProcessingMessageSender processingSender;
     @Mock private TransactionTemplate transactionTemplate;
-    @Mock private javax.sql.DataSource dataSource;
-    @Mock private java.sql.Connection connection;
-    @Mock private java.sql.DatabaseMetaData metaData;
 
     @TempDir Path tempDir;
 
@@ -106,288 +105,22 @@ class PhotoServiceTest {
         }).when(storage).deleteFile(any());
 
         // upload/batchUpload/transform 走 transactionTemplate：桩执行真实回调，
-        // mock TransactionStatus 防止回调内 setRollbackOnly()/isRollbackOnly() 对 null NPE（P4-#46）
+        // mock TransactionStatus 防止回调内 setRollbackOnly()/isRollbackOnly() 对 null NPE
         when(transactionTemplate.execute(any())).thenAnswer(inv -> {
             @SuppressWarnings("unchecked")
             TransactionCallback<Object> cb = inv.getArgument(0);
             return cb.doInTransaction(mock(TransactionStatus.class));
         });
 
-        service = new PhotoService(photoRepo, tagRepo, catRepo, exifRepo, exifService,
+        // 查询侧走真实 PhotoQueryService：getById/toResponse 经跨 bean 代理语义；
+        // FullTextProbe(dataSource=null) → 按「支持 FULLTEXT」处理（与拆出前默认 service 一致）
+        MediaSignatureService mediaSignature = new MediaSignatureService(
+                "test-secret-0123456789abcdef0123456789abcdef", 300);
+        PhotoQueryService queryService = new PhotoQueryService(photoRepo, exifRepo, exifService,
+                mediaSignature, storage, new FullTextProbe(null));
+        service = new PhotoService(photoRepo, tagRepo, catRepo,
                 imageService, albumService, storage, processingSender, transactionTemplate,
-                new com.hape.photogallery.config.MediaSignatureService(
-                        "test-secret-0123456789abcdef0123456789abcdef", 300),
-                new FilePathResolver(photoRepo, storage), null);
-    }
-
-    /**
-     * 构造 DataSource 报告指定数据库产品的 service（FULLTEXT 支持探测用）。
-     * 默认 service 的 dataSource 为 null → 按「支持 FULLTEXT」处理（保持 MySQL 语义）。
-     */
-    private PhotoService serviceWithDbProduct(String productName) throws Exception {
-        when(dataSource.getConnection()).thenReturn(connection);
-        when(connection.getMetaData()).thenReturn(metaData);
-        when(metaData.getDatabaseProductName()).thenReturn(productName);
-        return new PhotoService(photoRepo, tagRepo, catRepo, exifRepo, exifService,
-                imageService, albumService, storage, processingSender, transactionTemplate,
-                new com.hape.photogallery.config.MediaSignatureService(
-                        "test-secret-0123456789abcdef0123456789abcdef", 300),
-                new FilePathResolver(photoRepo, storage), dataSource);
-    }
-
-    // ==================== listAll ====================
-
-    @Test
-    void listAll_shouldCallRepository() {
-        Page<Photo> page = new PageImpl<>(List.of());
-        when(photoRepo.findAll(any(PageRequest.class))).thenReturn(page);
-        Page<Photo> result = service.listAll(null, null, PageRequest.of(0, 20));
-        assertThat(result).isSameAs(page);
-    }
-
-    @Test
-    void listAll_withTag_shouldCallFindByTagIds() {
-        when(photoRepo.findByTagIds(any(), any())).thenReturn(new PageImpl<>(List.of()));
-        service.listAll(List.of(1L), null, PageRequest.of(0, 20));
-        verify(photoRepo).findByTagIds(List.of(1L), PageRequest.of(0, 20));
-        verify(photoRepo, never()).findAll(any(PageRequest.class));
-    }
-
-    @Test
-    void listAll_withCategory_shouldCallFindByCategoryIds() {
-        when(photoRepo.findByCategoryIds(any(), any())).thenReturn(new PageImpl<>(List.of()));
-        service.listAll(null, List.of(2L), PageRequest.of(0, 20));
-        verify(photoRepo).findByCategoryIds(List.of(2L), PageRequest.of(0, 20));
-    }
-
-    @Test
-    void listAll_withBoth_shouldCallCombinedQuery() {
-        when(photoRepo.findByCategoryIdsAndTagIds(any(), any(), any())).thenReturn(new PageImpl<>(List.of()));
-        service.listAll(List.of(1L), List.of(2L), PageRequest.of(0, 20));
-        verify(photoRepo).findByCategoryIdsAndTagIds(List.of(2L), List.of(1L), PageRequest.of(0, 20));
-    }
-
-    // ==================== search ====================
-
-    @Test
-    void search_shouldCallRepository() {
-        when(photoRepo.search(eq("cat"), any())).thenReturn(new PageImpl<>(List.of()));
-        service.search("cat", null, null, PageRequest.of(0, 20));
-        verify(photoRepo).search("cat", PageRequest.of(0, 20));
-    }
-
-    @Test
-    void search_withTagAndCategoryFilters_shouldCallCombinedQuery() {
-        when(photoRepo.searchWithTagAndCategoryIds(eq("cat"), eq(List.of(1L)), eq(List.of(2L)), any()))
-                .thenReturn(new PageImpl<>(List.of()));
-        service.search("cat", List.of(1L), List.of(2L), PageRequest.of(0, 20));
-        verify(photoRepo).searchWithTagAndCategoryIds("cat", List.of(1L), List.of(2L), PageRequest.of(0, 20));
-    }
-
-    @Test
-    void search_withTagFilterOnly_shouldCallTagQuery() {
-        when(photoRepo.searchWithTagIds(eq("cat"), eq(List.of(1L)), any()))
-                .thenReturn(new PageImpl<>(List.of()));
-        service.search("cat", List.of(1L), null, PageRequest.of(0, 20));
-        verify(photoRepo).searchWithTagIds("cat", List.of(1L), PageRequest.of(0, 20));
-    }
-
-    @Test
-    void search_withCategoryFilterOnly_shouldCallCategoryQuery() {
-        when(photoRepo.searchWithCategoryIds(eq("cat"), eq(List.of(2L)), any()))
-                .thenReturn(new PageImpl<>(List.of()));
-        service.search("cat", null, List.of(2L), PageRequest.of(0, 20));
-        verify(photoRepo).searchWithCategoryIds("cat", List.of(2L), PageRequest.of(0, 20));
-    }
-
-    @Test
-    void search_withSort_shouldMapEntityPropertyToColumnName() {
-        when(photoRepo.search(eq("cat"), any())).thenReturn(new PageImpl<>(List.of()));
-        Pageable input = PageRequest.of(0, 20, Sort.by(Sort.Order.desc("createdAt")));
-        service.search("cat", null, null, input);
-        verify(photoRepo).search(eq("cat"), argThat(p -> p.getSort().stream()
-                .anyMatch(o -> o.getProperty().equals("created_at") && o.isDescending())));
-    }
-
-    @Test
-    void search_singleChar_shouldUseLike() {
-        when(photoRepo.searchByLike(eq("%海%"), any())).thenReturn(new PageImpl<>(List.of()));
-        service.search("海", null, null, PageRequest.of(0, 20));
-        verify(photoRepo).searchByLike("%海%", PageRequest.of(0, 20));
-    }
-
-    @Test
-    void search_singleCharWithFilters_shouldUseLikeVariants() {
-        when(photoRepo.searchByLikeWithTagIds(eq("%海%"), eq(List.of(1L)), any()))
-                .thenReturn(new PageImpl<>(List.of()));
-        service.search("海", List.of(1L), null, PageRequest.of(0, 20));
-        verify(photoRepo).searchByLikeWithTagIds("%海%", List.of(1L), PageRequest.of(0, 20));
-
-        when(photoRepo.searchByLikeWithCategoryIds(eq("%海%"), eq(List.of(2L)), any()))
-                .thenReturn(new PageImpl<>(List.of()));
-        service.search("海", null, List.of(2L), PageRequest.of(0, 20));
-        verify(photoRepo).searchByLikeWithCategoryIds("%海%", List.of(2L), PageRequest.of(0, 20));
-
-        when(photoRepo.searchByLikeWithTagAndCategoryIds(eq("%海%"), eq(List.of(1L)), eq(List.of(2L)), any()))
-                .thenReturn(new PageImpl<>(List.of()));
-        service.search("海", List.of(1L), List.of(2L), PageRequest.of(0, 20));
-        verify(photoRepo).searchByLikeWithTagAndCategoryIds("%海%", List.of(1L), List.of(2L), PageRequest.of(0, 20));
-    }
-
-    @Test
-    void search_singleChar_shouldEscapeLikeWildcards() {
-        when(photoRepo.searchByLike(any(), any())).thenReturn(new PageImpl<>(List.of()));
-        service.search("%", null, null, PageRequest.of(0, 20));
-        verify(photoRepo).searchByLike("%\\%%", PageRequest.of(0, 20));
-        service.search("_", null, null, PageRequest.of(0, 20));
-        verify(photoRepo).searchByLike("%\\_%", PageRequest.of(0, 20));
-    }
-
-    @Test
-    void search_twoChars_shouldUseFulltext() {
-        when(photoRepo.search(eq("海边"), any())).thenReturn(new PageImpl<>(List.of()));
-        service.search("海边", null, null, PageRequest.of(0, 20));
-        verify(photoRepo).search("海边", PageRequest.of(0, 20));
-    }
-
-    // ==================== 非 MySQL 数据库退化为 LIKE（H2 无 MATCH...AGAINST，硬走 FULLTEXT 会 500） ====================
-
-    @Test
-    void search_onH2_shouldFallbackToLike() throws Exception {
-        PhotoService h2 = serviceWithDbProduct("H2");
-        when(photoRepo.searchByLike(eq("%cat%"), any())).thenReturn(new PageImpl<>(List.of()));
-        h2.search("cat", null, null, PageRequest.of(0, 20));
-        verify(photoRepo).searchByLike("%cat%", PageRequest.of(0, 20));
-        verify(photoRepo, never()).search(any(), any());
-    }
-
-    @Test
-    void search_onH2_withFilters_shouldUseLikeVariants() throws Exception {
-        PhotoService h2 = serviceWithDbProduct("H2");
-        when(photoRepo.searchByLikeWithTagIds(eq("%cat%"), eq(List.of(1L)), any()))
-                .thenReturn(new PageImpl<>(List.of()));
-        h2.search("cat", List.of(1L), null, PageRequest.of(0, 20));
-        verify(photoRepo).searchByLikeWithTagIds("%cat%", List.of(1L), PageRequest.of(0, 20));
-
-        when(photoRepo.searchByLikeWithCategoryIds(eq("%cat%"), eq(List.of(2L)), any()))
-                .thenReturn(new PageImpl<>(List.of()));
-        h2.search("cat", null, List.of(2L), PageRequest.of(0, 20));
-        verify(photoRepo).searchByLikeWithCategoryIds("%cat%", List.of(2L), PageRequest.of(0, 20));
-
-        when(photoRepo.searchByLikeWithTagAndCategoryIds(eq("%cat%"), eq(List.of(1L)), eq(List.of(2L)), any()))
-                .thenReturn(new PageImpl<>(List.of()));
-        h2.search("cat", List.of(1L), List.of(2L), PageRequest.of(0, 20));
-        verify(photoRepo).searchByLikeWithTagAndCategoryIds("%cat%", List.of(1L), List.of(2L), PageRequest.of(0, 20));
-    }
-
-    @Test
-    void search_onMySQL_shouldKeepFulltext() throws Exception {
-        PhotoService mysql = serviceWithDbProduct("MySQL");
-        when(photoRepo.search(eq("cat"), any())).thenReturn(new PageImpl<>(List.of()));
-        mysql.search("cat", null, null, PageRequest.of(0, 20));
-        verify(photoRepo).search("cat", PageRequest.of(0, 20));
-        verify(photoRepo, never()).searchByLike(any(), any());
-    }
-
-    // ==================== FULLTEXT 运算符剥离（P0-3） ====================
-
-    @Test
-    void search_unpairedQuote_shouldStripOperator() {
-        when(photoRepo.search(eq("ab"), any())).thenReturn(new PageImpl<>(List.of()));
-        service.search("ab\"", null, null, PageRequest.of(0, 20));
-        verify(photoRepo).search("ab", PageRequest.of(0, 20));
-    }
-
-    @Test
-    void search_minusOperator_shouldNotBeExclusionSemantics() {
-        when(photoRepo.search(eq("secret"), any())).thenReturn(new PageImpl<>(List.of()));
-        service.search("-secret", null, null, PageRequest.of(0, 20));
-        verify(photoRepo).search("secret", PageRequest.of(0, 20));
-    }
-
-    @Test
-    void search_strippedToSingleChar_shouldFallbackToLike() {
-        when(photoRepo.searchByLike(eq("%a%"), any())).thenReturn(new PageImpl<>(List.of()));
-        service.search("a\"", null, null, PageRequest.of(0, 20));
-        verify(photoRepo).searchByLike("%a%", PageRequest.of(0, 20));
-    }
-
-    @Test
-    void search_allOperatorsStripped_shouldReturnEmptyPage() {
-        Page<Photo> result = service.search("\"***\"", null, null, PageRequest.of(0, 20));
-        assertThat(result).isEmpty();
-        verify(photoRepo, never()).search(any(), any());
-    }
-
-    @Test
-    void sanitizeFullText_shouldStripBooleanOperators() {
-        assertThat(PhotoService.sanitizeFullText("海边 (1) +晴天")).isEqualTo("海边 1 晴天");
-        assertThat(PhotoService.sanitizeFullText("\"phrase\" @x ~y")).isEqualTo("phrase x y");
-    }
-
-    // ==================== ORDER BY 白名单（P0-2） ====================
-
-    @Test
-    void search_sortBySqlInjection_shouldReject400() {
-        Pageable malicious = PageRequest.of(0, 20, Sort.by(Sort.Order.asc("(SELECT SLEEP(5))")));
-        assertThatThrownBy(() -> service.search("cat", null, null, malicious))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("不支持的排序字段");
-    }
-
-    @Test
-    void search_sortByUnknownProperty_shouldReject400() {
-        Pageable malicious = PageRequest.of(0, 20, Sort.by(Sort.Order.asc("id")));
-        assertThatThrownBy(() -> service.search("cat", null, null, malicious))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("不支持的排序字段");
-    }
-
-    @Test
-    void search_sortByName_shouldMapToNameColumn() {
-        when(photoRepo.search(eq("cat"), any())).thenReturn(new PageImpl<>(List.of()));
-        Pageable input = PageRequest.of(0, 20, Sort.by(Sort.Order.asc("name")));
-        service.search("cat", null, null, input);
-        verify(photoRepo).search(eq("cat"), argThat(p -> p.getSort().stream()
-                .anyMatch(o -> o.getProperty().equals("name") && o.isAscending())));
-    }
-
-    @Test
-    void search_blankQuery_shouldFallbackToFindAll() {
-        when(photoRepo.findAll(any(PageRequest.class))).thenReturn(new PageImpl<>(List.of()));
-        service.search("  ", null, null, PageRequest.of(0, 20));
-        verify(photoRepo).findAll(any(PageRequest.class));
-    }
-
-    @Test
-    void search_nullQuery_shouldFallbackToFindAll() {
-        when(photoRepo.findAll(any(PageRequest.class))).thenReturn(new PageImpl<>(List.of()));
-        service.search(null, null, null, PageRequest.of(0, 20));
-        verify(photoRepo).findAll(any(PageRequest.class));
-    }
-
-    // ==================== getById ====================
-
-    @Test
-    void getById_found_shouldReturnPhoto() {
-        Photo p = new Photo(); p.setId(1L); p.setName("test");
-        when(photoRepo.findById(1L)).thenReturn(Optional.of(p));
-        assertThat(service.getById(1L).getName()).isEqualTo("test");
-    }
-
-    @Test
-    void getById_notFound_shouldThrow() {
-        when(photoRepo.findById(99L)).thenReturn(Optional.empty());
-        assertThatThrownBy(() -> service.getById(99L)).hasMessageContaining("不存在");
-    }
-
-    // ==================== findByIds ====================
-
-    @Test
-    void findByIds_shouldCallRepository() {
-        when(photoRepo.findByIdIn(any(), any())).thenReturn(new PageImpl<>(List.of()));
-        service.findByIds(List.of(1L, 2L), PageRequest.of(0, 20));
-        verify(photoRepo).findByIdIn(List.of(1L, 2L), PageRequest.of(0, 20));
+                new FilePathResolver(photoRepo, storage), queryService);
     }
 
     // ==================== upload ====================
@@ -453,7 +186,7 @@ class PhotoServiceTest {
 
     @Test
     void upload_concurrentDuplicate_shouldReturnExistingPhotoAndCleanupFile() throws IOException {
-        // 并发同 hash 上传：check-then-insert 竞态撞唯一索引 → 删残留文件 + 重查返回 DuplicateException（P4-#42）
+        // 并发同 hash 上传：check-then-insert 竞态撞唯一索引 → 删残留文件 + 重查返回 DuplicateException
         // 第一次调用是事务内查重（返回空、正常进入插入），save 抛唯一索引冲突后外层重查返回已有照片
         MockMultipartFile file = new MockMultipartFile("file", "dup.jpg", "image/jpeg", JPEG_BYTES);
         when(photoRepo.save(any(Photo.class))).thenThrow(new DataIntegrityViolationException("dup key"));
@@ -490,7 +223,6 @@ class PhotoServiceTest {
             if (p.getId() == null) { p.setId(1L); p.setFileName("2026/07/test.jpg"); }
             return p;
         });
-        when(exifService.extractAndSave(any(), any())).thenReturn(null);
 
         Photo result = service.upload(file, new UploadParams(null, null, null, null, null));
         assertThat(result.getName()).isEqualTo("original.jpg");
@@ -505,7 +237,6 @@ class PhotoServiceTest {
         when(photoRepo.save(any(Photo.class))).thenAnswer(inv -> {
             Photo p = inv.getArgument(0); p.setId(1L); return p;
         });
-        when(exifService.extractAndSave(any(), any())).thenReturn(null);
 
         List<Photo> results = service.batchUpload(List.of(f1, f2), new UploadParams("batch", null, null, null, null));
         assertThat(results).hasSize(2);
@@ -593,8 +324,6 @@ class PhotoServiceTest {
         verify(photoRepo, never()).save(any());
     }
 
-    // ==================== transform（P4-#37 已拆至 PhotoTransformService，测试见 PhotoTransformServiceTest） ====================
-
     // ==================== delete ====================
 
     @Test
@@ -625,6 +354,18 @@ class PhotoServiceTest {
         verify(exifRepo, never()).delete(any());
         verify(photoRepo).save(p);
         assertThat(p.getDeletedAt()).isNotNull();
+    }
+
+    @Test
+    void delete_shouldReselectAlbumCovers() {
+        // P1 修复：软删后以其为封面的相册必须重选，否则封面悬空（viewer 404 / 彻底删除后永久失效）
+        Photo p = new Photo(); p.setId(1L); p.setName("test");
+        p.setFileName("2026/07/test.jpg");
+        when(photoRepo.findById(1L)).thenReturn(Optional.of(p));
+
+        service.delete(1L);
+
+        verify(albumService).reselectCoversAfterPhotoDeletion(1L);
     }
 
     // ==================== batchDelete ====================
@@ -801,181 +542,114 @@ class PhotoServiceTest {
         assertThat(result).isEmpty();
     }
 
-    // ==================== getTimeline ====================
+    // ==================== retryProcessing / 卡死恢复 ====================
 
     @Test
-    void getTimeline_desc_shouldReturnMappedItems() {
-        ExifData e = new ExifData();
-        e.setId(1L);
-        Photo p = new Photo(); p.setId(10L); p.setName("p1");
-        e.setPhoto(p);
-        e.setDateTaken(LocalDateTime.of(2026, 1, 15, 10, 0));
-        e.setCameraModel("Canon");
-        PageRequest pr = PageRequest.of(0, 50);
-        when(exifRepo.findWithDateTakenAndPhotoDesc(pr)).thenReturn(new PageImpl<>(List.of(e)));
+    void retryProcessing_shouldResetStatusAndResend() throws IOException {
+        Path filePath = tempDir.resolve("2026/07/test.jpg");
+        Files.createDirectories(filePath.getParent());
+        Files.write(filePath, JPEG_BYTES);
 
-        Page<TimelineItem> page = service.getTimeline("desc", pr);
-        List<TimelineItem> items = page.getContent();
-        assertThat(items).hasSize(1);
-        assertThat(items.get(0).getPhotoId()).isEqualTo(10L);
-        assertThat(items.get(0).getCameraModel()).isEqualTo("Canon");
-    }
-
-    @Test
-    void getTimeline_asc_shouldCallAsc() {
-        PageRequest pr = PageRequest.of(0, 50);
-        when(exifRepo.findWithDateTakenAndPhotoAsc(pr)).thenReturn(new PageImpl<>(List.of()));
-        service.getTimeline("asc", pr);
-        verify(exifRepo).findWithDateTakenAndPhotoAsc(pr);
-    }
-
-    // ==================== getMapPhotos ====================
-
-    @Test
-    void getMapPhotos_shouldTransformCoordinates() {
-        ExifData e = new ExifData();
-        e.setLatitude(39.9); e.setLongitude(116.4);
-        Photo p = new Photo(); p.setId(10L); p.setName("map1");
-        e.setPhoto(p);
-        PageRequest pr = PageRequest.of(0, 500);
-        when(exifRepo.findWithGpsInBounds(eq(30.0), eq(100.0), eq(50.0), eq(130.0), eq(pr)))
-                .thenReturn(List.of(e));
-
-        List<MapItem> items = service.getMapPhotos(30.0, 100.0, 50.0, 130.0);
-        assertThat(items).hasSize(1);
-        assertThat(items.get(0).getPhotoId()).isEqualTo(10L);
-        // coordinates should have been transformed from WGS84 to GCJ02
-        assertThat(items.get(0).getLatitude()).isNotEqualTo(39.9);
-        assertThat(items.get(0).getLongitude()).isNotEqualTo(116.4);
-    }
-
-    @Test
-    void getMapPhotos_shouldIncludeMediaToken() {
-        // 回归：内联 MapItem.from 会漏掉短时签名，前端 popup 缩略图 401
-        ExifData e = new ExifData();
-        e.setLatitude(39.9); e.setLongitude(116.4);
-        Photo p = new Photo(); p.setId(10L); p.setName("map1");
-        e.setPhoto(p);
-        when(exifRepo.findWithGpsInBounds(anyDouble(), anyDouble(), anyDouble(), anyDouble(),
-                any(PageRequest.class))).thenReturn(List.of(e));
-
-        List<MapItem> items = service.getMapPhotos(30.0, 100.0, 50.0, 130.0);
-        assertThat(items).hasSize(1);
-        assertThat(items.get(0).getMediaToken()).isNotBlank();
-        // 签名能通过校验且绑定 photoId
-        long verified = new com.hape.photogallery.config.MediaSignatureService(
-                "test-secret-0123456789abcdef0123456789abcdef", 300)
-                .verify(items.get(0).getMediaToken());
-        assertThat(verified).isEqualTo(10L);
-    }
-
-    // ==================== extractExif ====================
-    // extractExifForExisting（批量）随迁移方法移至 MigrationService，测试见 MigrationServiceTest
-
-    @Test
-    void extractExifForPhoto_notFound_shouldReturnNull() {
-        Photo p = new Photo(); p.setId(1L); p.setName("p");
-        p.setFileName("nonexistent.jpg");
-        when(photoRepo.findById(1L)).thenReturn(Optional.of(p));
-        assertThat(service.extractExifForPhoto(1L)).isNull();
-    }
-
-    // ==================== DTO conversion ====================
-
-    @Test
-    void toResponse_shouldMapAllFields() {
-        Photo p = new Photo(); p.setId(1L); p.setName("p1");
-        p.setDescription("desc"); p.setFileSize(100L);
-        p.setCreatedAt(LocalDateTime.of(2026, 1, 1, 0, 0));
-        Category c = new Category("cat"); c.setId(1L);
-        p.setCategory(c);
-
-        PhotoResponse r = service.toResponse(p);
-        assertThat(r.getId()).isEqualTo(1L);
-        assertThat(r.getName()).isEqualTo("p1");
-        assertThat(r.getDescription()).isEqualTo("desc");
-        assertThat(r.getFileSize()).isEqualTo(100L);
-        assertThat(r.getCategory().getId()).isEqualTo(1L);
-    }
-
-    // ==================== 回收站：恢复 / 永久删除 / 定时清理（P1-#14） ====================
-
-    @Test
-    void restore_notDeleted_should404() {
-        when(photoRepo.findDeletedById(1L)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> service.restore(1L))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("未找到可恢复的照片");
-        verify(photoRepo, never()).save(any());
-    }
-
-    @Test
-    void restore_success_shouldClearDeletedAt() {
         Photo p = new Photo();
         p.setId(1L);
-        p.setName("已删");
-        p.setDeletedAt(LocalDateTime.now());
-        when(photoRepo.findDeletedById(1L)).thenReturn(Optional.of(p));
-
-        service.restore(1L);
-
-        assertThat(p.getDeletedAt()).isNull();
-        verify(photoRepo).save(p);
-    }
-
-    @Test
-    void permanentlyDelete_shouldDeleteExifAndFiles() {
-        Photo p = new Photo();
-        p.setId(1L);
-        p.setName("已删");
+        p.setName("test");
         p.setFileName("2026/07/test.jpg");
-        when(photoRepo.findDeletedById(1L)).thenReturn(Optional.of(p));
-        ExifData exif = new ExifData();
-        when(exifRepo.findByPhoto_Id(1L)).thenReturn(Optional.of(exif));
+        p.setProcessingStatus(ProcessingStatus.FAILED);
+        p.setErrorMessage("上次失败");
+        p.setWatermark("wm"); // V11：水印落库，重试补发从 DB 恢复
+        when(photoRepo.findById(1L)).thenReturn(Optional.of(p));
 
-        service.permanentlyDelete(1L);
+        service.retryProcessing(1L);
 
-        verify(exifRepo).delete(exif);
-        verify(photoRepo).delete(p);
-        // 真实 FilePathResolver：原图 + 缩略图(含 200) + webp 四文件清理
-        verify(storage, times(4)).deleteFile(any());
+        // 状态重置 + 重发处理消息（无事务直调 → 立即发送，与 upload 的 SendAfterCommit 同语义）
+        assertThat(p.getProcessingStatus()).isEqualTo(ProcessingStatus.PROCESSING);
+        assertThat(p.getErrorMessage()).isNull();
+        verify(photoRepo).save(p);
+        verify(processingSender).send(eq(1L), eq(tempDir.resolve("2026/07/test.jpg")),
+                eq("2026/07"), eq("test.jpg"), eq("wm"));
     }
 
     @Test
-    void permanentlyDelete_notFound_should404() {
-        when(photoRepo.findDeletedById(1L)).thenReturn(Optional.empty());
+    void retryProcessing_notFound_shouldThrow404() {
+        when(photoRepo.findById(99L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.permanentlyDelete(1L))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("未找到该照片");
-        verify(photoRepo, never()).delete(any());
+        assertThatThrownBy(() -> service.retryProcessing(99L))
+                .isInstanceOf(BusinessException.class);
+        verify(processingSender, never()).send(any(), any(), any(), any(), any());
     }
 
     @Test
-    void cleanupDeletedPermanently_shouldPurgeExpired() {
+    void recoverStuckProcessing_shouldResendAllProcessingPhotos() throws IOException {
+        Path filePath = tempDir.resolve("2026/07/test.jpg");
+        Files.createDirectories(filePath.getParent());
+        Files.write(filePath, JPEG_BYTES);
+
         Photo p1 = new Photo();
         p1.setId(1L);
-        p1.setFileName("2026/07/a.jpg");
+        p1.setFileName("2026/07/test.jpg");
+        p1.setProcessingStatus(ProcessingStatus.PROCESSING);
+        p1.setWatermark("wm1");
         Photo p2 = new Photo();
         p2.setId(2L);
-        p2.setFileName("2026/07/b.jpg");
-        when(photoRepo.findDeletedBefore(any())).thenReturn(List.of(p1, p2));
+        p2.setFileName("2026/07/test2.jpg");
+        p2.setProcessingStatus(ProcessingStatus.PROCESSING);
+        // 无水印照片 → 透传 null（语义：重扫不凭空造水印）
+        when(photoRepo.findByProcessingStatus(ProcessingStatus.PROCESSING)).thenReturn(List.of(p1, p2));
 
-        service.cleanupDeletedPermanently();
+        service.recoverStuckProcessing();
 
-        verify(photoRepo).delete(p1);
-        verify(photoRepo).delete(p2);
-        verify(storage, atLeast(8)).deleteFile(any());
+        // 水印从 DB 恢复（V11）：消息丢失后重扫补发不再丢水印
+        verify(processingSender).send(eq(1L), any(Path.class), eq("2026/07"), eq("test.jpg"), eq("wm1"));
+        verify(processingSender).send(eq(2L), any(Path.class), eq("2026/07"), eq("test2.jpg"), isNull());
     }
 
     @Test
-    void cleanupDeletedPermanently_emptyList_shouldNoOp() {
-        when(photoRepo.findDeletedBefore(any())).thenReturn(List.of());
+    void recoverStuckProcessing_sendFailure_shouldKeepProcessing() throws IOException {
+        Path filePath = tempDir.resolve("2026/07/test.jpg");
+        Files.createDirectories(filePath.getParent());
+        Files.write(filePath, JPEG_BYTES);
 
-        service.cleanupDeletedPermanently();
+        Photo p = new Photo();
+        p.setId(1L);
+        p.setFileName("2026/07/test.jpg");
+        p.setProcessingStatus(ProcessingStatus.PROCESSING);
+        when(photoRepo.findByProcessingStatus(ProcessingStatus.PROCESSING)).thenReturn(List.of(p));
+        doThrow(new RuntimeException("rabbit down")).when(processingSender)
+                .send(any(Long.class), any(Path.class), any(), any(), any());
 
-        verify(photoRepo, never()).delete(any());
-        verify(exifRepo, never()).delete(any());
+        service.recoverStuckProcessing();
+
+        // 发送失败（Rabbit broker 抖动）不判死：保持 PROCESSING 等下次 5 分钟重扫
+        assertThat(p.getProcessingStatus()).isEqualTo(ProcessingStatus.PROCESSING);
+        assertThat(p.getErrorMessage()).isNull();
+        verify(photoRepo, never()).save(p);
+    }
+
+    @Test
+    void recoverStuckProcessing_noStuck_shouldNoOp() {
+        when(photoRepo.findByProcessingStatus(ProcessingStatus.PROCESSING)).thenReturn(List.of());
+
+        service.recoverStuckProcessing();
+
+        verify(processingSender, never()).send(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void recoverStuckOnStartup_shouldTriggerRecovery() throws IOException {
+        Path filePath = tempDir.resolve("2026/07/test.jpg");
+        Files.createDirectories(filePath.getParent());
+        Files.write(filePath, JPEG_BYTES);
+
+        Photo p = new Photo();
+        p.setId(1L);
+        p.setFileName("2026/07/test.jpg");
+        p.setProcessingStatus(ProcessingStatus.PROCESSING);
+        p.setWatermark("wm-startup");
+        when(photoRepo.findByProcessingStatus(ProcessingStatus.PROCESSING)).thenReturn(List.of(p));
+
+        service.recoverStuckOnStartup();
+
+        verify(processingSender).send(eq(1L), any(Path.class), eq("2026/07"), eq("test.jpg"),
+                eq("wm-startup"));
     }
 }

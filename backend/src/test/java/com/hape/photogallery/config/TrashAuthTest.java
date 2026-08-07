@@ -12,7 +12,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
- * 回收站端点授权边界（P1-#14，全上下文启动：H2 + dev profile，surefire 注入 JWT_SECRET）。
+ * 回收站端点授权边界（全上下文启动：H2 + dev profile，surefire 注入 JWT_SECRET）。
  *
  * 「401 vs 404」区分授权层拦截与到达 controller：
  * - 未认证 → 401（SecurityConfig 自定义 authenticationEntryPoint）

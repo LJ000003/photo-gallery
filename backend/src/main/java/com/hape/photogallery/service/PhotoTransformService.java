@@ -2,6 +2,7 @@ package com.hape.photogallery.service;
 
 import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -19,7 +20,7 @@ import com.hape.photogallery.exception.BusinessException;
 import com.hape.photogallery.repository.PhotoRepository;
 
 /**
- * 照片变换（P4-#37 从 PhotoService 拆出；P4-#40 事务边界重构）：
+ * 照片变换（从 PhotoService 拆出； 事务边界重构）：
  *  - 备份原图 → 事务外执行变换（秒级图像处理不持数据库连接）→ 事务内保存（fileSize/EXIF/save 原子）；
  *  - 任何一步失败：恢复备份原图并重生成缩略图/webp，消除「DB 回滚但磁盘已被覆盖」的不一致；
  *  - 图片无法解码/编码（损坏文件、webp native 库不可用）→ 400 业务错误而非 500。
@@ -70,6 +71,9 @@ public class PhotoTransformService {
                 Photo managed = repo.findById(id)
                         .orElseThrow(() -> new BusinessException(404, "该照片已被删除或不存在"));
                 managed.setFileSize(newFileSize);
+                // transform 重写原图（可能裁掉/翻转水印）→ 复位 original_processed，
+                // 下次 retry/重扫处理时重新打水印（V12 幂等标记联动）
+                managed.setOriginalProcessed(false);
                 // EXIF 移入事务：save 失败回滚时 EXIF 同步回滚，与恢复的原图保持一致
                 try {
                     exifService.extractAndSave(managed, filePath);
@@ -95,9 +99,11 @@ public class PhotoTransformService {
                     log.error("Transform 补偿恢复失败 photo={}: {}", id, restore.getMessage());
                 }
             }
-            if (e instanceof IOException io) {
-                // 图片无法解码/写入编码失败——"用户图片不可处理"，返回业务错误而非 500
-                log.warn("Transform failed for photo {}: {}", id, io.getMessage());
+            if (e instanceof IOException || e instanceof UncheckedIOException) {
+                // 图片无法解码/写入编码失败（含 getFormat 读文件失败包装的
+                // UncheckedIOException——它不是 IOException 子类，需显式兜底）——
+                // "用户图片不可处理"，返回业务错误而非 500
+                log.warn("Transform failed for photo {}: {}", id, e.getMessage());
                 throw new BusinessException(400, "图片无法处理，可能已损坏");
             }
             throw e;
@@ -115,7 +121,7 @@ public class PhotoTransformService {
     /** 事务外执行变换：photo 仅用于读标量 fileName 推导相对路径，脱管实体访问安全 */
     private void doTransformPhoto(Photo photo, Path filePath, int rotate, String mirror,
                                   Double cx, Double cy, Double cw, Double ch) throws IOException {
-        BufferedImage img = ImageIO.read(filePath.toFile());
+        BufferedImage img = imageService.decodeCapped(filePath);
         if (img == null) {
             throw new IOException("ImageIO.read returned null");
         }
@@ -145,7 +151,7 @@ public class PhotoTransformService {
 
         String format = imageService.getFormat(filePath);
         if (!ImageIO.write(img, format, filePath.toFile())) {
-            // 无对应 ImageWriter（如 webp 原图 native 库加载失败）→ 明确失败，而非静默不改文件（P4-#48①）
+            // 无对应 ImageWriter（如 webp 原图 native 库加载失败）→ 明确失败，而非静默不改文件
             throw new IOException("No ImageWriter for format " + format);
         }
 

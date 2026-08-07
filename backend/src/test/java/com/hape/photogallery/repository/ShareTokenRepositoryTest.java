@@ -10,7 +10,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** P0-#6：分享 token 持久化——findByToken / 活跃查询（撤销与过期过滤）/ 清理条件 */
+/** 分享 token 持久化——findByToken / 活跃查询（撤销与过期过滤）/ 清理条件 */
 @DataJpaTest
 class ShareTokenRepositoryTest {
 

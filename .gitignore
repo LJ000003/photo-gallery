@@ -26,11 +26,12 @@ desktop.ini
 # TypeScript
 *.tsbuildinfo
 
+# 环境变量（全部忽略，仅 .env.example 保留为模板入库）
 .env
-.env.local
-.env.*.local
-# 文档档案（改进方案/面试材料，本地保留，不提交）
-doc
+.env.*
+!.env.example
+# 文档档案（改进方案/面试材料，本地保留，不提交；docs/ 详细说明需入库，勿合并）
+doc/
 # IDE
 .idea/
 *.iml

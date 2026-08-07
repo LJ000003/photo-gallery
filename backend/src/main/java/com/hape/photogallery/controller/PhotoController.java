@@ -3,6 +3,7 @@ package com.hape.photogallery.controller;
 import com.hape.photogallery.ApiResponse;
 import com.hape.photogallery.dto.BatchPhotoUpdateRequest;
 import com.hape.photogallery.dto.MapItem;
+import com.hape.photogallery.dto.PhotoProcessingStatusDto;
 import com.hape.photogallery.dto.PhotoResponse;
 import com.hape.photogallery.dto.PhotoUpdateRequest;
 import com.hape.photogallery.dto.TimelineItem;
@@ -15,8 +16,10 @@ import com.hape.photogallery.exception.DuplicateException;
 import com.hape.photogallery.service.AlbumService;
 import com.hape.photogallery.service.FilePathResolver;
 import com.hape.photogallery.service.MigrationService;
+import com.hape.photogallery.service.PhotoQueryService;
 import com.hape.photogallery.service.PhotoService;
 import com.hape.photogallery.service.PhotoTransformService;
+import com.hape.photogallery.service.TrashService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
@@ -46,15 +49,20 @@ import org.springframework.web.multipart.MultipartFile;
 public class PhotoController {
 
     private final PhotoService service;
+    private final PhotoQueryService photoQueryService;
+    private final TrashService trashService;
     private final AlbumService albumService;
     private final MigrationService migrationService;
     private final FilePathResolver filePathResolver;
     private final PhotoTransformService transformService;
 
-    public PhotoController(PhotoService service, AlbumService albumService,
+    public PhotoController(PhotoService service, PhotoQueryService photoQueryService,
+                           TrashService trashService, AlbumService albumService,
                            MigrationService migrationService, FilePathResolver filePathResolver,
                            PhotoTransformService transformService) {
         this.service = service;
+        this.photoQueryService = photoQueryService;
+        this.trashService = trashService;
         this.albumService = albumService;
         this.migrationService = migrationService;
         this.filePathResolver = filePathResolver;
@@ -73,22 +81,34 @@ public class PhotoController {
             @RequestParam(required = false) Long albumId,
             @PageableDefault(size = 20) Pageable pageable) {
         if (q != null && !q.isBlank()) {
-            // 搜索与标签/分类筛选可组合（交集），不再忽略筛选条件
-            return ApiResponse.success(service.search(q, tagIds, categoryIds, pageable).map(service::toResponse));
+            // 搜索与标签/分类筛选可组合（交集），不再忽略筛选条件；
+            // 事务内 map（懒加载代理序列化防护）
+            return ApiResponse.success(photoQueryService.searchResponses(q, tagIds, categoryIds, pageable));
         }
         if (albumId != null) {
-            Page<Photo> page = albumId == 0
-                    ? albumService.listUnassigned(pageable)
-                    : albumService.listPhotos(albumId, pageable);
-            return ApiResponse.success(page.map(service::toResponse));
+            // 事务内 map（懒加载代理序列化防护）
+            Page<PhotoResponse> page = albumId == 0
+                    ? albumService.listUnassignedResponses(pageable)
+                    : albumService.listPhotosResponses(albumId, pageable);
+            return ApiResponse.success(page);
         }
-        return ApiResponse.success(service.listAllResponses(tagIds, categoryIds, pageable));
+        return ApiResponse.success(photoQueryService.listAllResponses(tagIds, categoryIds, pageable));
     }
 
     @Operation(summary = "照片详情", description = "含 EXIF、标签、分类、相册与媒体签名")
     @GetMapping("/photos/{id}")
     public ApiResponse<PhotoResponse> get(@PathVariable Long id) {
-        return ApiResponse.success(service.getPhotoResponse(id));
+        return ApiResponse.success(photoQueryService.getPhotoResponse(id));
+    }
+
+    /** 批量处理状态（前端 3s 轮询专用，轻量 DTO + 不缓存）；字面路径优先于 /photos/{id} */
+    @Operation(summary = "批量查询处理状态", description = "只返回 id/processingStatus/errorMessage，供轮询使用")
+    @GetMapping("/photos/status")
+    public ApiResponse<List<PhotoProcessingStatusDto>> status(@RequestParam List<Long> ids) {
+        if (ids.size() > 100) {
+            throw new BusinessException(400, "单次最多查询 100 张");
+        }
+        return ApiResponse.success(photoQueryService.getProcessingStatuses(ids));
     }
 
     @Operation(summary = "上传单张照片",
@@ -106,8 +126,9 @@ public class PhotoController {
                         @RequestParam(value = "watermark", required = false) String watermark)
             throws IOException {
         try {
-            UploadParams params = new UploadParams(name, description, tagIds, categoryId, watermark);
-            return ResponseEntity.ok(ApiResponse.success(service.toResponse(service.upload(file, params))));
+            UploadParams params = new UploadParams(
+                    fixMultipartText(name), fixMultipartText(description), tagIds, categoryId, fixMultipartText(watermark));
+            return ResponseEntity.ok(ApiResponse.success(photoQueryService.toResponse(service.upload(file, params))));
         } catch (DuplicateException e) {
             return ResponseEntity.status(409).body(ApiResponse.error(409, e.getMessage(), e.getExisting()));
         }
@@ -127,10 +148,55 @@ public class PhotoController {
         if (files.size() > MAX_BATCH_SIZE) {
             throw new BusinessException(400, "单次最多上传 " + MAX_BATCH_SIZE + " 张图片");
         }
-        UploadParams params = new UploadParams(name, description, tagIds, categoryId, watermark);
+        UploadParams params = new UploadParams(
+                fixMultipartText(name), fixMultipartText(description), tagIds, categoryId, fixMultipartText(watermark));
         List<PhotoResponse> result = service.batchUpload(files, params)
-                .stream().map(service::toResponse).toList();
+                .stream().map(photoQueryService::toResponse).toList();
         return ApiResponse.success(result);
+    }
+
+    /**
+     * multipart 文本参数编码恢复：浏览器 FormData 的文本 part 不带 Content-Type charset，
+     * Tomcat 10 按 RFC 7578 用 ISO-8859-1 解码 UTF-8 字节 → 中文乱码（实测 curl -F /
+     * 裸 FormData 复现；query 参数与带 charset 的 part 不受影响）。
+     * 恢复逻辑带保护：仅当参数含 U+0080-U+00FF（ISO-8859-1 解码 UTF-8 的特征）时尝试
+     * 重建，且恢复结果含 U+FFFD（无效 UTF-8）则保留原值——纯 ASCII 与合法 ISO-8859-1
+     * 文本零误伤。
+     */
+    static String fixMultipartText(String s) {
+        if (s == null || s.isEmpty()) return s;
+        boolean highByte = false;
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c >= 0x80 && c <= 0xFF) {
+                highByte = true;
+                break;
+            }
+        }
+        if (!highByte) return s;
+        try {
+            String recovered = new String(s.getBytes(java.nio.charset.StandardCharsets.ISO_8859_1),
+                    java.nio.charset.StandardCharsets.UTF_8);
+            // 恢复结果出现替换符说明原文本本就不是 UTF-8 字节——保留原值
+            return recovered.indexOf('�') >= 0 ? s : recovered;
+        } catch (Exception e) {
+            return s;
+        }
+    }
+
+    /**
+     * contentType 回退解析：multipart part 无 Content-Type 时落库为 null，
+     * parseMediaType(null) 曾抛 IAE → 500，一条脏数据即可让照片永远无法查看。
+     */
+    private MediaType resolveContentType(String contentType) {
+        if (contentType == null || contentType.isBlank()) {
+            return MediaType.APPLICATION_OCTET_STREAM;
+        }
+        try {
+            return MediaType.parseMediaType(contentType);
+        } catch (Exception e) {
+            return MediaType.APPLICATION_OCTET_STREAM;
+        }
     }
 
     @Operation(summary = "更新照片",
@@ -161,7 +227,7 @@ public class PhotoController {
 
     @PostMapping("/photos/{id}/restore")
     public ApiResponse<String> restore(@PathVariable Long id) {
-        service.restore(id);
+        trashService.restore(id);
         return ApiResponse.success("恢复成功");
     }
 
@@ -176,7 +242,7 @@ public class PhotoController {
             throw new BusinessException(404, "文件不存在");
         }
         return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(photo.getContentType()))
+                .contentType(resolveContentType(photo.getContentType()))
                 .body(resource);
     }
 
@@ -189,13 +255,18 @@ public class PhotoController {
         MediaType mediaType = MediaType.parseMediaType("image/webp");
         Path path = filePathResolver.getWebpPath(id);
         if (path == null || !Files.exists(path)) {
-            // P0-#3：webp 缺失——admin 回退原图（功能无损），viewer 一律 404
-            // （此前 view-only 分享可借 /webp 端点回退下载原图，已封堵）
+            // webp 缺失——admin 回退原图（功能无损）；viewer 回退缩略图（不破图，
+            // 且不能回退原图——view-only 分享借 /webp 回退下载原图，已封堵）
             if (!isAdmin()) {
-                throw new BusinessException(404, "图片不存在");
+                path = filePathResolver.getThumbnailPath(id, 400);
+                mediaType = MediaType.IMAGE_JPEG;
+                if (path == null || !Files.exists(path)) {
+                    throw new BusinessException(404, "图片不存在");
+                }
+            } else {
+                path = filePathResolver.getFilePath(id);
+                mediaType = resolveContentType(photo.getContentType()); // 回退分支按原图类型返回
             }
-            path = filePathResolver.getFilePath(id);
-            mediaType = MediaType.parseMediaType(photo.getContentType()); // 回退分支按原图类型返回
         }
         Resource resource = new FileSystemResource(path);
         if (!resource.exists()) {
@@ -209,7 +280,7 @@ public class PhotoController {
     @GetMapping("/photos/{id}/thumbnail")
     public ResponseEntity<Resource> getThumbnail(@PathVariable Long id,
                                                  @RequestParam(defaultValue = "400") int w) {
-        // P0-#3：w 白名单——全仓仅生成 200/400 两档（PhotoProcessor/AsyncImageProcessor），
+        // w 白名单——全仓仅生成 200/400 两档（PhotoProcessor/AsyncImageProcessor），
         // 任意 w 此前可借回退路径探测磁盘（回退 400 → 原图）
         if (w != 200 && w != 400) {
             throw new BusinessException(400, "缩略图宽度仅支持 200/400");
@@ -221,13 +292,13 @@ public class PhotoController {
         MediaType mediaType = MediaType.IMAGE_JPEG;
         Path path = filePathResolver.getThumbnailPath(id, w);
         if (path == null || !Files.exists(path)) {
-            // P0-#3：缩略图缺失——admin 回退原图（功能无损），viewer 一律 404
+            // 缩略图缺失——admin 回退原图（功能无损），viewer 一律 404
             // （此前 view-only 分享可借缩略图缺失回退下载原图，已封堵）
             if (!isAdmin()) {
                 throw new BusinessException(404, "缩略图不存在");
             }
             path = filePathResolver.getFilePath(id);
-            mediaType = MediaType.parseMediaType(photo.getContentType()); // 回退分支按原图类型返回
+            mediaType = resolveContentType(photo.getContentType()); // 回退分支按原图类型返回
         }
         Resource resource = new FileSystemResource(path);
         if (!resource.exists()) {
@@ -256,7 +327,7 @@ public class PhotoController {
     public ApiResponse<Page<TimelineItem>> timeline(
             @RequestParam(defaultValue = "desc") String sortOrder,
             @PageableDefault(size = 50) Pageable pageable) {
-        return ApiResponse.success(service.getTimeline(sortOrder, pageable));
+        return ApiResponse.success(photoQueryService.getTimeline(sortOrder, pageable));
     }
 
     @GetMapping("/photos/map")
@@ -265,7 +336,7 @@ public class PhotoController {
             @RequestParam double swLng,
             @RequestParam double neLat,
             @RequestParam double neLng) {
-        return ApiResponse.success(service.getMapPhotos(swLat, swLng, neLat, neLng));
+        return ApiResponse.success(photoQueryService.getMapPhotos(swLat, swLng, neLat, neLng));
     }
 
     @PostMapping("/photos/extract-exif")
@@ -276,7 +347,7 @@ public class PhotoController {
 
     @PostMapping("/photos/{id}/extract-exif")
     public ApiResponse<ExifData> extractExif(@PathVariable Long id) {
-        return ApiResponse.success(service.extractExifForPhoto(id));
+        return ApiResponse.success(photoQueryService.extractExifForPhoto(id));
     }
 
     @PostMapping("/photos/{id}/transform")

@@ -1,0 +1,13 @@
+# Grafana provisioning 数据源——指向 compose 网络内的 Prometheus。
+# basic_auth 只存在于 prometheus→app 抓取之间，Grafana 不需要。
+# uid 固定值：dashboard JSON 与 alert rules 均引用此 uid（prometheus-main）。
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    uid: prometheus-main
+    editable: false

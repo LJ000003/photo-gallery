@@ -45,7 +45,8 @@
     "deleted": "删除成功",
     "undo": "撤销",
     "deleteFailed": "删除失败",
-    "backToTop": "回到顶部"
+    "backToTop": "回到顶部",
+    "retry": "重试"
   },
   "sort": {
     "time": "时间",
@@ -66,8 +67,9 @@
     "processFailed": "处理失败",
     "retryProcessing": "重新处理",
     "loadFailed": "加载失败，请稍后重试",
-    "processingTimeout": "部分照片处理超时，已标记为失败，可点击重试",
-    "processingTimeoutMessage": "处理超时，可点击重试",
+    "loadFailedTitle": "照片加载失败",
+    "loadFailedHint": "请检查网络连接后重试",
+    "processingTimeout": "部分照片仍在处理中（服务器处理较慢），请稍后刷新查看",
     "loadMore": "加载更多"
   },
   "selection": {
@@ -149,7 +151,8 @@
     "addAlbum": "新建相册",
     "addCategory": "新建分类",
     "saved": "已保存",
-    "nameRequired": "照片名称不能为空"
+    "nameRequired": "照片名称不能为空",
+    "deleteConfirm": "确定删除「{name}」吗？"
   },
   "batchEdit": {
     "title": "批量编辑",
@@ -179,7 +182,8 @@
     "deleteConfirm": "删除相册「{name}」？照片不会被删除",
     "nameRequired": "相册名称不能为空",
     "deleted": "相册已删除",
-    "emptyFiltered": "没有符合搜索条件的相册"
+    "emptyFiltered": "没有符合搜索条件的相册",
+    "preselectFailed": "预选照片加载失败，为避免误清空相册，请重新打开编辑后再保存"
   },
   "timeline": {
     "empty": "还没有带拍摄时间的照片",

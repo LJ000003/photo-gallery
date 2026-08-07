@@ -29,7 +29,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 解锁校验逻辑（P4-#48④ 从 AuthController 抽入 AuthService 后）：
+ * 解锁校验逻辑（从 AuthController 抽入 AuthService 后）：
  * 封禁 403 / nonce 失效 400 / 序列错 401 / 不完整 400 / 成功签发 + reset；分享生成。
  * konami-sequence 经 @Value 注入，单测用 ReflectionTestUtils 设置。
  */
@@ -80,6 +80,65 @@ class AuthServiceTest {
 
         assertThat(result.status()).isEqualTo(403);
         assertThat(result.message()).contains("尝试次数过多");
+        verify(nonceStore, never()).consume(anyString());
+    }
+
+    // ---- P1 回归：畸形输入 → 400 + 计数，不再 500 且绕过封禁计数 ----
+
+    @Test
+    void unlock_nullBody_shouldReturn400AndRecordFailure() {
+        when(failedAttemptStore.isBlocked(anyString())).thenReturn(false);
+        when(failedAttemptStore.remainingAttempts(anyString())).thenReturn(4);
+
+        AuthResult result = service.unlock("1.2.3.4", null);
+
+        assertThat(result.status()).isEqualTo(400);
+        assertThat(result.message()).contains("请求格式有误");
+        verify(failedAttemptStore).recordFailure("1.2.3.4");
+        verify(nonceStore, never()).consume(anyString());
+    }
+
+    @Test
+    void unlock_nonceWrongType_shouldReturn400AndRecordFailure() {
+        when(failedAttemptStore.isBlocked(anyString())).thenReturn(false);
+        when(failedAttemptStore.remainingAttempts(anyString())).thenReturn(4);
+
+        AuthResult result = service.unlock("1.2.3.4", Map.of("nonce", 123, "keys", correctKeys()));
+
+        assertThat(result.status()).isEqualTo(400);
+        assertThat(result.message()).contains("请求格式有误");
+        verify(failedAttemptStore).recordFailure("1.2.3.4");
+        verify(nonceStore, never()).consume(anyString());
+    }
+
+    @Test
+    void unlock_keysWrongType_shouldReturn400AndRecordFailure() {
+        when(failedAttemptStore.isBlocked(anyString())).thenReturn(false);
+        when(failedAttemptStore.remainingAttempts(anyString())).thenReturn(4);
+
+        // keys 为 JSON 字符串而非数组——旧实现 (List<String>) 强转抛 ClassCastException → 500
+        AuthResult result = service.unlock("1.2.3.4",
+                Map.of("nonce", "valid-nonce", "keys", "up,up,down,down,left,right,left,right,B,A,B,A"));
+
+        assertThat(result.status()).isEqualTo(400);
+        assertThat(result.message()).contains("请求格式有误");
+        verify(failedAttemptStore).recordFailure("1.2.3.4");
+        verify(nonceStore, never()).consume(anyString());
+    }
+
+    @Test
+    void unlock_keysNonStringElements_shouldReturn400AndRecordFailure() {
+        when(failedAttemptStore.isBlocked(anyString())).thenReturn(false);
+        when(failedAttemptStore.remainingAttempts(anyString())).thenReturn(4);
+
+        // 12 个数字元素——旧实现 size 校验通过后 String.join 抛 ClassCastException → 500
+        List<Object> numericKeys = List.of(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12);
+        AuthResult result = service.unlock("1.2.3.4",
+                Map.of("nonce", "valid-nonce", "keys", numericKeys));
+
+        assertThat(result.status()).isEqualTo(400);
+        assertThat(result.message()).contains("请求格式有误");
+        verify(failedAttemptStore).recordFailure("1.2.3.4");
         verify(nonceStore, never()).consume(anyString());
     }
 
@@ -137,7 +196,7 @@ class AuthServiceTest {
         verify(failedAttemptStore).reset("1.2.3.4");
     }
 
-    // ==================== 分享 token（P0-#6：DB token + 幂等复用） ====================
+    // ==================== 分享 token（DB token + 幂等复用） ====================
 
     @Test
     void generateShare_shouldPersistShareToken() {
@@ -183,6 +242,15 @@ class AuthServiceTest {
 
         assertThat(result.data()).doesNotContainEntry("token", "existing-token");
         verify(shareTokenRepository).save(any(ShareToken.class));
+    }
+
+    @Test
+    void generateShare_nullPermission_shouldThrow400() {
+        // @Pattern 不拦 null——service 层防御：null 权限曾 NPE → 500 / null 落库
+        assertThatThrownBy(() -> service.generateShare(List.of(1L), null, 7))
+                .isInstanceOf(com.hape.photogallery.exception.BusinessException.class)
+                .hasMessageContaining("分享权限不能为空");
+        verify(shareTokenRepository, never()).save(any());
     }
 
     @Test

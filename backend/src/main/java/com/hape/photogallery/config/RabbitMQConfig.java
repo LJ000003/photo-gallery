@@ -34,12 +34,16 @@ public class RabbitMQConfig {
     public static final String DLQ = "pg.photo.processing.dlq";
     public static final String ROUTING_KEY = "photo.processing";
     public static final String DLQ_ROUTING_KEY = "photo.processing.dlq";
-    /** P0-#1：TTL 重试队列——consumer 失败时显式重投到此队列，TTL 到期死信回主队列重试；
+    /** TTL 重试队列——consumer 失败时显式重投到此队列，TTL 到期死信回主队列重试；
      *  重试次数由自定义 header x-retry-count 记录（随显式重投持久化，与 broker 版本无关——
-     *  实测 RabbitMQ 4.x 死信时 x-death 被重置而非合并递增，不可依赖） */
+     *  实测 RabbitMQ 4.x 死信时 x-death 被重置而非合并递增，不可依赖）。
+     *  注意：TTL 是队列参数，改动需先删旧队列（rabbitmqctl delete_queue pg.photo.processing.retry），
+     *  否则声明 406 PRECONDITION_FAILED 启动失败 */
     public static final String RETRY_QUEUE = "pg.photo.processing.retry";
     public static final String RETRY_ROUTING_KEY = "photo.processing.retry";
-    public static final long RETRY_TTL_MS = 10_000;
+    /** 10s → 30s：2 核慢机器上瞬时抖动（DB 抖动/磁盘满/连接池耗尽）常超过 10s，
+     *  过窄窗口会把在途照片批量判死 FAILED（P0 修复，配合 DlqRequeuer 自动恢复） */
+    public static final long RETRY_TTL_MS = 30_000;
 
     /** 处理队列（持久、含 DLX） */
     @Bean
@@ -83,7 +87,7 @@ public class RabbitMQConfig {
         return BindingBuilder.bind(processingQueue()).to(processingExchange()).with(ROUTING_KEY);
     }
 
-    /** P0-#1：主交换机 → 重试队列（consumer 失败时显式重投的路由） */
+    /** 主交换机 → 重试队列（consumer 失败时显式重投的路由） */
     @Bean
     Binding retryBinding() {
         return BindingBuilder.bind(retryQueue()).to(processingExchange()).with(RETRY_ROUTING_KEY);
@@ -94,24 +98,36 @@ public class RabbitMQConfig {
         return BindingBuilder.bind(deadLetterQueue()).to(deadLetterExchange()).with(DLQ_ROUTING_KEY);
     }
 
-    /** JSON 序列化 RabbitTemplate，仅允许白名单类型反序列化 */
+    /**
+     * 生产/消费共用的 JSON 消息转换器，仅允许白名单类型反序列化。
+     * 发布侧（RabbitTemplate）与消费侧（监听容器工厂）必须用同一个转换器——
+     * 否则发布为 application/json，消费端默认 SimpleMessageConverter 只返回 byte[]，
+     * POJO 参数解析失败 → MessageConversionException（fatal）→ 直接进 DLQ，
+     * 上传永久卡 PROCESSING（P0 修复，曾缺 setMessageConverter）。
+     */
     @Bean
-    RabbitTemplate rabbitTemplate(ConnectionFactory factory) {
+    Jackson2JsonMessageConverter jackson2JsonMessageConverter() {
         PolymorphicTypeValidator ptv = BasicPolymorphicTypeValidator.builder()
                 .allowIfBaseType(ProcessingMessage.class)
                 .build();
         ObjectMapper mapper = new ObjectMapper();
         mapper.activateDefaultTyping(ptv, ObjectMapper.DefaultTyping.NON_FINAL,
                 com.fasterxml.jackson.annotation.JsonTypeInfo.As.PROPERTY);
+        return new Jackson2JsonMessageConverter(mapper);
+    }
 
+    /** JSON 序列化 RabbitTemplate（发布侧） */
+    @Bean
+    RabbitTemplate rabbitTemplate(ConnectionFactory factory, Jackson2JsonMessageConverter converter) {
         RabbitTemplate template = new RabbitTemplate(factory);
-        template.setMessageConverter(new Jackson2JsonMessageConverter(mapper));
+        template.setMessageConverter(converter);
         return template;
     }
 
-    /** Consumer 容器工厂：MANUAL ack + 2-4 并发 + MDC 传播 */
+    /** Consumer 容器工厂：MANUAL ack + 2-4 并发 + MDC 传播 + JSON 转换器（与发布侧一致） */
     @Bean
-    SimpleRabbitListenerContainerFactory rabbitListenerContainerFactory(ConnectionFactory factory) {
+    SimpleRabbitListenerContainerFactory rabbitListenerContainerFactory(ConnectionFactory factory,
+                                                                        Jackson2JsonMessageConverter converter) {
         SimpleRabbitListenerContainerFactory containerFactory = new SimpleRabbitListenerContainerFactory();
         containerFactory.setConnectionFactory(factory);
         containerFactory.setAcknowledgeMode(AcknowledgeMode.MANUAL);
@@ -119,6 +135,7 @@ public class RabbitMQConfig {
         containerFactory.setConcurrentConsumers(2);
         containerFactory.setMaxConcurrentConsumers(4);
         containerFactory.setDefaultRequeueRejected(false);
+        containerFactory.setMessageConverter(converter);
         containerFactory.setTaskExecutor(mdcAwareExecutor());
         return containerFactory;
     }

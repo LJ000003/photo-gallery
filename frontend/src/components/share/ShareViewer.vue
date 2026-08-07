@@ -3,10 +3,9 @@ import { onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { LeftOutlined, RightOutlined } from '@ant-design/icons-vue'
-import { webpUrl } from '../../utils/webp'
 import { formatSize } from '../../utils/format'
 import { appendTokenParam } from '../../utils/token'
-import { api } from '../../api'
+import { api, ApiError } from '../../api'
 import PhotoGrid from '../gallery/PhotoGrid.vue'
 import GridSkeleton from '../gallery/GridSkeleton.vue'
 import EmptyState from '../common/EmptyState.vue'
@@ -32,26 +31,26 @@ const viewIndex = ref(-1)
 const errorKind = ref<'auth' | 'server' | null>(null)
 
 async function load(): Promise<void> {
-  if (loading.value || !hasMore.value) return
+  // 防重由 onScroll 的 loading 检查负责，这里不能拦 loading——
+  // loading 初始为 true（首帧骨架屏），拦了会把首次挂载的请求也挡掉
+  if (!hasMore.value) return
   loading.value = true
   try {
     const res = await api(`/api/share/view?page=${page.value}&size=20`, {
       token,
       skipAuth: true,
     })
-    if (!res.ok) {
-      errorKind.value = res.status === 401 || res.status === 403 ? 'auth' : 'server'
-      hasMore.value = false
-      return
-    }
     const json = await res.json()
     const data: PageResponse<Photo> = json.data
     photos.value = [...photos.value, ...data.content]
     hasMore.value = !data.last
     page.value++
     errorKind.value = null
-  } catch {
-    errorKind.value = 'server'
+  } catch (err) {
+    // api() 对非 2xx 一律 throw——按状态码归类：401/403（凭证无效）
+    // 与 404（链接不存在/已撤销，ShareController 兜底）都属「链接无效」
+    errorKind.value =
+      err instanceof ApiError && [401, 403, 404].includes(err.status) ? 'auth' : 'server'
     hasMore.value = false
   } finally {
     loading.value = false
@@ -154,7 +153,7 @@ onUnmounted(() => {
         <div class="lb-content" @click.self="closeViewer">
           <img
             v-if="photos[viewIndex]"
-            :src="appendTokenParam(webpUrl(photos[viewIndex].id), token)"
+            :src="appendTokenParam(`/api/v1/photos/${photos[viewIndex].id}/webp`, token)"
             :alt="photos[viewIndex].name"
             loading="lazy"
           />

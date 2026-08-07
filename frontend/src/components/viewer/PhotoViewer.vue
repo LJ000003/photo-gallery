@@ -8,7 +8,7 @@ import ExifPanel from './ExifPanel.vue'
 import ViewerStage from './ViewerStage.vue'
 import ViewerBottom from './ViewerBottom.vue'
 import { webpUrl } from '../../utils/webp'
-import { appendMediaParams } from '../../utils/token'
+import { appendMediaParams, mediaUrlWithVersion } from '../../utils/token'
 import { formatSize } from '../../utils/format'
 import { useUiStore } from '../../stores/ui'
 import { usePhotoActions } from '../../composables/usePhotoActions'
@@ -42,16 +42,19 @@ function onDelete(): void {
     okText: t('actions.delete'),
     okButtonProps: { danger: true },
     cancelText: t('actions.cancel'),
-    onOk: () => {
+    onOk: async () => {
       const id = props.photo.id
-      // 统一删除路径：store 从快照移除并导航到下一张（或关闭），组件不再自行导航
-      ui.removeViewerPhoto(id)
-      void deletePhoto(id)
+      // 删除成功才从快照移除并导航：失败时保持当前照片（旧实现先导航，
+      // 网络/500 失败后用户误以为已删除）
+      const ok = await deletePhoto(id)
+      if (ok) ui.removeViewerPhoto(id)
     },
   })
 }
 
-const downloadUrl = computed(() => appendMediaParams(webpUrl(props.photo.id), props.photo))
+const downloadUrl = computed(() =>
+  mediaUrlWithVersion(appendMediaParams(webpUrl(props.photo.id), props.photo), props.photo),
+)
 </script>
 
 <template>

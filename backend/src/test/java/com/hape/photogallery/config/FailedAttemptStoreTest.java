@@ -7,7 +7,7 @@ import java.util.concurrent.CountDownLatch;
 import org.junit.jupiter.api.Test;
 
 /**
- * 失败封禁存储单测（P1-#14/#11：5 次失败封 15 分钟的口径支撑）。
+ * 失败封禁存储单测（5 次失败封 15 分钟的口径支撑）。
  * 纯 JUnit 5 无 Spring；Caffeine 过期（15min）无法伪造时钟（store 硬编码 builder 无 ticker
  * 注入），该行为由 Caffeine 库保证，不为此加构造参数（过度设计）——诚实口径见 §6.6 #11 卡。
  */

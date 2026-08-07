@@ -27,6 +27,8 @@ const page = ref(0)
 const hasMore = ref(true)
 const loading = ref(false)
 const initialLoading = ref(true)
+/** 加载失败标志：与空数据区分，渲染错误态 + 重试（旧实现显示「暂无照片」误导） */
+const loadFailed = ref(false)
 let requestId = 0
 
 /** 加载失败冷却：避免 IntersectionObserver 对持续不可用的服务器连环重试 */
@@ -77,10 +79,12 @@ async function loadMore(): Promise<boolean> {
     if (data.content && data.content.length) items.value.push(...data.content)
     page.value++
     hasMore.value = page.value < data.totalPages
+    loadFailed.value = false
     return true
   } catch (e) {
     logError(e, 'Failed to load timeline')
     lastFailAt = Date.now()
+    loadFailed.value = true
     return false
   } finally {
     if (myId === requestId) loading.value = false
@@ -95,6 +99,7 @@ function reset(): void {
   hasMore.value = true
   loading.value = false
   initialLoading.value = true
+  loadFailed.value = false
   void loadMore()
 }
 
@@ -158,6 +163,16 @@ watch(
         </div>
       </div>
     </div>
+
+    <EmptyState
+      v-else-if="loadFailed && items.length === 0"
+      :title="t('gallery.loadFailedTitle')"
+      :hint="t('gallery.loadFailedHint')"
+    >
+      <template #action>
+        <button class="retry-btn" @click="reset()">{{ t('actions.retry') }}</button>
+      </template>
+    </EmptyState>
 
     <EmptyState
       v-else-if="items.length === 0"
@@ -234,6 +249,22 @@ watch(
 }
 .order-arrow {
   font-size: 10px;
+}
+
+.retry-btn {
+  margin-top: 12px;
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
+  color: var(--c-text);
+  font-size: 13px;
+  padding: 7px 20px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.retry-btn:hover {
+  border-color: var(--c-accent);
+  color: var(--c-accent);
 }
 
 .timeline {

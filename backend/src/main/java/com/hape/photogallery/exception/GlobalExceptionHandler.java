@@ -8,6 +8,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
@@ -44,9 +45,31 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Void>> handleValidation(MethodArgumentNotValidException ex) {
-        FieldError first = ex.getBindingResult().getFieldErrors().get(0);
+        // get(0) 曾对「仅 object-level 校验错误」的输入抛 IOBE → 500；先 field 后 object 判空兜底
+        var result = ex.getBindingResult();
+        String message = result.getFieldErrors().stream().findFirst()
+                .map(FieldError::getDefaultMessage)
+                .orElseGet(() -> result.getGlobalErrors().stream().findFirst()
+                        .map(e -> e.getDefaultMessage() != null ? e.getDefaultMessage() : "参数校验失败")
+                        .orElse("参数校验失败"));
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.error(400, first.getDefaultMessage()));
+                .body(ApiResponse.error(400, message));
+    }
+
+    /** 缺 Content-Type 或类型不匹配的 JSON 请求（裸 curl POST 等）→ 415 而非兜底 500 */
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMediaTypeNotSupported(
+            HttpMediaTypeNotSupportedException ex) {
+        return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+                .body(ApiResponse.error(415, "不支持的媒体类型，请使用 application/json"));
+    }
+
+    /** 排序字段不在实体属性中（如 /albums/{id}/photos 端点）→ 400 而非 PropertyReferenceException 500 */
+    @ExceptionHandler(org.springframework.data.mapping.PropertyReferenceException.class)
+    public ResponseEntity<ApiResponse<Void>> handlePropertyReference(
+            org.springframework.data.mapping.PropertyReferenceException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(400, "不支持的排序字段: " + ex.getPropertyName()));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
@@ -90,6 +113,14 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.error(400, "参数格式有误: " + ex.getName()));
+    }
+
+    @ExceptionHandler(org.springframework.web.HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMethodNotSupported(
+            org.springframework.web.HttpRequestMethodNotSupportedException ex) {
+        // 曾落入兜底 500「系统繁忙」（如 GET 不存在的 /albums/{id} 详情端点）——方法不支持是客户端错误
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
+                .body(ApiResponse.error(405, "请求方法不支持"));
     }
 
     @ExceptionHandler(Exception.class)

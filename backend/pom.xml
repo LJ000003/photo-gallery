@@ -17,7 +17,7 @@
 
     <properties>
         <java.version>17</java.version>
-        <!-- P0-#5：Boot 3.3.13 BOM 托管 1.19.8 与新版 Docker Desktop npipe 协商不兼容（连接返回 400），
+        <!-- Boot 3.3.13 BOM 托管 1.19.8 与新版 Docker Desktop npipe 协商不兼容（连接返回 400），
              试 1.x 最新无效后升级 2.x（docker-java 3.7.x） -->
         <testcontainers.version>2.0.5</testcontainers.version>
     </properties>
@@ -117,11 +117,18 @@
             <artifactId>webp-imageio</artifactId>
             <version>0.1.6</version>
         </dependency>
+        <!-- Hibernate 懒加载代理的 Jackson 序列化支持（Boot 自动注册 Hibernate6Module）：
+             无此模块时未初始化代理（ByteBuddyInterceptor）序列化 → HttpMessageConversionException 500，
+             实测回收站列表带标签照片复现 -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-hibernate6</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
-        <!-- P0-#5：Flyway MySQL 集成测试（Testcontainers；版本由 Boot parent/BOM 托管，无 Docker 时自动跳过） -->
+        <!-- Flyway MySQL 集成测试（Testcontainers；版本由 Boot parent/BOM 托管，无 Docker 时自动跳过） -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-testcontainers</artifactId>

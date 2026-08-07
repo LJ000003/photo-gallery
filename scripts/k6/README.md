@@ -8,12 +8,12 @@
 |------|------|------|
 | `smoke.js` | 首页/静态资源 | SPA 入口 + 静态资源加载，验证 TLS/静态服务基线 |
 | `photo-list.js` | 照片列表 | GET /api/v1/photos（缓存命中/回源两态） |
-| `upload.js` | 上传 | Konami 解锁 → POST /photos（含去重 409 分支） |
+| `upload.js` | 上传 | setup 中 Konami 解锁 → POST /photos（种子化真实照片，测写入吞吐，无去重路径） |
 | `share.js` | 分享链路 | 生成分享 → viewer 查看（白名单 + 签名剥离路径） |
 
 ## 运行
 
-前置：后端 dev 或 prod 运行中，且已有数据（photo-list / upload 需要照片库）。
+前置：后端 dev 或 prod 运行中；photo-list / share 需要照片库有数据，upload 自带种子化照片无需预置数据。
 
 ```bash
 # 冒烟：10 个 VU × 30s
@@ -32,5 +32,5 @@ k6 run scripts/k6/share.js
 ## 备注
 
 - 上传场景走完整 Challenge-Response：challenge → nonce+keys → unlock → JWT，与前端一致
-- 认证端点有 10 req/s/IP 限流，upload.js 的解锁只做 1 次（循环外用）
+- 认证端点有 10 req/s/IP 限流，各场景在 `setup()` 中解锁 1 次（HTTP 不能在 init context 发起）
 - 生产注意：压测会真实落库/落盘，仅对测试环境执行

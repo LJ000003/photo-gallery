@@ -82,6 +82,42 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void handleValidation_onlyObjectError_shouldNotIoBE() throws Exception {
+        // 仅 object-level 校验错误（无 field error）：getFieldErrors().get(0) 曾抛 IOBE → 500
+        MethodArgumentNotValidException ex = new MethodArgumentNotValidException(
+                null, new BeanPropertyBindingResult(new Object(), "obj"));
+        ex.getBindingResult().addError(new org.springframework.validation.ObjectError("obj", "对象级错误"));
+
+        ResponseEntity<ApiResponse<Void>> res = handler.handleValidation(ex);
+
+        assertThat(res.getStatusCode().value()).isEqualTo(400);
+        assertThat(res.getBody().getMessage()).isEqualTo("对象级错误");
+    }
+
+    @Test
+    void handleMediaTypeNotSupported_should415() {
+        org.springframework.web.HttpMediaTypeNotSupportedException ex =
+                new org.springframework.web.HttpMediaTypeNotSupportedException("application/json");
+
+        ResponseEntity<ApiResponse<Void>> res = handler.handleMediaTypeNotSupported(ex);
+
+        assertThat(res.getStatusCode().value()).isEqualTo(415);
+    }
+
+    @Test
+    void handlePropertyReference_should400WithField() {
+        // 构造器要求非 null TypeInformation——用 mock 模拟（仅验证 handler 映射行为）
+        org.springframework.data.mapping.PropertyReferenceException ex =
+                org.mockito.Mockito.mock(org.springframework.data.mapping.PropertyReferenceException.class);
+        org.mockito.Mockito.when(ex.getPropertyName()).thenReturn("foo");
+
+        ResponseEntity<ApiResponse<Void>> res = handler.handlePropertyReference(ex);
+
+        assertThat(res.getStatusCode().value()).isEqualTo(400);
+        assertThat(res.getBody().getMessage()).contains("foo");
+    }
+
+    @Test
     void handleHttpMessageNotReadable() {
         ResponseEntity<ApiResponse<Void>> res = handler.handleNotReadable(null);
         assertThat(res.getStatusCode().value()).isEqualTo(400);
@@ -152,5 +188,17 @@ class GlobalExceptionHandlerTest {
 
         assertThat(res.getStatusCode().value()).isEqualTo(400);
         assertThat(res.getBody().getMessage()).contains("tagIds");
+    }
+
+    /** 方法不支持（如 GET 不存在的端点）此前落兜底 500——405 是客户端错误，不应 500 */
+    @Test
+    void handleMethodNotSupported_shouldReturn405() {
+        org.springframework.web.HttpRequestMethodNotSupportedException ex =
+                new org.springframework.web.HttpRequestMethodNotSupportedException("GET");
+
+        ResponseEntity<ApiResponse<Void>> res = handler.handleMethodNotSupported(ex);
+
+        assertThat(res.getStatusCode().value()).isEqualTo(405);
+        assertThat(res.getBody().getCode()).isEqualTo(405);
     }
 }

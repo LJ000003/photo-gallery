@@ -42,7 +42,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         this.shareTokenRepository = shareTokenRepository;
     }
 
-    /** 错误响应统一走 ApiResponse JSON（P4-#48③：此前 sendError 是纯 Servlet 错误体，与接口契约不一致） */
+    /** 错误响应统一走 ApiResponse JSON（此前 sendError 是纯 Servlet 错误体，与接口契约不一致） */
     private void writeError(HttpServletResponse response, int status, String message) throws IOException {
         response.setStatus(status);
         response.setContentType("application/json;charset=UTF-8");
@@ -64,22 +64,25 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         // 图片端点优先校验短时签名（HMAC 时间桶）：签名只在管理员上下文签发的
         // 响应中出现（分享响应已剥离），绑定 photoId，无会话权限，URL 不泄漏 JWT
+        // 注意：签名失效（时间桶滑出窗口 ~10 分钟）不得短路请求——浏览器历史/Service
+        // Worker 缓存回源可能带旧签名，此时若请求头本有有效凭证应继续走 token 分支
         String uri = request.getRequestURI();
+        boolean sigFailed = false;
         if (isImageFileRequest(uri)) {
             String sig = request.getParameter("sig");
             if (sig != null && !sig.isBlank()) {
                 Long requestedPhotoId = extractPhotoIdFromImagePath(uri);
                 long verifiedPhotoId = mediaSignatureService.verify(sig);
-                if (requestedPhotoId == null || verifiedPhotoId != requestedPhotoId) {
-                    writeError(response, HttpServletResponse.SC_FORBIDDEN, "图片签名无效或已过期");
+                if (requestedPhotoId != null && verifiedPhotoId == requestedPhotoId) {
+                    SecurityContextHolder.getContext().setAuthentication(
+                            new UsernamePasswordAuthenticationToken(
+                                    "media", null,
+                                    List.of(new SimpleGrantedAuthority("ROLE_admin"))));
+                    filterChain.doFilter(request, response);
                     return;
                 }
-                SecurityContextHolder.getContext().setAuthentication(
-                        new UsernamePasswordAuthenticationToken(
-                                "media", null,
-                                List.of(new SimpleGrantedAuthority("ROLE_admin"))));
-                filterChain.doFilter(request, response);
-                return;
+                // 签名无效/过期：记录后继续尝试 token 凭证，全部失败才按无凭证处理
+                sigFailed = true;
             }
         }
 
@@ -112,7 +115,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                     }
                 }
             } else {
-                // P0-#6：JWT 校验失败 → DB share token（新分享链接；撤销/过期即失效）。
+                // JWT 校验失败 → DB share token（新分享链接；撤销/过期即失效）。
                 // 热路径代价：每张图一次 token 唯一索引查询——刻意不缓存以保持撤销即时生效。
                 ShareToken st = shareTokenRepository.findByToken(token).orElse(null);
                 if (st != null && st.getRevokedAt() == null && st.getExpiresAt() != null
@@ -131,6 +134,13 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 // 无效/已撤销/已过期 token：不设认证，继续 chain（图片端点 403、
                 // /api/v1/share/view 由 controller 以 404「分享链接无效或已过期」兜底）
             }
+        }
+
+        if (sigFailed && SecurityContextHolder.getContext().getAuthentication() == null) {
+            // 签名失效且未建立任何认证：403（比 Security 兜底的 401 更精确说明原因）；
+            // 上面 token 分支已设置认证（admin/viewer）时放行，不会走到这里
+            writeError(response, HttpServletResponse.SC_FORBIDDEN, "图片签名无效或已过期");
+            return;
         }
 
         filterChain.doFilter(request, response);
@@ -184,7 +194,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     private Long extractPhotoIdFromImagePath(String uri) {
         Matcher m = PHOTO_IMAGE_PATH.matcher(uri);
         if (m.find()) {
-            return Long.parseLong(m.group(1));
+            try {
+                return Long.parseLong(m.group(1));
+            } catch (NumberFormatException e) {
+                // 超长数字（> Long.MAX_VALUE）→ 视为无有效 photoId（403/401 而非 500）
+                return null;
+            }
         }
         return null;
     }

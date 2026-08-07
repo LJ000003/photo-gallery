@@ -45,7 +45,8 @@
     "deleted": "Deleted",
     "undo": "Undo",
     "deleteFailed": "Delete failed",
-    "backToTop": "Back to top"
+    "backToTop": "Back to top",
+    "retry": "Retry"
   },
   "sort": {
     "time": "Time",
@@ -66,8 +67,9 @@
     "processFailed": "Processing failed",
     "retryProcessing": "Retry processing",
     "loadFailed": "Failed to load, please try again later",
-    "processingTimeout": "Some photos timed out during processing and were marked as failed; you can retry",
-    "processingTimeoutMessage": "Processing timed out, you can retry",
+    "loadFailedTitle": "Failed to load photos",
+    "loadFailedHint": "Please check your network connection and try again",
+    "processingTimeout": "Some photos are still processing (server is busy); please refresh later",
     "loadMore": "Load more"
   },
   "selection": {
@@ -149,7 +151,8 @@
     "addAlbum": "New album",
     "addCategory": "New category",
     "saved": "Saved",
-    "nameRequired": "Photo name is required"
+    "nameRequired": "Photo name is required",
+    "deleteConfirm": "Delete \"{name}\"?"
   },
   "batchEdit": {
     "title": "Batch edit",
@@ -179,7 +182,8 @@
     "deleteConfirm": "Delete album \"{name}\"? Photos will not be deleted",
     "nameRequired": "Album name is required",
     "deleted": "Album deleted",
-    "emptyFiltered": "No albums match your search"
+    "emptyFiltered": "No albums match your search",
+    "preselectFailed": "Failed to load selected photos. To avoid clearing the album, reopen the editor before saving"
   },
   "timeline": {
     "empty": "No photos with capture dates yet",

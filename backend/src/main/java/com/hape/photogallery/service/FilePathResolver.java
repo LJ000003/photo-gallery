@@ -10,10 +10,10 @@ import com.hape.photogallery.exception.BusinessException;
 import com.hape.photogallery.repository.PhotoRepository;
 
 /**
- * 存储路径解析（P4-#37：从 PhotoService 拆出）。
+ * 存储路径解析（从 PhotoService 拆出）。
  * 收敛「实体 fileName → 磁盘 Path」的规则（缩略图/WebP 目录约定、越界防御），
  * 含 getByIdIncludeDeleted 的 404 语义——API 形状保持 getFilePath(Long id) 不变。
- * P0-#3：缩略图/WebP 缺失时返回 null（不回退原图），回退策略由调用方按角色决定
+ * 缩略图/WebP 缺失时返回 null（不回退原图），回退策略由调用方按角色决定
  * （admin 可回退原图，viewer 一律 404，防止 view-only 分享借回退下载原图）。
  */
 @Component
@@ -75,7 +75,7 @@ public class FilePathResolver {
             if (Files.exists(fallback)) return fallback;
         }
 
-        // P0-#3：不再回退原图（此前 view-only 分享可借 /thumbnail 端点下载原图）
+        // 不再回退原图（此前 view-only 分享可借 /thumbnail 端点下载原图）
         return null;
     }
 
@@ -85,16 +85,21 @@ public class FilePathResolver {
         FilePathParts parts = parseFilePath(fn);
         Path webp = storage.resolveSafe(parts.dateDir + "/webp/" + parts.baseName + ".webp");
         if (Files.exists(webp)) return webp;
-        // P0-#3：不再回退原图（与缩略图同理，防止 view-only 分享借 /webp 端点下载原图）
+        // 不再回退原图（与缩略图同理，防止 view-only 分享借 /webp 端点下载原图）
         return null;
     }
 
-    /** 删除照片全部磁盘产物（原图/缩略图×2/WebP） */
-    public void deletePhotoFiles(Photo photo) {
-        storage.deleteFile(photo.getFileName());
+    /**
+     * 删除照片全部磁盘产物（原图/缩略图×2/WebP）。
+     * 返回是否全部删除成功（原图删除结果为主，其余 best-effort）——失败由调用方
+     * 记录日志/告警（行已删的孤儿文件无自动回收，需可观测）。
+     */
+    public boolean deletePhotoFiles(Photo photo) {
+        boolean ok = storage.deleteFile(photo.getFileName());
         FilePathParts parts = parseFilePath(photo.getFileName());
         storage.deleteFile(parts.dateDir + "/thumbnails/" + parts.baseName);
         storage.deleteFile(parts.dateDir + "/thumbnails/200/" + parts.baseName);
         storage.deleteFile(parts.dateDir + "/webp/" + parts.baseName + ".webp");
+        return ok;
     }
 }

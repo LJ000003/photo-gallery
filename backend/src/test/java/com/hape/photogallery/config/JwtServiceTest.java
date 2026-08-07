@@ -26,7 +26,7 @@ class JwtServiceTest {
         assertThat(claims.get("role")).isEqualTo("admin");
     }
 
-    // P0-#6：issueShare 已删除——分享凭证改为 DB 高熵 token（可撤销），JWT 退出分享签发
+    // issueShare 已删除——分享凭证改为 DB 高熵 token（可撤销），JWT 退出分享签发
 
     @Test
     void verify_invalidToken_shouldReturnNull() {

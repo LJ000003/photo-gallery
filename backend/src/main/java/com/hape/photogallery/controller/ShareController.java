@@ -3,7 +3,7 @@ package com.hape.photogallery.controller;
 import com.hape.photogallery.ApiResponse;
 import com.hape.photogallery.dto.PhotoResponse;
 import com.hape.photogallery.exception.BusinessException;
-import com.hape.photogallery.service.PhotoService;
+import com.hape.photogallery.service.PhotoQueryService;
 
 import io.swagger.v3.oas.annotations.Operation;
 
@@ -19,10 +19,10 @@ import jakarta.servlet.http.HttpServletRequest;
 @RestController
 public class ShareController {
 
-    private final PhotoService photoService;
+    private final PhotoQueryService photoQueryService;
 
-    public ShareController(PhotoService photoService) {
-        this.photoService = photoService;
+    public ShareController(PhotoQueryService photoQueryService) {
+        this.photoQueryService = photoQueryService;
     }
 
     /** 分享落地面 — 转发到 SPA（前端 JS 读取 URL 中的 token） */
@@ -46,11 +46,11 @@ public class ShareController {
             throw new BusinessException(404, "分享链接无效或已过期");
         }
 
-        // P4-#48③：page/size 钳制——size=-1 曾直接 500（PageRequest 校验抛 IllegalArgumentException）
+        // page/size 钳制——size=-1 曾直接 500（PageRequest 校验抛 IllegalArgumentException）
         int clampedPage = Math.max(0, page);
         int clampedSize = Math.max(1, Math.min(100, size));
-        Page<PhotoResponse> result = photoService.findByIds(photoIds, PageRequest.of(clampedPage, clampedSize))
-                .map(photoService::toResponse);
+        Page<PhotoResponse> result = photoQueryService
+                .findByIdsResponses(photoIds, PageRequest.of(clampedPage, clampedSize));
         // 分享上下文不得签发管理员短时签名（否则 view 权限可借签名下载原图），统一剥离
         result.getContent().forEach(r -> r.setMediaToken(null));
         return ApiResponse.success(result);

@@ -11,9 +11,18 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 @Component
 public class NonceStore {
 
-    private final Cache<String, Boolean> cache = Caffeine.newBuilder()
-            .expireAfterWrite(Duration.ofSeconds(60))
-            .build();
+    private final Cache<String, Boolean> cache;
+
+    public NonceStore() {
+        this(Duration.ofSeconds(60));
+    }
+
+    /** package-private：TTL 可注入（单测用短 TTL 验证过期），生产固定 60s */
+    NonceStore(Duration ttl) {
+        this.cache = Caffeine.newBuilder()
+                .expireAfterWrite(ttl)
+                .build();
+    }
 
     public String generate() {
         String nonce = UUID.randomUUID().toString();

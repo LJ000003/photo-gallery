@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { usePhotoStore } from '../photo'
 import { useToastStore } from '../toast'
-import type { Photo } from '../../types/photo'
+import type { Photo, PhotoProcessingStatus } from '../../types/photo'
 
 vi.mock('vue-router', () => ({
   useRouter: () => ({ replace: vi.fn() }),
@@ -13,7 +13,11 @@ function mkPhoto(id: number, status: string): Photo {
   return { id, name: `p${id}`, processingStatus: status } as Photo
 }
 
-function stubFetch(responses: Record<string, { code: number; data?: Photo }>) {
+function mkStatus(id: number, status: string): PhotoProcessingStatus {
+  return { id, processingStatus: status }
+}
+
+function stubFetch(responses: Record<string, { code: number; data?: PhotoProcessingStatus[] }>) {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string) => {
@@ -28,7 +32,7 @@ function stubFetch(responses: Record<string, { code: number; data?: Photo }>) {
   )
 }
 
-describe('photo store 处理轮询', () => {
+describe('photo store 处理轮询（批量状态端点，2C4G 部署改造）', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.useFakeTimers()
@@ -39,16 +43,17 @@ describe('photo store 处理轮询', () => {
   })
 
   it('处理完成后停止轮询并更新照片状态', async () => {
-    // api.ts 会把 /api/photos/{id} 替换为 /api/v1/photos/{id}
+    // 批量状态端点：/api/photos/status → api.ts 替换为 /api/v1/photos/status
     stubFetch({
-      '/api/v1/photos/1': { code: 200, data: mkPhoto(1, 'DONE') },
-      '/api/v1/photos/2': { code: 200, data: mkPhoto(2, 'DONE') },
+      '/api/v1/photos/status?ids=1,2': {
+        code: 200,
+        data: [mkStatus(1, 'DONE'), mkStatus(2, 'DONE')],
+      },
     })
     const store = usePhotoStore()
     store.photos.push(mkPhoto(1, 'PROCESSING'), mkPhoto(2, 'PROCESSING'))
 
     store.startProcessingPoll()
-    // 一轮 3s 后并行拉取
     await vi.advanceTimersByTimeAsync(3000)
 
     expect(store.photos[0].processingStatus).toBe('DONE')
@@ -59,12 +64,12 @@ describe('photo store 处理轮询', () => {
     expect(vi.mocked(fetch).mock.calls.length).toBe(fetchCount)
   })
 
-  it('一轮内并行拉取全部 PROCESSING 照片', async () => {
+  it('每轮单请求批量拉状态（不再逐张拉全量详情）', async () => {
     const fetchMock = vi.fn(async (_url: string) => ({
       ok: true,
       status: 200,
       headers: new Headers(),
-      json: async () => ({ code: 200, data: mkPhoto(1, 'DONE') }),
+      json: async () => ({ code: 200, data: [mkStatus(1, 'DONE'), mkStatus(2, 'DONE')] }),
     }))
     vi.stubGlobal('fetch', fetchMock)
     const store = usePhotoStore()
@@ -73,27 +78,29 @@ describe('photo store 处理轮询', () => {
     store.startProcessingPoll()
     await vi.advanceTimersByTimeAsync(3000)
 
-    // 两张照片并行 → 一轮 fetch 2 次（非串行 2×3s）
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(fetchMock.mock.calls.map((c) => c[0])).toEqual(['/api/v1/photos/1', '/api/v1/photos/2'])
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/v1/photos/status?ids=1,2')
   })
 
-  it('20 轮（60s）超时后本地标 FAILED 并提示', async () => {
+  it('20 轮（60s）超时后停止轮询但状态保持不变（不再误标 FAILED）', async () => {
     // 一直返回 PROCESSING → 永不完成
     stubFetch({
-      '/api/v1/photos/1': { code: 200, data: mkPhoto(1, 'PROCESSING') },
+      '/api/v1/photos/status?ids=1': { code: 200, data: [mkStatus(1, 'PROCESSING')] },
     })
     const store = usePhotoStore()
     const toast = useToastStore()
     store.photos.push(mkPhoto(1, 'PROCESSING'))
 
     store.startProcessingPoll()
-    // 20 轮 × 3s = 60s
     await vi.advanceTimersByTimeAsync(60_000 + 100)
 
-    expect(store.photos[0].processingStatus).toBe('FAILED')
-    // happy-dom navigator.language 默认 en-US → i18n 取英文文案
-    expect(store.photos[0].errorMessage).toContain('timed out')
-    expect(toast.toasts.some((t) => t.message.includes('timed out'))).toBe(true)
+    // 慢机器上处理超时 ≠ 失败：状态保持 PROCESSING、不写入失败信息
+    expect(store.photos[0].processingStatus).toBe('PROCESSING')
+    expect(store.photos[0].errorMessage).toBeUndefined()
+    expect(toast.toasts.some((t) => t.message.length > 0)).toBe(true)
+    // 轮询已停止
+    const fetchCount = vi.mocked(fetch).mock.calls.length
+    await vi.advanceTimersByTimeAsync(6000)
+    expect(vi.mocked(fetch).mock.calls.length).toBe(fetchCount)
   })
 })

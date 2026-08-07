@@ -10,7 +10,7 @@ import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 
 /**
- * 分享凭证（P0-#6/#7）：替代 7 天 viewer JWT——高熵随机 token 落库，
+ * 分享凭证：替代 7 天 viewer JWT——高熵随机 token 落库，
  * 支持撤销（revokedAt）与过期校验；photoIds 存规范化 JSON 数组字符串。
  */
 @Entity

@@ -1,39 +1,25 @@
 package com.hape.photogallery.service;
 
-import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
-import java.util.regex.Pattern;
+import java.util.UUID;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
-import java.util.UUID;
-
-import javax.imageio.ImageIO;
-import javax.sql.DataSource;
-import java.sql.Connection;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.jdbc.datasource.DataSourceUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -43,31 +29,33 @@ import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.annotation.PostConstruct;
 
-import com.hape.photogallery.config.MediaSignatureService;
 import com.hape.photogallery.dto.BatchPhotoUpdateRequest;
-import com.hape.photogallery.dto.MapItem;
 import com.hape.photogallery.dto.PhotoResponse;
 import com.hape.photogallery.dto.PhotoUpdateRequest;
-import com.hape.photogallery.dto.TimelineItem;
 import com.hape.photogallery.dto.UploadParams;
 import com.hape.photogallery.entity.Category;
-import com.hape.photogallery.entity.ExifData;
 import com.hape.photogallery.entity.Photo;
 import com.hape.photogallery.entity.ProcessingStatus;
 import com.hape.photogallery.entity.Tag;
 import com.hape.photogallery.exception.BusinessException;
 import com.hape.photogallery.exception.DuplicateException;
 import com.hape.photogallery.exception.FileSizeExceededException;
+import com.hape.photogallery.messaging.ProcessingMessageSender;
+import com.hape.photogallery.repository.CategoryRepository;
+import com.hape.photogallery.repository.PhotoRepository;
+import com.hape.photogallery.repository.TagRepository;
+
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Metrics;
 
-import com.hape.photogallery.messaging.ProcessingMessageSender;
-import com.hape.photogallery.repository.CategoryRepository;
-import com.hape.photogallery.repository.ExifDataRepository;
-import com.hape.photogallery.repository.PhotoRepository;
-import com.hape.photogallery.repository.TagRepository;
-import com.hape.photogallery.util.CoordUtil;
-
+/**
+ * 照片写路径核心服务（职责边界重构）：
+ * 上传/更新/删除/批量/处理恢复。查询侧（列表/搜索/DTO 转换/回收站）已拆至
+ * PhotoQueryService 与 TrashService——本服务单向依赖 PhotoQueryService
+ * （getById/toResponse 走跨 bean 代理，事务/缓存注解生效），避免互相注入的循环依赖。
+ * 自调用（batchUpload→upload、upload→uploadInTx private）仍在，靠事务模板/外层
+ * @CacheEvict 兜底，行为不变。
+ */
 @Service
 public class PhotoService {
 
@@ -81,135 +69,32 @@ public class PhotoService {
     private final PhotoRepository repo;
     private final TagRepository tagRepo;
     private final CategoryRepository catRepo;
-    private final ExifDataRepository exifRepo;
-    private final ExifService exifService;
     private final ImageProcessingService imageService;
     private final AlbumService albumService;
     private final StorageService storage;
     private final ProcessingMessageSender processingSender;
     private final TransactionTemplate transactionTemplate;
-    private final MediaSignatureService mediaSignature;
     private final FilePathResolver filePathResolver;
-    private final DataSource dataSource;
-
-    /** FULLTEXT 支持探测结果（null = 未探测；惰性探测一次后缓存） */
-    private Boolean fullTextSupported;
+    private final PhotoQueryService photoQueryService;
 
     public PhotoService(PhotoRepository repo, TagRepository tagRepo, CategoryRepository catRepo,
-                        ExifDataRepository exifRepo,
-                        ExifService exifService,
                         ImageProcessingService imageService,
                         AlbumService albumService,
                         StorageService storage,
                         ProcessingMessageSender processingSender,
                         TransactionTemplate transactionTemplate,
-                        MediaSignatureService mediaSignature,
                         FilePathResolver filePathResolver,
-                        DataSource dataSource) {
+                        PhotoQueryService photoQueryService) {
         this.repo = repo;
         this.tagRepo = tagRepo;
         this.catRepo = catRepo;
-        this.exifRepo = exifRepo;
-        this.exifService = exifService;
         this.imageService = imageService;
         this.albumService = albumService;
         this.storage = storage;
         this.processingSender = processingSender;
         this.transactionTemplate = transactionTemplate;
-        this.mediaSignature = mediaSignature;
         this.filePathResolver = filePathResolver;
-        this.dataSource = dataSource;
-    }
-
-    public Page<Photo> listAll(List<Long> tagIds, List<Long> categoryIds, Pageable pageable) {
-        boolean hasTags = tagIds != null && !tagIds.isEmpty();
-        boolean hasCats = categoryIds != null && !categoryIds.isEmpty();
-        if (hasTags && hasCats) {
-            return repo.findByCategoryIdsAndTagIds(categoryIds, tagIds, pageable);
-        } else if (hasTags) {
-            return repo.findByTagIds(tagIds, pageable);
-        } else if (hasCats) {
-            return repo.findByCategoryIds(categoryIds, pageable);
-        }
-        return repo.findAll(pageable);
-    }
-
-    /** 缓存照片列表（DTO 形式，避免 Hibernate 懒加载代理被序列化到 Redis） */
-    @Transactional(readOnly = true)
-    @Cacheable(value = "photos", key = "{#tagIds, #categoryIds, #pageable}")
-    public Page<PhotoResponse> listAllResponses(List<Long> tagIds, List<Long> categoryIds, Pageable pageable) {
-        return listAll(tagIds, categoryIds, pageable).map(this::toResponse);
-    }
-
-    /**
-     * 搜索（含标签/分类组合过滤）。
-     * native query 的排序必须是数据库列名（Hibernate 不做属性→列名翻译），
-     * 而前端传的是实体属性名（createdAt/fileSize），需在此映射，否则 MySQL 报 Unknown column。
-     */
-    public Page<Photo> search(String q, List<Long> tagIds, List<Long> categoryIds, Pageable pageable) {
-        if (q == null || q.isBlank()) return repo.findAll(pageable);
-        Pageable columnSort = toColumnSort(pageable);
-        // 先剥离 FULLTEXT BOOLEAN MODE 运算符再判长度：`ab"` → `ab`，`a"` → `a`（应走 LIKE）
-        String query = sanitizeFullText(q);
-        if (query.isEmpty()) return Page.empty(pageable);
-        boolean hasTags = tagIds != null && !tagIds.isEmpty();
-        boolean hasCats = categoryIds != null && !categoryIds.isEmpty();
-        String pattern = "%" + escapeLike(query) + "%";
-        // 单字（<2 字符）：FULLTEXT 的 ngram 双字分词无法命中，fallback 到 LIKE 子串匹配；
-        // 非 MySQL 数据库（H2 等测试环境）不支持 MATCH...AGAINST（语法错误 → 500），任意长度一律 LIKE
-        if (query.length() < 2 || !fullTextSupported()) {
-            if (hasTags && hasCats) return repo.searchByLikeWithTagAndCategoryIds(pattern, tagIds, categoryIds, columnSort);
-            if (hasTags) return repo.searchByLikeWithTagIds(pattern, tagIds, columnSort);
-            if (hasCats) return repo.searchByLikeWithCategoryIds(pattern, categoryIds, columnSort);
-            return repo.searchByLike(pattern, columnSort);
-        }
-        if (hasTags && hasCats) return repo.searchWithTagAndCategoryIds(query, tagIds, categoryIds, columnSort);
-        if (hasTags) return repo.searchWithTagIds(query, tagIds, columnSort);
-        if (hasCats) return repo.searchWithCategoryIds(query, categoryIds, columnSort);
-        return repo.search(query, columnSort);
-    }
-
-    /** LIKE 通配符转义（MySQL 默认转义字符为反斜杠） */
-    private String escapeLike(String s) {
-        return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
-    }
-
-    /**
-     * 数据库是否支持 MySQL 风格 FULLTEXT（MATCH...AGAINST）：仅 MySQL/MariaDB。
-     * H2 等不支持（repo 的 FULLTEXT 查询在 H2 上直接语法错误 → 500），
-     * 探测结果惰性缓存；探测失败或未注入 DataSource（单元测试 mock 场景）按「支持」处理，
-     * 保证 MySQL 生产语义不变。
-     */
-    private boolean fullTextSupported() {
-        if (fullTextSupported == null) {
-            fullTextSupported = probeFullTextSupport();
-        }
-        return fullTextSupported;
-    }
-
-    private boolean probeFullTextSupport() {
-        if (dataSource == null) return true;
-        Connection conn = null;
-        try {
-            conn = DataSourceUtils.getConnection(dataSource);
-            String product = conn.getMetaData().getDatabaseProductName();
-            return product != null && (product.contains("MySQL") || product.contains("MariaDB"));
-        } catch (Exception e) {
-            log.warn("数据库类型探测失败，搜索按 FULLTEXT 处理: {}", e.getMessage());
-            return true;
-        } finally {
-            if (conn != null) DataSourceUtils.releaseConnection(conn, dataSource);
-        }
-    }
-
-    /** FULLTEXT BOOLEAN MODE 运算符：MySQL 将其按查询表达式解析（`-x` 排除、`"` 短语），
-     *  参数绑定防不了语法错误（`ab"` → 1210 → 500）与语义劫持，只能从输入中剥离 */
-    private static final Pattern BOOLEAN_OPERATORS = Pattern.compile("[+\\-<>()~*\"@]");
-
-    /** 剥离 BOOLEAN MODE 运算符并折叠空白：用户输入一律按纯关键词处理 */
-    static String sanitizeFullText(String q) {
-        String cleaned = BOOLEAN_OPERATORS.matcher(q).replaceAll(" ");
-        return cleaned.replaceAll("\\s+", " ").trim();
+        this.photoQueryService = photoQueryService;
     }
 
     /** 上传文件名消毒：路径分隔符/控制字符替换为下划线，连续点号折叠，
@@ -223,44 +108,8 @@ public class PhotoService {
         return cleaned.length() > 100 ? cleaned.substring(0, 100) : cleaned;
     }
 
-    /** 实体属性名 → 数据库列名（native query 排序用）。
-     *  白名单之外的属性一律 400，杜绝 ORDER BY 字符串拼接注入（前端仅用 createdAt/name/fileSize） */
-    private static final Map<String, String> SORT_COLUMNS = Map.of(
-            "createdAt", "created_at",
-            "fileSize", "file_size",
-            "name", "name"
-    );
-
-    private Pageable toColumnSort(Pageable pageable) {
-        if (pageable.getSort().isUnsorted()) return pageable;
-        List<Sort.Order> orders = new ArrayList<>();
-        for (Sort.Order order : pageable.getSort()) {
-            String column = SORT_COLUMNS.get(order.getProperty());
-            if (column == null) {
-                throw new BusinessException(400, "不支持的排序字段: " + order.getProperty());
-            }
-            orders.add(new Sort.Order(order.getDirection(), column));
-        }
-        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by(orders));
-    }
-
-    @Transactional(readOnly = true)
-    public Photo getById(Long id) {
-        return repo.findById(id)
-                .orElseThrow(() -> new BusinessException(404, "该照片已被删除或不存在"));
-    }
-
-    @Transactional(readOnly = true)
-    public PhotoResponse getPhotoResponse(Long id) {
-        return toResponse(getById(id));
-    }
-
-    public Page<Photo> findByIds(List<Long> ids, Pageable pageable) {
-        return repo.findByIdIn(ids, pageable);
-    }
-
     /**
-     * 上传单张照片（P4-#41①/#46 事务边界重构）：
+     * 上传单张照片（事务边界重构）：
      *  - 魔数校验 + SHA-256 在事务外计算，不持数据库连接做秒级哈希/读文件；
      *  - transactionTemplate 只包 DB 段（查重 → 落盘 → 保存）；落盘/save 失败删除已写文件再抛出，不留孤儿文件；
      *  - execute 返回即已提交，随后发送异步处理消息（若存在外层事务则回退 afterCommit 注册，语义不变）。
@@ -297,11 +146,11 @@ public class PhotoService {
             throw e.getCause();
         } catch (DataIntegrityViolationException e) {
             // 并发同 hash 上传：check-then-insert 竞态撞唯一索引 → 删残留文件后重查，
-            // 找到则返回 DuplicateException 语义（携带已有照片），否则原样抛出（P4-#42）
+            // 找到则返回 DuplicateException 语义（携带已有照片），否则原样抛出
             deleteStoredSafely(storedName);
             Photo existing = repo.findWithDetailsByFileHash(hash).orElse(null);
             if (existing != null) {
-                throw new DuplicateException(toResponse(existing));
+                throw new DuplicateException(photoQueryService.toResponse(existing));
             }
             throw e;
         }
@@ -318,7 +167,7 @@ public class PhotoService {
                 processingSender.send(photoId, target, dateDir, baseName, wm);
             } catch (Exception e) {
                 // Rabbit 挂/队列满等：不把 500 抛给请求（DB 已提交、缓存已清），
-                // 靠 5 分钟定时重扫兜底恢复（P4-#41②）
+                // 靠 5 分钟定时重扫兜底恢复
                 log.warn("处理消息发送失败 photo={}: {}", photoId, e.getMessage());
             }
         };
@@ -338,7 +187,7 @@ public class PhotoService {
     private Photo uploadInTx(MultipartFile file, UploadParams p, String hash,
                              String dateDir, String storedName, Path target, LocalDateTime now) throws IOException {
         repo.findWithDetailsByFileHash(hash).ifPresent(existing -> {
-            throw new DuplicateException(toResponse(existing));
+            throw new DuplicateException(photoQueryService.toResponse(existing));
         });
 
         storage.createDirectories(storage.getUploadDir().resolve(dateDir));
@@ -355,6 +204,8 @@ public class PhotoService {
             photo.setCreatedAt(now);
             photo.setProcessingStatus(ProcessingStatus.PROCESSING);
             photo.setFileHash(hash);
+            // 水印落库（V11）：重试/兜底重扫补发消息时从 DB 恢复，消息丢失不再丢水印
+            photo.setWatermark(p.watermark());
 
             if (p.tagIds() != null && !p.tagIds().isEmpty()) {
                 photo.setTags(new HashSet<>(tagRepo.findAllById(p.tagIds())));
@@ -379,10 +230,11 @@ public class PhotoService {
         }
     }
 
-    @CacheEvict(value = {"photos", "timeline", "map", "stats"}, allEntries = true)
+    // 注：syncPhotoAlbums 会改相册成员关系，必须连带失效 albums（否则相册 photoCount 最长 30s 过期）
+    @CacheEvict(value = {"photos", "timeline", "map", "albums", "stats"}, allEntries = true)
     @Transactional
     public PhotoResponse update(Long id, PhotoUpdateRequest req) {
-        Photo photo = getById(id);
+        Photo photo = photoQueryService.getById(id);
         photo.setName(req.getName());
         photo.setDescription(req.getDescription());
         if (req.getTagIds() != null) {
@@ -402,12 +254,12 @@ public class PhotoService {
         if (req.getAlbumIds() != null) {
             albumService.syncPhotoAlbums(photo, req.getAlbumIds());
         }
-        return toResponse(repo.save(photo));
+        return photoQueryService.toResponse(repo.save(photo));
     }
 
     // === 文件路径 ===
 
-    // 路径解析/产物路径已拆至 FilePathResolver（P4-#37）：PhotoController 直调 resolver，
+    // 路径解析/产物路径已拆至 FilePathResolver：PhotoController 直调 resolver，
     // PhotoService 内部用 resolver.parseFilePath/deletePhotoFiles。
 
     // === 删除（软删除） ===
@@ -415,10 +267,12 @@ public class PhotoService {
     @Transactional
     @CacheEvict(value = {"photos", "timeline", "map", "stats"}, allEntries = true)
     public void delete(Long id) {
-        Photo photo = getById(id);
+        Photo photo = photoQueryService.getById(id);
         photo.setDeletedAt(LocalDateTime.now());
         photo.setFileHash(null);
         repo.save(photo);
+        // 以其为封面的相册重选（否则封面悬空：软删照片 viewer 404、彻底删除后封面永久失效）
+        albumService.reselectCoversAfterPhotoDeletion(id);
     }
 
     @Transactional
@@ -431,6 +285,9 @@ public class PhotoService {
             p.setFileHash(null);
         }
         repo.saveAll(photos);
+        for (Long id : ids) {
+            albumService.reselectCoversAfterPhotoDeletion(id);
+        }
         return photos.size();
     }
 
@@ -481,43 +338,7 @@ public class PhotoService {
         }
 
         repo.saveAll(photos);
-        return photos.stream().map(this::toResponse).toList();
-    }
-
-    @Transactional
-    @CacheEvict(value = {"photos", "timeline", "map", "stats"}, allEntries = true)
-    public void restore(Long id) {
-        Photo photo = repo.findDeletedById(id)
-                .orElseThrow(() -> new BusinessException(404, "未找到可恢复的照片"));
-        photo.setDeletedAt(null);
-        repo.save(photo);
-    }
-
-    @Scheduled(cron = "0 0 3 * * ?", zone = "Asia/Shanghai")
-    @Transactional
-    public void cleanupDeletedPermanently() {
-        LocalDateTime threshold = LocalDateTime.now().minusDays(30);
-        List<Photo> expired = repo.findDeletedBefore(threshold);
-        if (expired.isEmpty()) return;
-        for (Photo p : expired) {
-            filePathResolver.deletePhotoFiles(p);
-            exifRepo.findByPhoto_Id(p.getId()).ifPresent(exifRepo::delete);
-            repo.delete(p);
-        }
-        log.info("已永久清理 {} 张过期照片", expired.size());
-    }
-
-    public Page<Photo> listDeleted(Pageable pageable) {
-        return repo.findDeleted(pageable);
-    }
-
-    @Transactional
-    public void permanentlyDelete(Long id) {
-        Photo photo = repo.findDeletedById(id)
-                .orElseThrow(() -> new BusinessException(404, "未找到该照片"));
-        exifRepo.findByPhoto_Id(id).ifPresent(exifRepo::delete);
-        filePathResolver.deletePhotoFiles(photo);
-        repo.delete(photo);
+        return photos.stream().map(photoQueryService::toResponse).toList();
     }
 
     // === 异步处理重试与恢复 ===
@@ -525,7 +346,7 @@ public class PhotoService {
     @Transactional
     @CacheEvict(value = {"photos", "timeline", "map", "stats"}, allEntries = true)
     public void retryProcessing(Long id) {
-        Photo photo = getById(id);
+        Photo photo = photoQueryService.getById(id);
         photo.setProcessingStatus(ProcessingStatus.PROCESSING);
         photo.setErrorMessage(null);
         repo.save(photo);
@@ -536,11 +357,28 @@ public class PhotoService {
         final Long photoId = id;
         final Path sendTarget = target;
         final FilePathResolver.FilePathParts sendParts = parts;
-        TransactionSynchronizationManager.registerSynchronization(new SendAfterCommit(() ->
-                processingSender.send(photoId, sendTarget, sendParts.dateDir(), sendParts.baseName(), null)));
+        // 水印从 DB 读（事务内取标量存 final——事务提交后不再访问实体，避免懒加载代理问题）
+        final String wm = photo.getWatermark();
+        // 与 upload 的 fail-open 同法：发送失败不抛给调用方（状态已落库 PROCESSING），
+        // 靠 5 分钟定时重扫兜底；无事务直调分支也保持相同行为
+        Runnable send = () -> {
+            try {
+                processingSender.send(photoId, sendTarget,
+                        sendParts.dateDir(), sendParts.baseName(), wm);
+            } catch (Exception e) {
+                log.warn("处理消息发送失败 photo={}: {}", photoId, e.getMessage());
+            }
+        };
+        // 与 upload 的 SendAfterCommit 同法：事务提交后发送（消息需在 photoId 状态落库后投递）；
+        // 无活动事务（直接调用/测试）时立即发送，语义一致
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new SendAfterCommit(send));
+        } else {
+            send.run();
+        }
     }
 
-    /** 启动时立即恢复一次 + 每 5 分钟兜底重扫（P4-#41②）：DiscardPolicy 丢弃的处理消息在此补发 */
+    /** 启动时立即恢复一次 + 每 5 分钟兜底重扫：DiscardPolicy 丢弃的处理消息在此补发 */
     @PostConstruct
     public void recoverStuckOnStartup() {
         recoverStuckProcessing();
@@ -553,14 +391,17 @@ public class PhotoService {
 
     /** 扫描 PROCESSING 照片重新发送处理消息（幂等：处理链可重复执行） */
     void recoverStuckProcessing() {
+        // 事务内读取标量字段（fileName + watermark），避免事务外懒加载
+        // （赋值消费返回值，spotbugs RV 干净）
+        Map<Long, String> watermarks = new HashMap<>();
         List<Photo> stuck = transactionTemplate.execute(status -> {
             List<Photo> result = repo.findByProcessingStatus(ProcessingStatus.PROCESSING);
-            // 事务内读取标量字段（fileName），避免事务外懒加载（赋值消费返回值，spotbugs RV 干净）
             for (Photo p : result) {
                 String fileName = p.getFileName();
                 if (fileName == null) {
                     log.warn("PROCESSING 照片缺少文件路径 photo={}", p.getId());
                 }
+                watermarks.put(p.getId(), p.getWatermark());
             }
             return result;
         });
@@ -570,21 +411,18 @@ public class PhotoService {
             try {
                 Path target = storage.getUploadDir().resolve(p.getFileName());
                 FilePathResolver.FilePathParts parts = filePathResolver.parseFilePath(p.getFileName());
-                processingSender.send(p.getId(), target, parts.dateDir(), parts.baseName(), null);
+                // 水印从 DB 读（V11）：消息丢失后重扫补发不再丢水印
+                processingSender.send(p.getId(), target, parts.dateDir(), parts.baseName(),
+                        watermarks.get(p.getId()));
                 sent++;
             } catch (Exception e) {
-                log.error("启动恢复失败 photo={}: {}", p.getId(), e.getMessage());
-                final Long photoId = p.getId();
-                final String errMsg = e.getMessage();
-                transactionTemplate.execute(status -> {
-                    Photo photo = repo.findById(photoId).orElse(null);
-                    if (photo != null) {
-                        photo.setProcessingStatus(ProcessingStatus.FAILED);
-                        photo.setErrorMessage("启动恢复失败: " + errMsg);
-                        repo.save(photo);
-                    }
-                    return null;
-                });
+                // 发送失败不落 FAILED（P0 修复）：dev 模式 @Async 异常在线程池内被
+                // AsyncImageProcessor 自身捕获，同步调用方不会走到这里——此分支只可能由
+                // Rabbit broker 抖动等临时故障触发，落 FAILED 会把全部 PROCESSING 照片
+                // 一次性判死且恢复后不再重扫。保持 PROCESSING 等下次 5 分钟重扫，
+                // 与 upload/retryProcessing 的 fail-open 语义一致。
+                log.warn("处理消息发送失败 photo={}（保持 PROCESSING，等待下次重扫）: {}",
+                        p.getId(), e.getMessage());
             }
         }
         if (sent > 0) {
@@ -594,7 +432,7 @@ public class PhotoService {
 
     // === 批量上传 ===
     /**
-     * 批量上传（P4-#46）：逐文件独立事务——单张失败/重复只跳过自己，不拖垮整批；
+     * 批量上传：逐文件独立事务——单张失败/重复只跳过自己，不拖垮整批；
      * 不再有整批 @Transactional（否则一个坏文件回滚 50 张且磁盘留孤儿文件）。
      * 重复照片计数跳过，其余异常 log 原因后继续。响应仍是成功列表（形状不变）。
      */
@@ -623,46 +461,6 @@ public class PhotoService {
         return results;
     }
 
-    // === 迁移（P4-#37 已拆至 MigrationService）===
-
-    // === EXIF ===
-
-    @Transactional(readOnly = true)
-    @Cacheable(value = "timeline", key = "{#sortOrder, #pageable}")
-    public Page<TimelineItem> getTimeline(String sortOrder, Pageable pageable) {
-        Page<ExifData> page = "asc".equalsIgnoreCase(sortOrder)
-                ? exifRepo.findWithDateTakenAndPhotoAsc(pageable)
-                : exifRepo.findWithDateTakenAndPhotoDesc(pageable);
-        return page.map(this::toTimelineItem);
-    }
-
-    @Transactional(readOnly = true)
-    @Cacheable(value = "map", key = "{#swLat, #swLng, #neLat, #neLng}")
-    public List<MapItem> getMapPhotos(double swLat, double swLng, double neLat, double neLng) {
-        List<ExifData> list = exifRepo.findWithGpsInBounds(swLat, swLng, neLat, neLng,
-                PageRequest.of(0, 500));
-        // 必须走 toMapItem（内联 MapItem.from 会漏掉 mediaToken 短时签名，
-        // 前端 popup 缩略图无鉴权 401）
-        return list.stream().map(e -> {
-            MapItem item = toMapItem(e);
-            double[] gcj = CoordUtil.wgs84ToGcj02(e.getLongitude(), e.getLatitude());
-            item.setLatitude(gcj[1]);
-            item.setLongitude(gcj[0]);
-            return item;
-        }).toList();
-    }
-
-    // extractExifForExisting（存量 EXIF 批量提取）已随迁移方法拆至 MigrationService（P4-#37）
-
-    public ExifData extractExifForPhoto(Long id) {
-        Photo photo = getById(id);
-        Path filePath = storage.getUploadDir().resolve(photo.getFileName());
-        if (!Files.exists(filePath)) return null;
-        return exifService.extractAndSave(photo, filePath);
-    }
-
-    // === 变换（P4-#37 已拆至 PhotoTransformService）===
-
     // === 哈希 ===
 
     public static String computeSha256(MultipartFile file) throws IOException {
@@ -679,26 +477,6 @@ public class PhotoService {
         } catch (NoSuchAlgorithmException e) {
             throw new IOException("SHA-256 不可用", e);
         }
-    }
-
-    // === DTO 转换 ===
-
-    public PhotoResponse toResponse(Photo photo) {
-        PhotoResponse r = PhotoResponse.from(photo);
-        r.setMediaToken(mediaSignature.sign(photo.getId()));
-        return r;
-    }
-
-    public TimelineItem toTimelineItem(ExifData exif) {
-        TimelineItem item = TimelineItem.from(exif);
-        item.setMediaToken(mediaSignature.sign(exif.getPhotoId()));
-        return item;
-    }
-
-    public MapItem toMapItem(ExifData exif) {
-        MapItem item = MapItem.from(exif);
-        item.setMediaToken(mediaSignature.sign(exif.getPhotoId()));
-        return item;
     }
 
     /** 事务提交后执行发送回调的同步器（静态内部类——避免 SpotBugs SIC_INNER_SHOULD_BE_STATIC_ANON） */

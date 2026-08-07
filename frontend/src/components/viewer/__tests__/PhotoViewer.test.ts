@@ -10,9 +10,11 @@ import type { Photo } from '../../../types/photo'
 // vi.hoisted：vi.mock 工厂被提升到文件顶部，普通顶层变量此时未初始化，必须用 hoisted 包住
 const { confirmMock } = vi.hoisted(() => ({ confirmMock: vi.fn() }))
 
-// 避免真实 deletePhoto 走网络
+// 避免真实 deletePhoto 走网络；默认模拟删除成功（deletePhoto 返回 boolean，
+// 查看器仅在成功时导航）
+const { deletePhotoMock } = vi.hoisted(() => ({ deletePhotoMock: vi.fn() }))
 vi.mock('../../../composables/usePhotoActions', () => ({
-  usePhotoActions: () => ({ deletePhoto: vi.fn(), generateShare: vi.fn() }),
+  usePhotoActions: () => ({ deletePhoto: deletePhotoMock, generateShare: vi.fn() }),
 }))
 
 // antd Modal.confirm 捕获（删除确认按钮的 onOk）
@@ -103,14 +105,26 @@ describe('PhotoViewer', () => {
     expect(wrapper.emitted('close')).toHaveLength(1)
   })
 
-  it('删除按钮 → Modal.confirm 确认后调 ui.removeViewerPhoto + deletePhoto', async () => {
+  it('删除按钮 → Modal.confirm 确认后调 deletePhoto + ui.removeViewerPhoto', async () => {
     wrapper = mountViewer(mkPhoto(1), [mkPhoto(1), mkPhoto(2)])
     const ui = useUiStore()
+    deletePhotoMock.mockResolvedValue(true)
     confirmMock.mockImplementation((opts: { onOk?: () => void }) => opts.onOk?.())
 
     await wrapper.find('.danger').trigger('click')
     expect(confirmMock).toHaveBeenCalled()
     expect(ui.viewPhotos.some((p) => p.id === 1)).toBe(false)
+  })
+
+  it('删除失败（deletePhoto=false）→ 保持当前照片不导航', async () => {
+    wrapper = mountViewer(mkPhoto(1), [mkPhoto(1), mkPhoto(2)])
+    const ui = useUiStore()
+    deletePhotoMock.mockResolvedValue(false)
+    confirmMock.mockImplementation((opts: { onOk?: () => void }) => opts.onOk?.())
+
+    await wrapper.find('.danger').trigger('click')
+    expect(ui.viewPhoto?.id).toBe(1)
+    expect(ui.viewPhotos.some((p) => p.id === 1)).toBe(true)
   })
 
   it('方向键左右切换照片', async () => {

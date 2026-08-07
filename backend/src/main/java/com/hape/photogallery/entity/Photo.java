@@ -31,15 +31,20 @@ public class Photo {
     private Long fileSize;
     private String contentType;
     private LocalDateTime createdAt;
+    /** 上传时的水印文案（可为 null）；落库供重试/兜底重扫补发处理消息时恢复（V11） */
+    private String watermark;
+
+    /** 原图是否已处理（V12）：writeOriginalJpeg 成功后立即置 true，重试时跳过水印/写回（防水印叠加） */
+    private boolean originalProcessed;
 
     @ManyToMany
     @JoinTable(name = "photo_tags",
         joinColumns = @JoinColumn(name = "photo_id"),
         inverseJoinColumns = @JoinColumn(name = "tag_id"))
-    @org.hibernate.annotations.BatchSize(size = 20) // P4-#44：列表页 N+1 → 每页 20 张照片批量 1-2 次查询
+    @org.hibernate.annotations.BatchSize(size = 20) // 列表页 N+1 → 每页 20 张照片批量 1-2 次查询
     private Set<Tag> tags = new HashSet<>();
 
-    @ManyToOne(fetch = FetchType.LAZY) // P4-#44：EAGER → LAZY，由 Category 类级 @BatchSize 批取代理
+    @ManyToOne(fetch = FetchType.LAZY) // EAGER → LAZY，由 Category 类级 @BatchSize 批取代理
     @JoinColumn(name = "category_id")
     private Category category;
 
@@ -79,6 +84,11 @@ public class Photo {
 
     public String getContentType() { return contentType; }
     public void setContentType(String contentType) { this.contentType = contentType; }
+
+    public String getWatermark() { return watermark; }
+    public void setWatermark(String watermark) { this.watermark = watermark; }
+    public boolean isOriginalProcessed() { return originalProcessed; }
+    public void setOriginalProcessed(boolean originalProcessed) { this.originalProcessed = originalProcessed; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

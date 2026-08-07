@@ -55,11 +55,12 @@ public class LocalStorageService implements StorageService {
     }
 
     @Override
-    public void deleteFile(String relativePath) {
+    public boolean deleteFile(String relativePath) {
         try {
-            Files.deleteIfExists(resolveSafe(relativePath));
+            return Files.deleteIfExists(resolveSafe(relativePath));
         } catch (IOException e) {
             log.warn("删除文件失败: {}", relativePath, e);
+            return false;
         }
     }
 

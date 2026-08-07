@@ -1,0 +1,108 @@
+package com.hape.photogallery.service;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
+
+import com.hape.photogallery.entity.Photo;
+import com.hape.photogallery.exception.BusinessException;
+import com.hape.photogallery.repository.PhotoRepository;
+
+/**
+ * 回收站服务（从 PhotoService 拆出）：软删除照片的列表/恢复/彻底删除/30 天定时清理。
+ * @Scheduled 定时注解随方法迁移，清理频率与拆出前一致（每日 3:00 Asia/Shanghai，
+ * 独立 Bean 保证跨类调用走 @Transactional 代理——与 BackupScheduler 同法）。
+ * <p>
+ * purge 原子性（P0 修复）：每张照片独立 REQUIRES_NEW 事务 + native 条件删除
+ * （hardDeleteIfStillDeleted）——单张失败/崩溃回滚损失限定到该照片；期间被恢复的
+ * 照片条件删除返回 0 行 → 跳过文件删除（防「恢复竞态连坐硬删」）。顺序先删行后删文件：
+ * 崩溃只留孤儿文件（无用户影响），不会产生「行在文件无」的幽灵记录。
+ * exif_data 行由 V3 FK ON DELETE CASCADE 级联，无需手动删除。
+ */
+@Service
+public class TrashService {
+
+    private static final Logger log = LoggerFactory.getLogger(TrashService.class);
+
+    private final PhotoRepository repo;
+    private final FilePathResolver filePathResolver;
+    private final AlbumService albumService;
+    private final PhotoQueryService photoQueryService;
+    private final TransactionTemplate purgeTx;
+
+    public TrashService(PhotoRepository repo,
+                        FilePathResolver filePathResolver, AlbumService albumService,
+                        PhotoQueryService photoQueryService,
+                        PlatformTransactionManager txManager) {
+        this.repo = repo;
+        this.filePathResolver = filePathResolver;
+        this.albumService = albumService;
+        this.photoQueryService = photoQueryService;
+        this.purgeTx = new TransactionTemplate(txManager);
+        this.purgeTx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+    }
+
+    @Transactional
+    @CacheEvict(value = {"photos", "timeline", "map", "stats"}, allEntries = true)
+    public void restore(Long id) {
+        Photo photo = repo.findDeletedById(id)
+                .orElseThrow(() -> new BusinessException(404, "未找到可恢复的照片"));
+        photo.setDeletedAt(null);
+        repo.save(photo);
+    }
+
+    @Scheduled(cron = "0 0 3 * * ?", zone = "Asia/Shanghai")
+    @CacheEvict(value = {"photos", "timeline", "map", "stats"}, allEntries = true)
+    public void cleanupDeletedPermanently() {
+        LocalDateTime threshold = LocalDateTime.now().minusDays(30);
+        List<Photo> expired = repo.findDeletedBefore(threshold);
+        if (expired.isEmpty()) return;
+        int deleted = 0;
+        for (Photo p : expired) {
+            Boolean rowDeleted = purgeTx.execute(status -> {
+                if (repo.hardDeleteIfStillDeleted(p.getId()) == 0) return false;
+                filePathResolver.deletePhotoFiles(p);
+                // 以其为封面的相册重选（照片已软删 30 天，重选从剩余未删照片中取第一张）
+                albumService.reselectCoversAfterPhotoDeletion(p.getId());
+                return true;
+            });
+            if (Boolean.TRUE.equals(rowDeleted)) deleted++;
+        }
+        log.info("已永久清理 {} 张过期照片", deleted);
+    }
+
+    public Page<Photo> listDeleted(Pageable pageable) {
+        return repo.findDeleted(pageable);
+    }
+
+    /** 回收站列表（事务内 map toResponse——懒加载代理序列化防护，曾实测 500） */
+    @Transactional(readOnly = true)
+    public Page<com.hape.photogallery.dto.PhotoResponse> listDeletedResponses(Pageable pageable) {
+        return listDeleted(pageable).map(photoQueryService::toResponse);
+    }
+
+    @Transactional
+    // 曾缺 evict：彻底删除后照片仍在 photos 列表缓存残留 30s → 前端出现点击即 404 的假条目
+    @CacheEvict(value = {"photos", "timeline", "map", "stats"}, allEntries = true)
+    public void permanentlyDelete(Long id) {
+        Photo photo = repo.findDeletedById(id)
+                .orElseThrow(() -> new BusinessException(404, "未找到该照片"));
+        // 条件删除：期间被恢复则 0 行 → 中止（不删已恢复照片的磁盘文件）
+        if (repo.hardDeleteIfStillDeleted(id) == 0) {
+            throw new BusinessException(404, "该照片已恢复，无法彻底删除");
+        }
+        filePathResolver.deletePhotoFiles(photo);
+        albumService.reselectCoversAfterPhotoDeletion(id);
+    }
+}

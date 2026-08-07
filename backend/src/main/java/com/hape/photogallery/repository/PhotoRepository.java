@@ -7,6 +7,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -192,16 +193,28 @@ public interface PhotoRepository extends JpaRepository<Photo, Long> {
            countQuery = "SELECT COUNT(*) FROM photos WHERE deleted_at IS NOT NULL")
     Page<Photo> findDeleted(Pageable pageable);
 
+    /**
+     * 条件硬删除（purge 用）：仅当行仍处于软删状态才删除，返回影响行数。
+     * 必须 native——实体级 bulk JPQL DELETE 会被 @SQLRestriction("deleted_at IS NULL") 拼 WHERE，
+     * 对软删行永远 0 行；native 直接绕过。0 行 = 期间被恢复（restore 竞态），调用方跳过后续文件删除。
+     */
+    @Modifying
+    @Query(nativeQuery = true, value = "DELETE FROM photos WHERE id = ?1 AND deleted_at IS NOT NULL")
+    int hardDeleteIfStillDeleted(Long id);
+
     @Query("SELECT p FROM Photo p WHERE p.processingStatus = :status")
     List<Photo> findByProcessingStatus(@Param("status") ProcessingStatus status);
 
+    /** 按状态分页（迁移/启动补生成用——只处理 DONE 照片，排除 PROCESSING/FAILED） */
+    Page<Photo> findByProcessingStatus(ProcessingStatus status, Pageable pageable);
+
     /** 按文件哈希查详情（tags/albums/exifData 预取）——dedup 路径需要完整 DTO 序列化，
-     *  单行查询无分页风险，替代手工 eagerLoad hack（P4-#45） */
+     *  单行查询无分页风险，替代手工 eagerLoad hack */
     @EntityGraph(attributePaths = {"tags", "albums", "exifData"})
     Optional<Photo> findWithDetailsByFileHash(String fileHash);
 
     /**
-     * 各相册照片数（P4-#38）：一次分组查询替代 Album.getPhotoCount() 的整集合懒加载 N+1。
+     * 各相册照片数：一次分组查询替代 Album.getPhotoCount() 的整集合懒加载 N+1。
      * @SQLRestriction 自动排除软删照片；已知局限：回收站相册不计已删照片（回收站 UI 不显示计数）。
      */
     @Query("SELECT a.id, COUNT(p.id) FROM Album a LEFT JOIN a.photos p GROUP BY a.id")
@@ -243,8 +256,10 @@ public interface PhotoRepository extends JpaRepository<Photo, Long> {
             + "GROUP BY t.id ORDER BY COUNT(p.id) DESC")
     List<Object[]> countByTag(Pageable pageable);
 
-    /** 相册内照片 id 列表（只投影主键列，零关系加载——相册选择器预选初始化用） */
-    @Query("SELECT p.id FROM Photo p JOIN p.albums a WHERE a.id = :albumId")
+    /** 相册内照片 id 列表（只投影主键列，零关系加载——相册选择器预选初始化用）。
+     *  显式 ORDER BY p.id：封面重选取「第一张」需要确定性行序（无 ORDER BY 时
+     *  MySQL 行序无契约，同一场景封面可能漂移） */
+    @Query("SELECT p.id FROM Photo p JOIN p.albums a WHERE a.id = :albumId ORDER BY p.id")
     List<Long> findPhotoIdsByAlbumId(@Param("albumId") Long albumId);
 
     /** 备份指纹聚合：[照片数, 最大 id, 最大创建时间]（@SQLRestriction 自动排除软删除） */

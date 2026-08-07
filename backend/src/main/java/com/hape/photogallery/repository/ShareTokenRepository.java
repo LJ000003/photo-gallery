@@ -12,7 +12,7 @@ public interface ShareTokenRepository extends JpaRepository<ShareToken, Long> {
 
     Optional<ShareToken> findByToken(String token);
 
-    /** P0-#6：幂等复用查询——全部活跃 token 由服务层内存比较 photoIds+permission（数据量小） */
+    /** 幂等复用查询——全部活跃 token 由服务层内存比较 photoIds+permission（数据量小） */
     List<ShareToken> findAllByRevokedAtIsNullAndExpiresAtAfter(LocalDateTime now);
 
     /** 定时清理过期记录 */

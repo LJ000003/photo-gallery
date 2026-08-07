@@ -1,54 +1,34 @@
 import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { api, AuthError } from '../api'
-import i18n from '../i18n'
-import { useToastStore } from './toast'
-import { logError } from '../utils/logger'
+import { api } from '../api'
+import { useUrlState } from '../composables/useUrlState'
+import { useInfinitePagination } from '../composables/useInfinitePagination'
+import { useProcessingPolling } from '../composables/useProcessingPolling'
 import type { Photo } from '../types/photo'
 import type { ApiResponse, PageResponse } from '../types/api'
-import type { SortField, SortOrder } from '../types/view'
+import type { SortField } from '../types/view'
 
+/**
+ * 照片列表 store（状态层分层）：
+ * 仅保留列表状态与编排——URL 双向同步（useUrlState）、分页/竞态（useInfinitePagination）、
+ * 处理轮询（useProcessingPolling）均为独立 composables，store 不手写 URL 拼接与定时器。
+ */
 export const usePhotoStore = defineStore('photo', () => {
   const router = useRouter()
   const route = useRoute()
-  const toast = useToastStore()
 
   const photos: Ref<Photo[]> = ref([])
-  const page = ref(0)
-  const hasMore = ref(true)
-  const loading = ref(false)
-  const totalCount = ref(0)
-  const sortBy: Ref<SortField> = ref((route.query.sortBy as SortField) || 'time')
-  const sortOrder: Ref<SortOrder> = ref((route.query.sortOrder as SortOrder) || 'asc')
-  const selectedTagIds: Ref<number[]> = ref(
-    route.query.tags ? String(route.query.tags).split(',').filter(Boolean).map(Number) : [],
-  )
-  const selectedCategoryIds: Ref<number[]> = ref(
-    route.query.cats ? String(route.query.cats).split(',').filter(Boolean).map(Number) : [],
-  )
-  const searchQuery = ref((route.query.q as string) || '')
   /** 已删除照片 id（时间线/地图等持有本地列表的视图据此清理） */
   const deletedIds: Ref<Set<number>> = ref(new Set())
 
-  let requestId = 0
+  // 过滤/排序/搜索状态与 URL 同步
+  const { sortBy, sortOrder, selectedTagIds, selectedCategoryIds, searchQuery, syncUrlState } =
+    useUrlState(router, route)
 
-  function syncUrlState(): void {
-    const query: Record<string, string> = {}
-    if (searchQuery.value) query.q = searchQuery.value
-    if (sortBy.value !== 'time') query.sortBy = sortBy.value
-    if (sortOrder.value !== 'asc') query.sortOrder = sortOrder.value
-    if (selectedTagIds.value.length) query.tags = selectedTagIds.value.join(',')
-    if (selectedCategoryIds.value.length) query.cats = selectedCategoryIds.value.join(',')
-    router.replace({ query })
-  }
-
-  /** @returns 是否成功加载了一页（失败时调用方应终止循环，避免死循环重试） */
-  async function loadMore(): Promise<boolean> {
-    if (loading.value || !hasMore.value) return false
-    loading.value = true
-    const myId = ++requestId
-    try {
+  // 分页骨架：fetchPage 持有 URL 构造（业务领域知识留在 store），onLoaded 负责 push
+  const pagination = useInfinitePagination<Photo>(
+    async (page) => {
       const fieldMap: Record<SortField, string> = {
         time: 'createdAt',
         name: 'name',
@@ -57,7 +37,7 @@ export const usePhotoStore = defineStore('photo', () => {
       const order =
         sortBy.value === 'time' ? (sortOrder.value === 'asc' ? 'desc' : 'asc') : sortOrder.value
       const sortStr = `${fieldMap[sortBy.value]},${order}`
-      let url = `/api/photos?page=${page.value}&size=20&sort=${sortStr}`
+      let url = `/api/photos?page=${page}&size=20&sort=${sortStr}`
       selectedTagIds.value.forEach((id) => {
         url += `&tagIds=${id}`
       })
@@ -66,31 +46,25 @@ export const usePhotoStore = defineStore('photo', () => {
       })
       if (searchQuery.value) url += `&q=${encodeURIComponent(searchQuery.value)}`
       const res = await api(url)
-      if (myId !== requestId) return false
       const json: ApiResponse<PageResponse<Photo>> = await res.json()
-      if (!json.data) return false
-      const { content, totalPages, totalElements } = json.data
-      if (content && content.length) photos.value.push(...content)
-      page.value++
-      hasMore.value = page.value < totalPages
-      totalCount.value = totalElements
-      return true
-    } catch (err) {
-      if (!(err instanceof AuthError)) {
-        logError(err, '加载照片失败')
+      return json.data ?? null
+    },
+    (payload) => {
+      if (payload.content && payload.content.length) {
+        // 重载的新对象合并媒体版本号（transform 后 bump 的版本在对象外持久）
+        payload.content.forEach((p) => {
+          const v = mediaVersions.get(p.id)
+          if (v) p.version = v
+        })
+        photos.value.push(...payload.content)
       }
-      return false
-    } finally {
-      if (myId === requestId) loading.value = false
-    }
-  }
+    },
+  )
+  const { page, hasMore, loading, totalCount, error: loadError, loadMore } = pagination
 
   function resetAndReload(): void {
-    requestId++
     photos.value = []
-    page.value = 0
-    hasMore.value = true
-    loading.value = false
+    pagination.reset()
     syncUrlState()
     loadMore()
   }
@@ -139,62 +113,27 @@ export const usePhotoStore = defineStore('photo', () => {
     })
   }
 
-  let processingTimer: ReturnType<typeof setTimeout> | null = null
-  const MAX_POLL_ATTEMPTS = 20
-
-  function startProcessingPoll(): void {
-    stopProcessingPoll()
-    let attempts = 0
-    function poll(): void {
-      const processingPhotos = photos.value.filter((p) => p.processingStatus === 'PROCESSING')
-      if (processingPhotos.length === 0) {
-        stopProcessingPoll()
-        return
-      }
-      if (attempts >= MAX_POLL_ATTEMPTS) {
-        // 超时（20×3s=60s）不再静默停止：本地标 FAILED（FAILED 态出现重试按钮）+ 提示
-        const timeoutMsg = i18n.global.t('gallery.processingTimeoutMessage')
-        photos.value.forEach((p, i) => {
-          if (p.processingStatus === 'PROCESSING') {
-            photos.value[i] = { ...p, processingStatus: 'FAILED', errorMessage: timeoutMsg }
-          }
-        })
-        toast.info(i18n.global.t('gallery.processingTimeout'))
-        stopProcessingPoll()
-        return
-      }
-      attempts++
-      processingTimer = setTimeout(async () => {
-        try {
-          // 本轮全部处理中照片并行拉取（旧实现逐张串行，50 张 = 50 个串行请求）
-          await Promise.all(
-            processingPhotos.map(async (p) => {
-              const res = await api(`/api/photos/${p.id}`)
-              const json: ApiResponse<Photo> = await res.json()
-              if (json.code === 200 && json.data) {
-                const idx = photos.value.findIndex((x) => x.id === p.id)
-                if (idx !== -1) photos.value[idx] = json.data
-              }
-            }),
-          )
-        } catch (err) {
-          console.warn(
-            `[photo store] 轮询照片处理状态失败: ${processingPhotos.map((p) => p.id).join(',')}`,
-            err,
-          )
-        }
-        poll()
-      }, 3000)
-    }
-    poll()
+  /**
+   * 图片变换（旋转/镜像/裁剪）成功后递增媒体版本号：
+   * 缩略图/WebP 响应带 7 天 Cache-Control + Workbox CacheFirst，
+   * URL 不加版本参数会命中旧图缓存——version 拼进 URL（?v=）强制回源。
+   * 版本存 store 级 Map（重载列表后按 id 合并回新对象），不依赖对象存活。
+   */
+  const mediaVersions = new Map<number, number>()
+  function bumpMediaVersion(id: number): void {
+    const v = Date.now()
+    mediaVersions.set(id, v)
+    const p = photos.value.find((x) => x.id === id)
+    if (p) p.version = v
   }
 
-  function stopProcessingPoll(): void {
-    if (processingTimer) {
-      clearTimeout(processingTimer)
-      processingTimer = null
-    }
-  }
+  const polling = useProcessingPolling({
+    getPhotos: () => photos.value,
+    patch: (updated) => {
+      const idx = photos.value.findIndex((x) => x.id === updated.id)
+      if (idx !== -1) photos.value[idx] = updated
+    },
+  })
 
   syncUrlState()
 
@@ -204,6 +143,7 @@ export const usePhotoStore = defineStore('photo', () => {
     hasMore,
     loading,
     totalCount,
+    loadError,
     sortBy,
     sortOrder,
     selectedTagIds,
@@ -217,8 +157,9 @@ export const usePhotoStore = defineStore('photo', () => {
     removePhoto,
     removePhotos,
     applyBatchEdit,
-    startProcessingPoll,
-    stopProcessingPoll,
+    bumpMediaVersion,
+    startProcessingPoll: polling.start,
+    stopProcessingPoll: polling.stop,
     syncUrlState,
   }
 })

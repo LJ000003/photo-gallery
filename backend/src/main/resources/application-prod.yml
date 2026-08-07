@@ -64,7 +64,7 @@ management:
       prometheus:
         enabled: true
 
-# P0-#4：/actuator/prometheus 的 Basic Auth 凭据（SecurityConfig 条件加载 MONITOR 用户；
+# /actuator/prometheus 的 Basic Auth 凭据（SecurityConfig 条件加载 MONITOR 用户；
 # 漏配时 ProdSecurityValidator 启动即失败，杜绝静默裸奔）
 monitoring:
   username: ${MONITORING_USER:}

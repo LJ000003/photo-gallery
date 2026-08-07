@@ -14,10 +14,7 @@
  * 旧实现 `thumbUrl(id) + '?sig='` 在首页网格上拼出 `?w=400?sig=` 双问号，
  * 后端解析不到 sig 导致所有缩略图 401。
  */
-export function appendMediaParams(
-  url: string,
-  o?: { mediaToken?: string | null } | null,
-): string {
+export function appendMediaParams(url: string, o?: { mediaToken?: string | null } | null): string {
   const sig = o?.mediaToken
   if (!sig) return url
   return url + (url.includes('?') ? '&' : '?') + 'sig=' + encodeURIComponent(sig)
@@ -26,4 +23,14 @@ export function appendMediaParams(
 export function appendTokenParam(url: string, token?: string | null): string {
   if (!token) return url
   return url + (url.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(token)
+}
+
+/**
+ * 追加客户端媒体版本号（?v=）：图片变换（旋转/镜像/裁剪）后旧图仍被
+ * HTTP 缓存（缩略图 7 天 Cache-Control + Workbox CacheFirst）命中，
+ * 递增 version 强制回源。无 version 时原样返回。
+ */
+export function mediaUrlWithVersion(url: string, o?: { version?: number | null } | null): string {
+  if (!o?.version) return url
+  return url + (url.includes('?') ? '&' : '?') + 'v=' + o.version
 }
