@@ -39,7 +39,8 @@ photo:
     color-alpha: 180
 
 cors:
-  allowed-origins: http://localhost:*,https://hape233.online
+  # :8443 为备案过渡期非标端口（阿里云对未备案域名拦截 80/443），备案通过后可移除
+  allowed-origins: http://localhost:*,https://hape233.online,https://hape233.online:8443
 
 # 限流/封禁的客户端 IP 来源：仅信任 nginx 覆写的 X-Real-IP
 # （app 只绑 127.0.0.1，客户端无法伪造）；换 cloudflared 隧道时改回 Cf-Connecting-Ip，留空则不信任任何头

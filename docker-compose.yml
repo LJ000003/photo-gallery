@@ -147,7 +147,7 @@ services:
       # /actuator/prometheus Basic Auth 凭据（ProdSecurityValidator 校验非空）
       MONITORING_USER: ${MONITORING_USER}
       MONITORING_PASSWORD: ${MONITORING_PASSWORD}
-      CORS_ALLOWED_ORIGINS: http://localhost:*,https://hape233.online
+      CORS_ALLOWED_ORIGINS: http://localhost:*,https://hape233.online,https://hape233.online:8443
     depends_on:
       mysql:
         condition: service_healthy

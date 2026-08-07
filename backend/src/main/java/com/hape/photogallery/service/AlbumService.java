@@ -1,6 +1,7 @@
 package com.hape.photogallery.service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -47,7 +48,10 @@ public class AlbumService {
                         row -> (Long) row[0], row -> ((Number) row[1]).intValue()));
         return albumRepo.findAll().stream()
                 .map(a -> AlbumResponse.from(a, counts.getOrDefault(a.getId(), 0)))
-                .toList();
+                // 缓存值必须收进 ArrayList：stream().toList() 返回 JDK 不可变 ListN（final 类），
+                // Redis 的 NON_FINAL typing 不为它写类型 id → 空列表序列化为裸 [] → 读取时
+                // SerializationException → GET /api/albums 500（prod Redis 形态曾现故障）
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
     }
 
     @CacheEvict(value = {"albums", "photos"}, allEntries = true)
