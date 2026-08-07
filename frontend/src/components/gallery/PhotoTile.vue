@@ -218,7 +218,13 @@ function onKeydown(e: KeyboardEvent): void {
       <div v-if="photo.processingStatus === 'FAILED'" class="tile-status failed" @click.stop>
         <WarningOutlined class="warn-icon" />
         <span class="warn-text">{{ photo.errorMessage || t('gallery.processFailed') }}</span>
-        <button class="retry-btn" :disabled="retrying" @click.stop="retryProcessing">
+        <!-- 重试走私有管理接口：分享页等纯浏览场景（selectable=false）不暴露，仅显示警告文字 -->
+        <button
+          v-if="selectable"
+          class="retry-btn"
+          :disabled="retrying"
+          @click.stop="retryProcessing"
+        >
           <ReloadOutlined />
           {{ retrying ? '…' : t('gallery.retryProcessing') }}
         </button>

@@ -1,6 +1,4 @@
 import { api } from '../api'
-import i18n from '../i18n'
-import { useToastStore } from '../stores/toast'
 import type { Photo, PhotoProcessingStatus } from '../types/photo'
 import type { ApiResponse } from '../types/api'
 
@@ -17,13 +15,15 @@ export interface ProcessingPollingOptions {
  *   替代旧实现逐张 GET /photos/{id} 拉全量详情——50 张在途时旧实现每 3s 发 50 个
  *   全量请求（O(N²/3s)），慢服务器扛不住；
  * - 状态项只含 id/status/errorMessage，与现有 photo 对象合并后 patch（保留其余字段）；
- * - 20 轮（60s）超时：只停止轮询 + toast，不再本地标 FAILED——2 核机器批量上传
- *   处理必然超过 60s，旧逻辑会把仍在处理的照片误报为「处理失败」（慢=失败假象）。
+ * - 20 轮（60s）后切「慢速模式」（15s 间隔静默继续）：2 核机器批量上传处理必然
+ *   超过 60s，旧逻辑超时即停轮询 → 照片永久卡 PROCESSING（慢=失败假象的翻版，
+ *   且无恢复入口）；慢速模式持续跟踪到 DONE/FAILED 自动停止，不误报不打扰。
  */
 export function useProcessingPolling({ getPhotos, patch }: ProcessingPollingOptions) {
-  const toast = useToastStore()
   let processingTimer: ReturnType<typeof setTimeout> | null = null
   const MAX_POLL_ATTEMPTS = 20
+  const FAST_INTERVAL_MS = 3_000
+  const SLOW_INTERVAL_MS = 15_000
 
   function stop(): void {
     if (processingTimer) {
@@ -42,14 +42,18 @@ export function useProcessingPolling({ getPhotos, patch }: ProcessingPollingOpti
         return
       }
       if (attempts >= MAX_POLL_ATTEMPTS) {
-        // 超时（20×3s=60s）只停止轮询：状态保持 PROCESSING，照片可能仍在处理链中
-        // （慢机器/队列积压场景），由用户刷新查看最终状态，不误报失败
-        toast.info(i18n.global.t('gallery.processingTimeout'))
-        stop()
+        // 慢速模式：不再加速高频请求（60s 内已确认处理链忙碌），静默低频续跟
+        attempts++
+        processingTimer = setTimeout(pollOnce, SLOW_INTERVAL_MS)
         return
       }
       attempts++
-      processingTimer = setTimeout(async () => {
+      processingTimer = setTimeout(pollOnce, FAST_INTERVAL_MS)
+    }
+
+    async function pollOnce(): Promise<void> {
+      const processingPhotos = getPhotos().filter((p) => p.processingStatus === 'PROCESSING')
+      if (processingPhotos.length > 0) {
         try {
           const ids = processingPhotos.map((p) => p.id).join(',')
           const res = await api(`/api/photos/status?ids=${ids}`)
@@ -66,9 +70,10 @@ export function useProcessingPolling({ getPhotos, patch }: ProcessingPollingOpti
             err,
           )
         }
-        poll()
-      }, 3000)
+      }
+      poll()
     }
+
     poll()
   }
 

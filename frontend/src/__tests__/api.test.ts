@@ -65,16 +65,24 @@ describe('api', () => {
     expect(localStorage.getItem('konami_unlocked')).toBeNull()
   })
 
-  it('on 403 also clears auth', async () => {
+  it('on 403 throws ApiError without clearing auth or reloading', async () => {
     localStorage.setItem('jwt_token', 'bad')
 
-    const mockFetch = vi.fn().mockResolvedValue({ status: 403, ok: false })
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue({
+        status: 403,
+        ok: false,
+        headers: { get: () => null },
+        json: () => Promise.resolve({ code: 403, message: '无权限执行该操作' }),
+      })
     vi.stubGlobal('fetch', mockFetch)
     const reloadMock = vi.fn()
     vi.stubGlobal('location', { reload: reloadMock })
 
-    await expect(api('/api/photos')).rejects.toThrow('Session expired')
-    expect(localStorage.getItem('jwt_token')).toBeNull()
+    await expect(api('/api/photos')).rejects.toThrow('无权限执行该操作')
+    expect(localStorage.getItem('jwt_token')).toBe('bad')
+    expect(reloadMock).not.toHaveBeenCalled()
   })
 })
 

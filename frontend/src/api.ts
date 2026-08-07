@@ -40,7 +40,9 @@ export async function api(
 
   const res = await fetch(url.replace(/^\/api/, BASE), { ...fetchOptions, headers })
 
-  if (!skipAuth && (res.status === 401 || res.status === 403)) {
+  // 仅 401（未登录/登录过期）执行登出+整页刷新；403（已认证但无权限，如 viewer 令牌
+  // 访问管理接口）只抛 ApiError 让调用方提示，避免瞬时 403 把整个应用锁回解锁屏
+  if (!skipAuth && res.status === 401) {
     localStorage.removeItem('jwt_token')
     localStorage.removeItem('konami_unlocked')
     window.location.reload()

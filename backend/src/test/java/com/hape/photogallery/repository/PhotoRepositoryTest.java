@@ -375,4 +375,34 @@ class PhotoRepositoryTest {
         // 主查询 1 + exifData 批量 2 批（20+5）≈ 3；若类级 @BatchSize 失效则 ≈ 27（每张 1 条）
         assertThat(queries).isLessThanOrEqualTo(5);
     }
+
+    // ==================== 时间线分页（count 与内容查询一致性） ====================
+
+    @Test
+    void timeline_count_shouldExcludeSoftDeletedPhotos() {
+        // countQuery 曾不 JOIN Photo（@SQLRestriction 不生效）→ total 虚高 → 末页空页
+        Photo alive = new Photo(); alive.setName("alive"); alive.setFileName("alive.jpg");
+        Photo gone = new Photo(); gone.setName("gone"); gone.setFileName("gone.jpg");
+        photoRepo.saveAll(List.of(alive, gone));
+
+        ExifData eAlive = new ExifData();
+        eAlive.setPhoto(alive);
+        eAlive.setDateTaken(LocalDateTime.now().minusDays(1));
+        ExifData eGone = new ExifData();
+        eGone.setPhoto(gone);
+        eGone.setDateTaken(LocalDateTime.now());
+        exifRepo.saveAll(List.of(eAlive, eGone));
+
+        // 软删带 EXIF 的照片 → 内容查询（JOIN FETCH + @SQLRestriction）与 count 都必须排除
+        gone.setDeletedAt(LocalDateTime.now());
+        photoRepo.save(gone);
+        em.flush();
+
+        Page<ExifData> desc = exifRepo.findWithDateTakenAndPhotoDesc(PageRequest.of(0, 10));
+        assertThat(desc.getTotalElements()).isEqualTo(1);
+        assertThat(desc.getContent().get(0).getPhoto().getName()).isEqualTo("alive");
+
+        Page<ExifData> asc = exifRepo.findWithDateTakenAndPhotoAsc(PageRequest.of(0, 10));
+        assertThat(asc.getTotalElements()).isEqualTo(1);
+    }
 }

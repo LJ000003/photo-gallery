@@ -18,6 +18,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.amqp.support.converter.MessageConversionException;
 
 import com.hape.photogallery.config.RabbitMQConfig;
 import com.hape.photogallery.entity.Photo;
@@ -140,5 +141,39 @@ class DlqRequeuerTest {
         requeuer.drain(); // 不抛出，下轮再试
 
         verify(photoRepo, never()).findById(any());
+    }
+
+    @Test
+    void drain_conversionFailure_shouldDropAndContinue() {
+        // 第一条消息反序列化失败（升级遗留旧格式/损坏）→ 丢弃不中断；第二条正常 → 仍被恢复
+        when(rabbitTemplate.receiveAndConvert(RabbitMQConfig.DLQ))
+                .thenThrow(new MessageConversionException("cannot parse"))
+                .thenReturn(msg(1L))
+                .thenReturn(null);
+        Photo photo = failedPhoto(1L);
+        when(photoRepo.findById(1L)).thenReturn(Optional.of(photo));
+
+        requeuer.drain();
+
+        // 坏消息后的正常消息仍被 drain（修复前 catch(Exception) 会 return 中断整轮）
+        verify(photoRepo).save(photo);
+        verify(rabbitTemplate, times(1))
+                .convertAndSend(eq(RabbitMQConfig.EXCHANGE), eq(RabbitMQConfig.ROUTING_KEY),
+                        any(ProcessingMessage.class));
+    }
+
+    @Test
+    void drain_onlyConversionFailures_shouldNotTouchRepo() {
+        // 注意：thenThrow 链的最后一个 stub 会无限重复（Mockito 语义，不会回退默认值）——
+        // 必须以 thenReturn(null) 收尾模拟空队列，否则 drain 死循环
+        when(rabbitTemplate.receiveAndConvert(RabbitMQConfig.DLQ))
+                .thenThrow(new MessageConversionException("bad json"))
+                .thenThrow(new MessageConversionException("bad json"))
+                .thenReturn(null);
+
+        requeuer.drain(); // 不抛出
+
+        verify(photoRepo, never()).findById(any());
+        verify(photoRepo, never()).save(any());
     }
 }

@@ -68,14 +68,19 @@ public class PhotoProcessingConsumer {
             int retryCount = getRetryCount(amqpMsg);
             if (retryCount < MAX_RETRIES) {
                 log.warn("处理失败（第 {} 次重试）photo={}: {}", retryCount + 1, photoId, e.getMessage());
-                // 显式重投到 TTL 重试队列（10s 后死信回主队列再尝试），先投后 ack（at-least-once，
+                // 显式重投到 TTL 重试队列（30s 后死信回主队列再尝试），先投后 ack（at-least-once，
                 // processor 幂等可重入，重复仅多一次处理）。
                 // 计数用自定义 header x-retry-count：显式重投是重新发布消息，header 随消息持久化
                 // （AMQP 消息语义，与 broker 版本无关——X-Trace-Id 在 TTL 死信后保留已实测）。
                 // 为何不用 broker 生成的 x-death：实测 RabbitMQ 4.x 死信时 x-death 被重置为 1 而非
                 // 「同组合合并递增」，依赖它会导致重试计数恒 1、消息无限循环。
                 // 原 bug 根因：basicNack(requeue=true) 回投的是 broker 原始消息，本地 header 改动不持久。
+                // TTL 是消息级 expiration（队列无 x-message-ttl 参数）：死信重发布时 RabbitMQ
+                // 会剥离 expiration 不二次生效；调整 RETRY_TTL_MS 无需删队列（曾因队列级 TTL
+                // 参数不可变导致 406 PRECONDITION_FAILED，部署需手动删旧队列）。
                 amqpMsg.getMessageProperties().setHeader("x-retry-count", retryCount + 1);
+                amqpMsg.getMessageProperties()
+                        .setExpiration(String.valueOf(RabbitMQConfig.RETRY_TTL_MS));
                 rabbitTemplate.send(RabbitMQConfig.EXCHANGE, RabbitMQConfig.RETRY_ROUTING_KEY, amqpMsg);
                 channel.basicAck(deliveryTag, false);
             } else {

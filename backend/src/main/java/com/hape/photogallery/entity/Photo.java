@@ -23,7 +23,9 @@ public class Photo {
     @NotBlank(message = "照片名称不能为空")
     private String name;
 
+    // length 与 V13 迁移（VARCHAR(500)）保持一致；validate 不查长度但实体自洽
     @Size(max = 500, message = "描述不能超过500字")
+    @Column(length = 500)
     private String description;
 
     private String fileName;

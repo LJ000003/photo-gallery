@@ -455,7 +455,7 @@ docker compose down            # 停止
 server {
     listen 80;
     server_name 你的域名;
-    client_max_body_size 20m;
+    client_max_body_size 100m;
 
     location / {
         proxy_pass http://127.0.0.1:8080;

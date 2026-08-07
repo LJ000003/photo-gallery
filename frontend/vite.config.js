@@ -35,6 +35,19 @@ export default defineConfig({
             options: {
               cacheName: 'thumbnails',
               expiration: { maxEntries: 500, maxAgeSeconds: 7 * 24 * 60 * 60 },
+              // mediaToken 是 ~10 分钟轮换的 HMAC 签名（?sig=）、分享页带 ?token=——
+              // 完整 URL 作缓存键会让同图每次请求都 miss；剥掉签名参数只留路径+w+v
+              // （w=尺寸、v=编辑后版本失效，均不可剥），离线/缓存才能真正命中
+              plugins: [
+                {
+                  cacheKeyWillBeUsed: async ({ request }) => {
+                    const url = new URL(request.url)
+                    url.searchParams.delete('sig')
+                    url.searchParams.delete('token')
+                    return url.toString()
+                  },
+                },
+              ],
             },
           },
           {
@@ -43,6 +56,16 @@ export default defineConfig({
             options: {
               cacheName: 'photos',
               expiration: { maxEntries: 100, maxAgeSeconds: 24 * 60 * 60 },
+              plugins: [
+                {
+                  cacheKeyWillBeUsed: async ({ request }) => {
+                    const url = new URL(request.url)
+                    url.searchParams.delete('sig')
+                    url.searchParams.delete('token')
+                    return url.toString()
+                  },
+                },
+              ],
             },
           },
           {

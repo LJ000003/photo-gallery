@@ -1,7 +1,9 @@
 package com.hape.photogallery.service;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -210,8 +212,11 @@ public class PhotoService {
             if (p.tagIds() != null && !p.tagIds().isEmpty()) {
                 photo.setTags(new HashSet<>(tagRepo.findAllById(p.tagIds())));
             }
-            if (p.categoryId() != null) {
-                photo.setCategory(catRepo.findById(p.categoryId()).orElse(null));
+            // 对齐 update 三态语义：null/0 = 不设分类；>0 必须存在否则 404（此前 orElse(null)
+            // 静默丢分类，与 update 行为不一致）。前端未选分类时不发送该字段，天然 null。
+            if (p.categoryId() != null && p.categoryId() != 0L) {
+                photo.setCategory(catRepo.findById(p.categoryId())
+                        .orElseThrow(() -> new BusinessException(404, "分类不存在")));
             }
             return repo.save(photo);
         } catch (RuntimeException | IOException e) {
@@ -464,14 +469,25 @@ public class PhotoService {
     // === 哈希 ===
 
     public static String computeSha256(MultipartFile file) throws IOException {
+        try (InputStream in = file.getInputStream()) {
+            return sha256Hex(in);
+        }
+    }
+
+    /** Path 重载（回收站恢复回填 fileHash 用）：静态方法跨 bean 调用无循环依赖 */
+    public static String computeSha256(Path file) throws IOException {
+        try (InputStream in = Files.newInputStream(file)) {
+            return sha256Hex(in);
+        }
+    }
+
+    private static String sha256Hex(InputStream in) throws IOException {
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
             byte[] buf = new byte[8192];
             int n;
-            try (var in = file.getInputStream()) {
-                while ((n = in.read(buf)) != -1) {
-                    md.update(buf, 0, n);
-                }
+            while ((n = in.read(buf)) != -1) {
+                md.update(buf, 0, n);
             }
             return HexFormat.of().formatHex(md.digest());
         } catch (NoSuchAlgorithmException e) {

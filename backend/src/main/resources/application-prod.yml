@@ -31,6 +31,9 @@ spring:
 
 photo:
   upload-dir: /data/photo-uploads
+  # 备份 zip 缓存目录显式化（非 root 用户 user.home=/home/app，与 compose 命名卷挂载点对齐；
+  # 不写 ${user.home} 隐式依赖——换用户/改 HOME 不漂移）
+  backup-dir: ${PHOTO_BACKUP_DIR:/home/app/photo-backups}
   processing:
     type: rabbitmq
   watermark:

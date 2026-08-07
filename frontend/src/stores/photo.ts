@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia'
-import { ref, type Ref } from 'vue'
+import { ref, watch, type Ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { api } from '../api'
-import { useUrlState } from '../composables/useUrlState'
+import { parseQuery, useUrlState } from '../composables/useUrlState'
 import { useInfinitePagination } from '../composables/useInfinitePagination'
 import { useProcessingPolling } from '../composables/useProcessingPolling'
 import type { Photo } from '../types/photo'
@@ -136,6 +136,33 @@ export const usePhotoStore = defineStore('photo', () => {
   })
 
   syncUrlState()
+
+  // URL 是筛选状态的唯一事实源：浏览器后退/前进、ModeTabs 带 query 导航等外部 URL 变化
+  // 同步回 store 并重载。防死循环：syncUrlState 写回的值与当前 refs 一致 → 相等判断跳过
+  // （且 vue-router 对同值 replace 判定为 duplicated navigation，不触发路由更新）。
+  watch(
+    () => route.query,
+    (query) => {
+      const next = parseQuery(query)
+      const arraysEqual = (a: number[], b: number[]) =>
+        a.length === b.length && a.every((v, i) => v === b[i])
+      if (
+        next.sortBy === sortBy.value &&
+        next.sortOrder === sortOrder.value &&
+        next.searchQuery === searchQuery.value &&
+        arraysEqual(next.selectedTagIds, selectedTagIds.value) &&
+        arraysEqual(next.selectedCategoryIds, selectedCategoryIds.value)
+      ) {
+        return
+      }
+      sortBy.value = next.sortBy
+      sortOrder.value = next.sortOrder
+      selectedTagIds.value = next.selectedTagIds
+      selectedCategoryIds.value = next.selectedCategoryIds
+      searchQuery.value = next.searchQuery
+      resetAndReload()
+    },
+  )
 
   return {
     photos,

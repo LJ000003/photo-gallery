@@ -3,6 +3,7 @@ package com.hape.photogallery.messaging;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.amqp.support.converter.MessageConversionException;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -47,6 +48,12 @@ public class DlqRequeuer {
             Object obj;
             try {
                 obj = rabbitTemplate.receiveAndConvert(RabbitMQConfig.DLQ);
+            } catch (MessageConversionException e) {
+                // 反序列化失败（升级遗留旧格式/损坏消息）：消息已被 basicGet 自动 ack 消费，
+                // 无法重投——丢弃并继续 drain（此前逃逸到 catch(Exception) 会中断整轮恢复，
+                // 后续正常消息全部得不到重试；FAILED 照片将永久卡死）
+                log.warn("DLQ 消息反序列化失败（已消费，无法重投），丢弃: {}", e.getMessage());
+                continue;
             } catch (Exception e) {
                 // 队列不可达（Rabbit 重启等）：本轮放弃，下轮再试；消息仍在 DLQ（basicGet 失败不会消费）
                 log.warn("DLQ drain 失败: {}", e.getMessage());
