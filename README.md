@@ -20,7 +20,7 @@ flowchart LR
         F3[JwtAuthFilter JWT / 分享 token / 图片签名]
     end
     subgraph 应用
-        C[Controller] --> S[Service] --> R[Repository] --> DB[(MySQL<br/>Flyway V1-V12)]
+        C[Controller] --> S[Service] --> R[Repository] --> DB[(MySQL<br/>Flyway V1-V13)]
         S <--> CACHE[(缓存<br/>dev Caffeine / prod Redis)]
     end
     subgraph 图片处理
@@ -80,7 +80,7 @@ cd frontend && npm install && npm run dev     # http://localhost:5173
 
 ## 测试与质量
 
-后端 419 条 JUnit（JaCoCo 实测 76% 指令）· 前端 135 条 Vitest · 14 条 Playwright E2E · SpotBugs 0 bug · Husky + commitlint · CI 四 job 流水线（frontend → backend → docker/e2e）
+后端 463 条 JUnit（surefire 汇总 465，JaCoCo 实测 79% 指令）· 前端 143 条 Vitest · 14 条 Playwright E2E · SpotBugs 0 bug · Husky + commitlint · CI 四 job 流水线（frontend → backend → docker/e2e）
 
 ## 链接
 

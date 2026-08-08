@@ -33,9 +33,7 @@ describe('PhotoTile', () => {
     const wrapper = mountTile({ photo: mkPhoto({ mediaToken: 'MTIz.NDU2.YWJj' }) })
     const img = wrapper.find('img.tile-img')
     expect(img.exists()).toBe(true)
-    expect(img.attributes('src')).toBe(
-      '/api/v1/photos/1/thumbnail?w=400&sig=MTIz.NDU2.YWJj',
-    )
+    expect(img.attributes('src')).toBe('/api/v1/photos/1/thumbnail?w=400&sig=MTIz.NDU2.YWJj')
     expect(img.attributes('src')).not.toContain('token=test-token')
     expect(img.attributes('src')).not.toContain('?w=400?sig')
     expect(img.attributes('alt')).toBe('海边日落')
@@ -80,6 +78,16 @@ describe('PhotoTile', () => {
     })
     expect(wrapper.find('.retry-btn').exists()).toBe(true)
     expect(wrapper.find('.warn-text').text()).toContain('超时')
+  })
+
+  it('分享页（selectable=false）处理失败只显示警告、不暴露重试按钮', () => {
+    const wrapper = mountTile({
+      selectable: false,
+      photo: mkPhoto({ processingStatus: 'FAILED', errorMessage: '超时' }),
+    })
+    expect(wrapper.find('.tile-status.failed').exists()).toBe(true)
+    expect(wrapper.find('.warn-text').text()).toContain('超时')
+    expect(wrapper.find('.retry-btn').exists()).toBe(false)
   })
 
   it('搜索模式下显示名称条且高亮命中词', () => {

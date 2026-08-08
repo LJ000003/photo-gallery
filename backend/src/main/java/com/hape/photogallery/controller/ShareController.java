@@ -11,6 +11,7 @@ import java.util.List;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.ModelAndView;
 
@@ -49,8 +50,9 @@ public class ShareController {
         // page/size 钳制——size=-1 曾直接 500（PageRequest 校验抛 IllegalArgumentException）
         int clampedPage = Math.max(0, page);
         int clampedSize = Math.max(1, Math.min(100, size));
+        // 固定按 id 排序：findByIdIn 无 ORDER BY，MySQL 对 IN 查询行序无契约，分页会跨页重复/缺失
         Page<PhotoResponse> result = photoQueryService
-                .findByIdsResponses(photoIds, PageRequest.of(clampedPage, clampedSize));
+                .findByIdsResponses(photoIds, PageRequest.of(clampedPage, clampedSize, Sort.by("id")));
         // 分享上下文不得签发管理员短时签名（否则 view 权限可借签名下载原图），统一剥离
         result.getContent().forEach(r -> r.setMediaToken(null));
         return ApiResponse.success(result);

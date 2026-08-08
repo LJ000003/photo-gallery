@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ArrowLeftOutlined } from '@ant-design/icons-vue'
 import { Button } from 'ant-design-vue'
@@ -7,12 +7,15 @@ import PhotoGrid from '../gallery/PhotoGrid.vue'
 import EmptyState from '../common/EmptyState.vue'
 import { api } from '../../api'
 import { usePhotoStore } from '../../stores/photo'
+import { useInfinitePagination } from '../../composables/useInfinitePagination'
 import type { Photo } from '../../types/photo'
 import type { ApiResponse, PageResponse } from '../../types/api'
 
 /**
  * 相册详情：复用 PhotoGrid 虚拟滚动，分页加载相册内照片（未分配专辑 = albumId 0）。
  * 排序直接读 photo store（与顶部菜单全局排序同源），排序变化自动重载。
+ * 分页复用 useInfinitePagination（requestId 竞态守卫与 photo store 同源）：
+ * 相册切换/排序变化时在途旧请求被 reset() 作废，不会混入已清空的新列表。
  */
 const props = defineProps<{
   album: { id: number; name: string; photoCount: number }
@@ -27,48 +30,37 @@ const { t } = useI18n()
 const photo = usePhotoStore()
 
 const photos = ref<Photo[]>([])
-const page = ref(0)
-const hasMore = ref(true)
-const loading = ref(false)
 
-async function loadMore(): Promise<void> {
-  if (loading.value || !hasMore.value) return
-  loading.value = true
-  // 请求层排序与 photo store 一致：time 字段反转（store asc = 请求 desc = 最新优先）
-  const fieldMap: Record<string, string> = { time: 'createdAt', name: 'name', size: 'fileSize' }
-  const order =
-    photo.sortBy === 'time' ? (photo.sortOrder === 'asc' ? 'desc' : 'asc') : photo.sortOrder
-  const sortStr = `${fieldMap[photo.sortBy]},${order}`
-  try {
+const pagination = useInfinitePagination<Photo>(
+  async (page) => {
+    // 请求层排序与 photo store 一致：time 字段反转（store asc = 请求 desc = 最新优先）
+    const fieldMap: Record<string, string> = { time: 'createdAt', name: 'name', size: 'fileSize' }
+    const order =
+      photo.sortBy === 'time' ? (photo.sortOrder === 'asc' ? 'desc' : 'asc') : photo.sortOrder
+    const sortStr = `${fieldMap[photo.sortBy]},${order}`
     const url =
       props.album.id === 0
-        ? `/api/photos?albumId=0&page=${page.value}&size=20&sort=${sortStr}`
-        : `/api/albums/${props.album.id}/photos?page=${page.value}&size=20&sort=${sortStr}`
+        ? `/api/photos?albumId=0&page=${page}&size=20&sort=${sortStr}`
+        : `/api/albums/${props.album.id}/photos?page=${page}&size=20&sort=${sortStr}`
     const res = await api(url)
     const json: ApiResponse<PageResponse<Photo>> = await res.json()
-    const { content, last } = json.data
-    if (content && content.length) photos.value.push(...content)
-    page.value++
-    hasMore.value = !last
-  } catch {
-    hasMore.value = false
-  } finally {
-    loading.value = false
-  }
-}
+    return json.data ?? null
+  },
+  (payload) => {
+    if (payload.content && payload.content.length) photos.value.push(...payload.content)
+  },
+)
+const { hasMore, loading, loadMore } = pagination
 
 watch(
   [() => props.album.id, () => photo.sortBy, () => photo.sortOrder],
   () => {
     photos.value = []
-    page.value = 0
-    hasMore.value = true
+    pagination.reset()
     void loadMore()
   },
   { immediate: true },
 )
-
-onMounted(() => void loadMore())
 </script>
 
 <template>

@@ -82,7 +82,7 @@ describe('photo store 处理轮询（批量状态端点，2C4G 部署改造）',
     expect(fetchMock.mock.calls[0][0]).toBe('/api/v1/photos/status?ids=1,2')
   })
 
-  it('20 轮（60s）超时后停止轮询但状态保持不变（不再误标 FAILED）', async () => {
+  it('20 轮（60s）后切慢速模式：状态保持 PROCESSING、无 toast、15s 低频续跟', async () => {
     // 一直返回 PROCESSING → 永不完成
     stubFetch({
       '/api/v1/photos/status?ids=1': { code: 200, data: [mkStatus(1, 'PROCESSING')] },
@@ -97,10 +97,11 @@ describe('photo store 处理轮询（批量状态端点，2C4G 部署改造）',
     // 慢机器上处理超时 ≠ 失败：状态保持 PROCESSING、不写入失败信息
     expect(store.photos[0].processingStatus).toBe('PROCESSING')
     expect(store.photos[0].errorMessage).toBeUndefined()
-    expect(toast.toasts.some((t) => t.message.length > 0)).toBe(true)
-    // 轮询已停止
-    const fetchCount = vi.mocked(fetch).mock.calls.length
-    await vi.advanceTimersByTimeAsync(6000)
-    expect(vi.mocked(fetch).mock.calls.length).toBe(fetchCount)
+    // 慢速模式无 toast 打扰（旧实现超时 toast + 停轮询，照片永久卡 PROCESSING）
+    expect(toast.toasts).toHaveLength(0)
+    const fastCount = vi.mocked(fetch).mock.calls.length
+    // 慢速模式 15s 低频续跟（旧实现在 60s 后完全停止）
+    await vi.advanceTimersByTimeAsync(15_000)
+    expect(vi.mocked(fetch).mock.calls.length).toBe(fastCount + 1)
   })
 })

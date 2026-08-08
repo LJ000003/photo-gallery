@@ -77,7 +77,7 @@
 - Mobile responsive (bottom nav, centered upload button, hover degradation, map adaptation)
 - Security headers: CSP (frame-ancestors 'none') / HSTS / nosniff / frame-deny
 - SpringDoc `/swagger-ui.html` interactive API docs (dev only, disabled in prod)
-- Client IP resolution trusts only a trusted header (prod default `Cf-Connecting-Ip`, for cloudflared tunnels; X-Forwarded-For never trusted)
+- Client IP resolution trusts only a trusted header (prod default `X-Real-IP`, for nginx reverse proxy; X-Forwarded-For never trusted)
 
 ## 2. Tech Stack
 
@@ -192,7 +192,7 @@ photo-gallery/
 │   │   │   ├── SecurityConfig.java             # SecurityFilterChain + CORS whitelist + CSP
 │   │   │   ├── JwtService.java                 # HS256 JWT issuance (admin) & validation (≥32-byte key check)
 │   │   │   ├── MediaSignatureService.java      # Short-lived image signatures (HMAC time buckets, JWT never in URL)
-│   │   │   ├── ClientIpResolver.java           # Trusted-header IP resolution (Cf-Connecting-Ip; XFF never trusted)
+│   │   │   ├── ClientIpResolver.java           # Trusted-header IP resolution (X-Real-IP; XFF never trusted)
 │   │   │   ├── ProdSecurityValidator.java      # prod startup hard check (Redis/Rabbit passwords non-blank)
 │   │   │   ├── JwtAuthFilter.java              # OncePerRequestFilter + image signature first / JWT whitelist fallback
 │   │   │   ├── RateLimitFilter.java            # Auth-endpoint rate limit (Caffeine, 10 req/s/IP)
@@ -214,7 +214,7 @@ photo-gallery/
 │   │   ├── application-prod.yml                # Prod (Redis/RabbitMQ/rate-limit trusted header; ddl-auto: validate)
 │   │   ├── application-local.yml.example       # Local secrets template (password/JWT secret, gitignored)
 │   │   ├── logback-spring.xml                  # Console + daily rolling files (30/90-day retention)
-│   │   ├── db/migration/                       # Flyway migrations V1–V12 (incl. file_hash dedup + FULLTEXT/ngram index + share_tokens + watermark + original_processed idempotency flag)
+│   │   ├── db/migration/                       # Flyway migrations V1–V13 (incl. file_hash dedup + FULLTEXT/ngram index + share_tokens + watermark + original_processed idempotency flag + description widened to 500)
 │   │   └── static/                             # Frontend build output (SPA, copied by npm run build, not committed)
 │   ├── Dockerfile                              # JRE 17 Alpine + WenQuanYi font + curl
 │   └── pom.xml                                 # Maven config (JaCoCo ≥35% + SpotBugs gate)
@@ -425,18 +425,18 @@ Access `http://localhost:8080` (bound to 127.0.0.1 only; expose it via Nginx or 
 | Redis | 256M | 7-alpine, maxmemory 128M + allkeys-lru + AOF |
 | RabbitMQ | 256M | 3.13 management-alpine (built-in Prometheus plugin, 15692 accessible only inside the container network) |
 | Prometheus | 128M | v3.2.0, 15-day retention, scrape every 15s |
-| Grafana | 256M | 13.1.0, bound to 127.0.0.1:3000 only |
+| Grafana | 512M | 13.1.0, bound to 127.0.0.1:3000 only (lightweight mode, boots in seconds) |
 
-All containers have Docker healthchecks (`restart: always` restarts containers that exit abnormally). Total memory limits ≈ 2.1GB (768+512+256+256+128+256) — on a 2GB server, consider stopping other local services.
+All containers have Docker healthchecks (`restart: always` restarts containers that exit abnormally). Total memory limits ≈ 2.4GB (768+512+256+256+128+512) — on a 2C4G server, consider stopping other local services.
 
 #### 4. Upgrade notes
 
-- **Delete the RabbitMQ retry queue before starting**: the retry-queue TTL changed from 10s to 30s, and RabbitMQ queue arguments are immutable — without deleting the old queue, the app fails to start with 406 PRECONDITION_FAILED:
+- **(One-time migration for old queues only)**: if a legacy retry queue with `x-message-ttl` still exists in RabbitMQ (from the 10s/30s era), delete it before starting — queue arguments are immutable and the leftover queue causes 406 PRECONDITION_FAILED at startup; the current version uses **message-level `expiration`** (adjusting the TTL never requires deleting the queue, and newly declared queues have no such argument):
   ```bash
   docker exec pg-rabbitmq rabbitmqctl delete_queue pg.photo.processing.retry
   ```
 - **Deploy the backend before the frontend**: the new frontend depends on the `GET /photos/status` batch endpoint (the old frontend keeps using the per-photo polling endpoint and stays compatible)
-- **V12 migration** (`original_processed` watermark idempotency flag) is applied automatically by Flyway — no manual step
+- **V12/V13 migrations** (`original_processed` watermark idempotency flag; description widened to 500) are applied automatically by Flyway — no manual step
 - Consider adding 2-4G swap on the server to avoid the OOM killer taking down containers during transient memory spikes
 
 #### 5. Common commands
@@ -454,7 +454,7 @@ docker compose down            # Stop
 server {
     listen 80;
     server_name your-domain;
-    client_max_body_size 20m;
+    client_max_body_size 100m;
 
     location / {
         proxy_pass http://127.0.0.1:8080;
@@ -470,7 +470,7 @@ nginx -t && systemctl reload nginx
 certbot --nginx -d your-domain   # Free SSL
 ```
 
-> Client IP resolution (rate limit/ban) trusts `Cf-Connecting-Ip` by default (cloudflared tunnels). If you switch to Nginx, change `security.trusted-proxy-header` to `X-Real-IP` in `application-prod.yml`, otherwise the real client IP won't be seen.
+> Client IP resolution (rate limit/ban) trusts `X-Real-IP` (overwritten by the nginx reverse proxy). If you switch to a cloudflared tunnel, change `security.trusted-proxy-header` back to `Cf-Connecting-Ip` in `application-prod.yml`, otherwise the real client IP won't be seen.
 
 ## 7. PWA Installation
 

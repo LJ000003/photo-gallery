@@ -134,16 +134,45 @@ class PhotoServiceTest {
             return p;
         });
         when(tagRepo.findAllById(any())).thenReturn(List.of());
+        Category cat = new Category();
+        cat.setId(5L);
+        cat.setName("旅行");
+        when(catRepo.findById(5L)).thenReturn(Optional.of(cat));
 
         Photo result = service.upload(file, new UploadParams("test", "desc", List.of(1L), 5L, "watermark"));
 
         assertThat(result.getId()).isEqualTo(1L);
         assertThat(result.getName()).isEqualTo("test");
         assertThat(result.getProcessingStatus()).isEqualTo(ProcessingStatus.PROCESSING);
+        assertThat(result.getCategory()).isSameAs(cat);
         verify(photoRepo).save(any());
         verify(imageService).validateImageMagicBytes(any());
         // 图片处理已移至异步执行
         verify(processingSender).send(any(Long.class), any(Path.class), any(), any(), eq("watermark"));
+    }
+
+    @Test
+    void upload_nonexistentCategory_should404() throws IOException {
+        // 对齐 update 语义：>0 的分类 id 必须存在（此前 orElse(null) 静默丢分类）
+        MockMultipartFile file = new MockMultipartFile("file", "test.jpg", "image/jpeg", JPEG_BYTES);
+        when(catRepo.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.upload(file,
+                new UploadParams("test", null, null, 999L, null)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("分类不存在");
+    }
+
+    @Test
+    void upload_zeroCategory_shouldLeaveNull() throws IOException {
+        // 0 = 不设分类（与 update 三态语义一致，前端未选分类时不上传该字段）
+        MockMultipartFile file = new MockMultipartFile("file", "test.jpg", "image/jpeg", JPEG_BYTES);
+        when(photoRepo.save(any(Photo.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Photo result = service.upload(file, new UploadParams("test", null, null, 0L, null));
+
+        assertThat(result.getCategory()).isNull();
+        verify(catRepo, never()).findById(any());
     }
 
     @Test

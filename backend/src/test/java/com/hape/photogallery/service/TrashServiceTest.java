@@ -82,6 +82,65 @@ class TrashServiceTest {
     }
 
     @Test
+    void restore_shouldBackfillFileHashWhenFree() throws Exception {
+        // 原文件真实存在于临时目录：恢复后 fileHash 回填（delete 清空它，不回填则去重永久失效）
+        java.nio.file.Path original = java.nio.file.Files.createTempFile("orig", ".jpg");
+        java.nio.file.Files.write(original, new byte[] {1, 2, 3, 4, 5});
+        Photo p = new Photo();
+        p.setId(1L);
+        p.setFileName("2026/07/a.jpg");
+        p.setDeletedAt(LocalDateTime.now());
+        when(photoRepo.findDeletedById(1L)).thenReturn(Optional.of(p));
+        when(storage.resolveSafe("2026/07/a.jpg")).thenReturn(original);
+        when(photoRepo.findWithDetailsByFileHash(any())).thenReturn(Optional.empty());
+
+        service.restore(1L);
+
+        assertThat(p.getDeletedAt()).isNull();
+        String expected = java.util.HexFormat.of().formatHex(
+                java.security.MessageDigest.getInstance("SHA-256").digest(new byte[] {1, 2, 3, 4, 5}));
+        assertThat(p.getFileHash()).isEqualTo(expected);
+    }
+
+    @Test
+    void restore_hashOccupied_shouldLeaveHashNull() throws Exception {
+        java.nio.file.Path original = java.nio.file.Files.createTempFile("orig", ".jpg");
+        java.nio.file.Files.write(original, new byte[] {9, 9, 9});
+        Photo p = new Photo();
+        p.setId(1L);
+        p.setFileName("2026/07/a.jpg");
+        p.setDeletedAt(LocalDateTime.now());
+        when(photoRepo.findDeletedById(1L)).thenReturn(Optional.of(p));
+        when(storage.resolveSafe("2026/07/a.jpg")).thenReturn(original);
+        // 软删期间同文件已作为新照片入库（hash 唯一索引）→ 回填会破坏去重，必须留空
+        Photo other = new Photo();
+        other.setId(99L);
+        when(photoRepo.findWithDetailsByFileHash(any())).thenReturn(Optional.of(other));
+
+        service.restore(1L);
+
+        assertThat(p.getFileHash()).isNull();
+    }
+
+    @Test
+    void restore_fileMissing_shouldLeaveHashNullWithoutThrowing() {
+        Photo p = new Photo();
+        p.setId(1L);
+        p.setFileName("2026/07/missing.jpg");
+        p.setDeletedAt(LocalDateTime.now());
+        when(photoRepo.findDeletedById(1L)).thenReturn(Optional.of(p));
+        // resolveSafe 返回不存在的路径 → 哈希留空，恢复流程不中断
+        when(storage.resolveSafe("2026/07/missing.jpg"))
+                .thenReturn(java.nio.file.Path.of("not-exists"));
+        when(photoRepo.findWithDetailsByFileHash(any())).thenReturn(Optional.empty());
+
+        service.restore(1L);
+
+        assertThat(p.getDeletedAt()).isNull();
+        assertThat(p.getFileHash()).isNull();
+    }
+
+    @Test
     void permanentlyDelete_shouldConditionalDeleteThenFiles() {
         Photo p = new Photo();
         p.setId(1L);

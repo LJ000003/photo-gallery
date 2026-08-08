@@ -18,7 +18,8 @@ const modes = [
 ] as const
 
 function go(mode: string): void {
-  if (route.name !== mode) router.push({ name: mode })
+  // 携带当前 query：切模式再切回时照片 tab 的筛选/排序状态不丢（URL 是筛选唯一事实源）
+  if (route.name !== mode) router.push({ name: mode, query: route.query })
 }
 </script>
 

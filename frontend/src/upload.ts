@@ -113,7 +113,8 @@ export function uploadWithProgress(
     }
 
     xhr.onload = () => {
-      if (xhr.status === 401 || xhr.status === 403) {
+      // 仅 401（未登录/登录过期）抛 AuthError；403（已认证无权限）走 resolve 由调用方提示
+      if (xhr.status === 401) {
         reject(new AuthError(i18n.global.t('auth.expired')))
         return
       }

@@ -42,7 +42,7 @@ class FlywayMySqlMigrationTest {
     void allMigrations_shouldApplyOnRealMySql() {
         Integer applied = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM flyway_schema_history WHERE success = TRUE", Integer.class);
-        assertThat(applied).isGreaterThanOrEqualTo(12); // V1-V12
+        assertThat(applied).isGreaterThanOrEqualTo(13); // V1-V13
     }
 
     @Test

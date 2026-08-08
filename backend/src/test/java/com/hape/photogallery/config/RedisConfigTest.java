@@ -1,6 +1,7 @@
 package com.hape.photogallery.config;
 
 import com.hape.photogallery.dto.MapItem;
+import com.hape.photogallery.dto.StatsResponse;
 import com.hape.photogallery.dto.PhotoResponse;
 import com.hape.photogallery.dto.TimelineItem;
 import com.hape.photogallery.entity.Category;
@@ -92,6 +93,57 @@ class RedisConfigTest {
         TimelineItem first = (TimelineItem) result.getContent().get(0);
         assertEquals(100L, first.getPhotoId());
         assertEquals(LocalDateTime.of(2026, 7, 1, 12, 0), first.getDateTaken());
+    }
+
+    @Test
+    void emptyListRoundTrips() {
+        // 空列表是真实场景：相册/标签/分类缓存无数据时回源写入，必须能再次读出
+        List<Category> empty = new ArrayList<>();
+        byte[] bytes = serializer.serialize(empty);
+        // 空列表必须带类型包裹（["java.util.ArrayList",[]]），裸 [] 反序列化会抛
+        // SerializationException: Unexpected token (END_ARRAY), expected VALUE_STRING
+        String json = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+        assertEquals("[\"java.util.ArrayList\",[]]", json);
+        List<?> result = roundTrip(empty);
+        assertNotNull(result);
+        assertEquals(0, result.size());
+    }
+
+    @Test
+    void statsResponseWithToListFieldsRoundTrips() {
+        // StatsService.getStats 的字段是 stream().toList()（ListN）——字段声明类型 List 非 final，
+        // 序列化写运行时类型 id，非空/空均可读回（实测 pg:stats 往返 200）；
+        // 与「根值」场景（@Cacheable 返回 ListN 空 → 裸 []）不同，字段场景安全。固化防回归。
+        StatsResponse nonEmpty = new StatsResponse(2, 1000,
+                java.util.stream.Stream.of(new StatsResponse.MonthlyTrend("2026-08", 2)).toList(),
+                java.util.stream.Stream.of(new StatsResponse.TopTag("风景", "#fff", 2)).toList());
+        StatsResponse empty = new StatsResponse(0, 0,
+                java.util.stream.Stream.<StatsResponse.MonthlyTrend>of().toList(),
+                java.util.stream.Stream.<StatsResponse.TopTag>of().toList());
+
+        StatsResponse r1 = roundTrip(nonEmpty);
+        assertEquals(2, r1.getTotalPhotos());
+        assertEquals(1, r1.getMonthlyTrend().size());
+        assertEquals("2026-08", r1.getMonthlyTrend().get(0).getMonth());
+        assertEquals("风景", r1.getTopTags().get(0).getName());
+
+        StatsResponse r2 = roundTrip(empty);
+        assertEquals(0, r2.getMonthlyTrend().size());
+        assertEquals(0, r2.getTopTags().size());
+    }
+
+    @Test
+    void streamToListEmptySerializesAsBareArray_knownTrap() {
+        // 已知坑（勿删，勿改断言）：stream().toList() 返回 JDK 不可变 ListN（final 类），
+        // NON_FINAL typing 不为 final 类写类型 id → 空列表序列化为裸 []。
+        // 缓存根值是 Object，读取时需 ["type", ...] 类型包裹 → SerializationException → 500。
+        // 曾致 GET /api/albums 500（prod Redis 形态）：缓存方法返回值必须收进 ArrayList
+        // （见 emptyListRoundTrips：ArrayList 序列化为 ["java.util.ArrayList",[]] 往返正常）。
+        // 若未来升级序列化器修复此坑，删掉本测试并改回 toList() 即可。
+        List<Category> empty = java.util.stream.Stream.<Category>of().toList();
+        byte[] bytes = serializer.serialize(empty);
+        String json = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+        assertEquals("[]", json);
     }
 
     @Test

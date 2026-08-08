@@ -6,6 +6,7 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-photodb}
+      TZ: Asia/Shanghai
     volumes:
       - mysql_data:/var/lib/mysql
     command: >
@@ -29,6 +30,9 @@ services:
     image: redis:7-alpine
     container_name: pg-redis
     restart: always
+    # TZ 仅对 MySQL/Grafana（自带 tzdata）生效；alpine/busybox 中间件无 tzdata 是 no-op，无害
+    environment:
+      TZ: Asia/Shanghai
     command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru ${REDIS_PASSWORD:+--requirepass $REDIS_PASSWORD}
     volumes:
       - redis_data:/data
@@ -51,6 +55,7 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBIT_USER:-admin}
       RABBITMQ_DEFAULT_PASS: ${RABBIT_PASS:-}
+      TZ: Asia/Shanghai
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
@@ -70,9 +75,10 @@ services:
     container_name: pg-prometheus
     restart: always
     environment:
-      # 注入 prometheus.yml basic_auth 引用的抓取凭据（与 app 服务的 MONITORING_* 一致）
-      MONITORING_USER: ${MONITORING_USER}
-      MONITORING_PASSWORD: ${MONITORING_PASSWORD}
+      TZ: Asia/Shanghai
+    secrets:
+      - monitoring_user
+      - monitoring_password
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
@@ -104,6 +110,10 @@ services:
       # 管理密码来自 .env（模板见 .env.example），显式关闭匿名登录
       GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD}
       GF_AUTH_ANONYMOUS_ENABLED: "false"
+      TZ: Asia/Shanghai
+      # 2C4G 下全量模式首启过重（4 个重型内置 app 注册 apiserver + 后台安装器去 grafana.com 查插件，
+      # 服务器连不上 grafana.com 时每个都等超时，实测首启 10+ 分钟），lightweight 模式禁用它们
+      GF_DEFAULT_APP_MODE: lightweight
     volumes:
       # datasource/dashboard/alert 由 provisioning 文件驱动（与 compose 同目录，只读挂载）
       - ./prometheus/grafana-provisioning:/etc/grafana/provisioning:ro
@@ -113,10 +123,11 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+      start_period: 300s  # 2C4G 首启慢，5 分钟内不判失败，避免误报 unhealthy
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 512M     # Grafana 13 内存需求高，256M 过紧会拖慢启动
     networks:
       - app-net
 
@@ -143,7 +154,7 @@ services:
       # /actuator/prometheus Basic Auth 凭据（ProdSecurityValidator 校验非空）
       MONITORING_USER: ${MONITORING_USER}
       MONITORING_PASSWORD: ${MONITORING_PASSWORD}
-      CORS_ALLOWED_ORIGINS: http://localhost:*,https://hape233.online
+      CORS_ALLOWED_ORIGINS: http://localhost:*,https://hape233.online,https://hape233.online:8443
     depends_on:
       mysql:
         condition: service_healthy
@@ -163,9 +174,38 @@ services:
           memory: 768M
     volumes:
       - photo_uploads:/data/photo-uploads
-      - photo_logs:/root/logs/photo-manager
+      # 非 root 用户（uid 10001）user.home=/home/app → logback LOG_PATH 自动跟随；
+      # 备份 zip 缓存（photo.backup-dir）显式化挂持久卷（P2-13）
+      - photo_logs:/home/app/logs/photo-manager
+      - photo_backups:/home/app/photo-backups
     networks:
       - app-net
+
+  # cloudflared 隧道：当前服务器（阿里云）连不上 Cloudflare 边缘（实测 login/api 端点均超时），
+  # 启动即 crash 循环，故注释停用。换网络环境可达的服务器时解开注释即可复用
+  # （凭证仍走 /etc/cloudflared/config.yml + /root/.cloudflared，host 网络直达 localhost:8080/3000）。
+  # cloudflared:
+  #   image: cloudflare/cloudflared:2026.6.1
+  #   container_name: cloudflared
+  #   restart: always
+  #   # 镜像默认非 root，读不了 root 700 的凭证目录，故以 root 运行（与 systemd 时代一致）
+  #   user: "0:0"
+  #   # 必须 host 网络：config.yml ingress 指向宿主机 localhost:8080/3000
+  #   network_mode: host
+  #   volumes:
+  #     # 复用服务器上已有的配置与凭证（systemd 时代遗留，只读挂载）
+  #     - /etc/cloudflared/config.yml:/etc/cloudflared/config.yml:ro
+  #     - /root/.cloudflared:/root/.cloudflared:ro
+  #   command: tunnel --config /etc/cloudflared/config.yml run
+
+# Prometheus 抓取凭据（/actuator/prometheus Basic Auth）：environment 源从 .env 插值，
+# 以文件形式挂到 /run/secrets/ 供 prometheus.yml 的 username_file/password_file 读取——
+# 配置内 ${VAR} 是字面量（Prometheus 不做环境变量展开，曾导致抓取恒 401、监控全链路失效）
+secrets:
+  monitoring_user:
+    environment: MONITORING_USER
+  monitoring_password:
+    environment: MONITORING_PASSWORD
 
 volumes:
   mysql_data:
@@ -175,6 +215,8 @@ volumes:
   grafana_data:
   photo_uploads:
   photo_logs:
+  # 备份 zip 缓存持久化：容器可写层随 --force-recreate/换机即清空，导出会退化为每次实时打包
+  photo_backups:
 
 networks:
   app-net:

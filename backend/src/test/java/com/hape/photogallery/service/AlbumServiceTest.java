@@ -231,6 +231,22 @@ class AlbumServiceTest {
     }
 
     @Test
+    void addPhotos_multipleIds_shouldUseMinIdAsCover() {
+        // 与 create/removePhotos 的 minPhotoId 约定一致：传参顺序不影响封面（此前取首个传入 id）
+        Album a = new Album("a"); a.setId(1L); // 无封面
+        Photo p20 = new Photo(); p20.setId(20L); p20.setName("p20");
+        Photo p10 = new Photo(); p10.setId(10L); p10.setName("p10");
+        when(albumRepo.findById(1L)).thenReturn(Optional.of(a));
+        when(photoRepo.findById(20L)).thenReturn(Optional.of(p20));
+        when(photoRepo.findById(10L)).thenReturn(Optional.of(p10));
+
+        service.addPhotos(1L, List.of(20L, 10L));
+
+        assertThat(a.getPhotos()).containsExactlyInAnyOrder(p20, p10);
+        assertThat(a.getCoverPhotoId()).isEqualTo(10L);
+    }
+
+    @Test
     void addPhotos_allIdsMissing_shouldKeepCoverNull() {
         Album a = new Album("a"); a.setId(1L);
         when(albumRepo.findById(1L)).thenReturn(Optional.of(a));

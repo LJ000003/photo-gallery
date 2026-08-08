@@ -1,12 +1,36 @@
 import { describe, it, expect, vi } from 'vitest'
 import type { RouteLocationNormalizedLoaded, Router } from 'vue-router'
-import { useUrlState } from '../useUrlState'
+import { parseQuery, useUrlState } from '../useUrlState'
 
 const mockReplace = vi.fn()
 
 function mkRouter() {
   return { replace: mockReplace } as unknown as Router
 }
+
+describe('parseQuery — query → 默认化状态（store 的 route.query watch 复用）', () => {
+  it('空 query 取默认值', () => {
+    expect(parseQuery({})).toEqual({
+      sortBy: 'time',
+      sortOrder: 'asc',
+      selectedTagIds: [],
+      selectedCategoryIds: [],
+      searchQuery: '',
+    })
+  })
+
+  it('非默认值还原 + tags 逗号去空', () => {
+    expect(
+      parseQuery({ sortBy: 'size', sortOrder: 'desc', tags: '3,', cats: '5,6', q: '海边' }),
+    ).toEqual({
+      sortBy: 'size',
+      sortOrder: 'desc',
+      selectedTagIds: [3],
+      selectedCategoryIds: [5, 6],
+      searchQuery: '海边',
+    })
+  })
+})
 
 describe('useUrlState — 初始值从 URL 读取', () => {
   it('空 query 时取默认值（time/asc/空列表/空搜索）', () => {

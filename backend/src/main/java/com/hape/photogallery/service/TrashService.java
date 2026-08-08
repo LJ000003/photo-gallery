@@ -1,5 +1,8 @@
 package com.hape.photogallery.service;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -54,12 +57,43 @@ public class TrashService {
     }
 
     @Transactional
-    @CacheEvict(value = {"photos", "timeline", "map", "stats"}, allEntries = true)
+    // 曾缺 "albums"：restore 改变 countByAlbum（@SQLRestriction 下软删照片不计入 photoCount），
+    // 而 AlbumService.listAll 是 @Cacheable("albums")——不清则相册计数最长 30s 过期
+    @CacheEvict(value = {"photos", "timeline", "map", "stats", "albums"}, allEntries = true)
     public void restore(Long id) {
         Photo photo = repo.findDeletedById(id)
                 .orElseThrow(() -> new BusinessException(404, "未找到可恢复的照片"));
         photo.setDeletedAt(null);
+        backfillFileHash(photo);
         repo.save(photo);
+    }
+
+    /**
+     * 恢复时回填 fileHash（delete 清空它释放唯一索引，恢复不回填则去重对该照片永久失效）。
+     * 软删期间重传的同文件可能已作为新照片入库（file_hash 唯一索引，V8），回填前查重：
+     * 已占用则留空（不破坏既有去重）；文件缺失/哈希失败留空——恢复流程永不因哈希失败中断。
+     * 查重需按 id 排除自身：Hibernate AUTO flush 已把 deletedAt 写回，findWithDetailsByFileHash
+     * 可能命中正在恢复的这张照片。
+     */
+    private void backfillFileHash(Photo photo) {
+        try {
+            Path original = filePathResolver.getFilePath(photo.getId());
+            if (original == null || !Files.exists(original)) {
+                log.warn("恢复照片原文件缺失，fileHash 留空 photo={}", photo.getId());
+                return;
+            }
+            String hash = PhotoService.computeSha256(original);
+            boolean occupied = repo.findWithDetailsByFileHash(hash)
+                    .filter(existing -> !existing.getId().equals(photo.getId()))
+                    .isPresent();
+            if (!occupied) {
+                photo.setFileHash(hash);
+            } else {
+                log.info("恢复照片 fileHash 已被其他照片占用，留空 photo={}", photo.getId());
+            }
+        } catch (IOException e) {
+            log.warn("恢复照片计算 fileHash 失败，留空 photo={}: {}", photo.getId(), e.getMessage());
+        }
     }
 
     @Scheduled(cron = "0 0 3 * * ?", zone = "Asia/Shanghai")

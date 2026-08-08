@@ -69,7 +69,6 @@
     "loadFailed": "Failed to load, please try again later",
     "loadFailedTitle": "Failed to load photos",
     "loadFailedHint": "Please check your network connection and try again",
-    "processingTimeout": "Some photos are still processing (server is busy); please refresh later",
     "loadMore": "Load more"
   },
   "selection": {

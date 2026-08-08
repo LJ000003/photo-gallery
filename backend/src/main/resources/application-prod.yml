@@ -31,6 +31,9 @@ spring:
 
 photo:
   upload-dir: /data/photo-uploads
+  # 备份 zip 缓存目录显式化（非 root 用户 user.home=/home/app，与 compose 命名卷挂载点对齐；
+  # 不写 ${user.home} 隐式依赖——换用户/改 HOME 不漂移）
+  backup-dir: ${PHOTO_BACKUP_DIR:/home/app/photo-backups}
   processing:
     type: rabbitmq
   watermark:
@@ -39,12 +42,13 @@ photo:
     color-alpha: 180
 
 cors:
-  allowed-origins: http://localhost:*,https://hape233.online
+  # :8443 为备案过渡期非标端口（阿里云对未备案域名拦截 80/443），备案通过后可移除
+  allowed-origins: http://localhost:*,https://hape233.online,https://hape233.online:8443
 
-# 限流/封禁的客户端 IP 来源：仅信任 cloudflared 隧道覆写的 Cf-Connecting-Ip
-# （app 只绑 127.0.0.1，客户端无法伪造）；换 nginx 等反代时改为 X-Real-IP，留空则不信任任何头
+# 限流/封禁的客户端 IP 来源：仅信任 nginx 覆写的 X-Real-IP
+# （app 只绑 127.0.0.1，客户端无法伪造）；换 cloudflared 隧道时改回 Cf-Connecting-Ip，留空则不信任任何头
 security:
-  trusted-proxy-header: Cf-Connecting-Ip
+  trusted-proxy-header: X-Real-IP
 
 # 生产环境关闭 API 文档
 springdoc:

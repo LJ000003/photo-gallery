@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ref } from 'vue'
 import { setActivePinia, createPinia } from 'pinia'
 import { useProcessingPolling } from '../useProcessingPolling'
-import { useToastStore } from '../../stores/toast'
 import type { Photo, PhotoProcessingStatus } from '../../types/photo'
 
 function mkPhoto(id: number, status: string): Photo {
@@ -109,28 +108,41 @@ describe('useProcessingPolling — 批量状态轮询（2C4G 部署改造）', (
     expect(photos.value[0].name).toBe('p1')
   })
 
-  it('20 轮（60s）超时后停止轮询但状态保持不变（不再误标 FAILED）', async () => {
-    // 一直返回 PROCESSING → 永不完成
-    stubFetch({
-      '/api/v1/photos/status?ids=1': { code: 200, data: [mkStatus(1, 'PROCESSING')] },
-    })
+  it('20 轮（60s）后切慢速模式：状态保持 PROCESSING、无 toast、15s 低频续跟直到 DONE', async () => {
+    // 一直返回 PROCESSING → 永不完成，先验证慢速模式续跟
+    let done = false
+    const fetchMock = vi.fn(async (_url: string) => ({
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      json: async () => ({ code: 200, data: [mkStatus(1, done ? 'DONE' : 'PROCESSING')] }),
+    }))
+    vi.stubGlobal('fetch', fetchMock)
     const { photos, polling } = mkPolling()
-    const toast = useToastStore()
     photos.value.push(mkPhoto(1, 'PROCESSING'))
 
     polling.start()
     // 20 轮 × 3s = 60s
     await vi.advanceTimersByTimeAsync(60_000 + 100)
 
-    // 核心断言：状态保持 PROCESSING——慢机器上处理超时 ≠ 处理失败，不得误报
+    // 核心断言：状态保持 PROCESSING——慢机器上处理超时 ≠ 处理失败，不得误报；
+    // 且无 toast 打扰（旧实现超时即停轮询 + 提示「刷新查看」，照片永久卡 PROCESSING）
     expect(photos.value[0].processingStatus).toBe('PROCESSING')
     expect(photos.value[0].errorMessage).toBeUndefined()
-    // toast 提示仍在处理中
-    expect(toast.toasts.some((t) => t.message.length > 0)).toBe(true)
-    // 轮询已停止
-    const fetchCount = vi.mocked(fetch).mock.calls.length
-    await vi.advanceTimersByTimeAsync(6000)
-    expect(vi.mocked(fetch).mock.calls.length).toBe(fetchCount)
+    const fastCount = vi.mocked(fetch).mock.calls.length
+    expect(fastCount).toBe(20)
+
+    // 慢速模式：15s 低频续跟（不再每 3s 一个请求）
+    await vi.advanceTimersByTimeAsync(15_000)
+    expect(vi.mocked(fetch).mock.calls.length).toBe(fastCount + 1)
+
+    // 处理完成后自动停止
+    done = true
+    await vi.advanceTimersByTimeAsync(15_000)
+    expect(photos.value[0].processingStatus).toBe('DONE')
+    const finalCount = vi.mocked(fetch).mock.calls.length
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(vi.mocked(fetch).mock.calls.length).toBe(finalCount)
   })
 
   it('stop 后不再轮询', async () => {

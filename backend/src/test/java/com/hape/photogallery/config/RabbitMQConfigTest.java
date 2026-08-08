@@ -37,6 +37,20 @@ class RabbitMQConfigTest {
     }
 
     /**
+     * P0-2 回归：重试队列不得带 x-message-ttl 队列参数（TTL 已消息级化，由 consumer 在
+     * 重投时设置 expiration）。队列参数不可变——遗留队列级 TTL 会导致声明 406
+     * PRECONDITION_FAILED，且调 TTL 必须删队列重建（曾因 10s→30s 改动踩坑）。
+     */
+    @Test
+    void retryQueue_shouldNotCarryQueueLevelTtl() {
+        var args = config.retryQueue().getArguments();
+        assertThat(args).doesNotContainKey("x-message-ttl");
+        // DLX 参数仍在：TTL 到期后经死信回主交换机
+        assertThat(args).containsEntry("x-dead-letter-exchange", RabbitMQConfig.EXCHANGE)
+                .containsEntry("x-dead-letter-routing-key", RabbitMQConfig.ROUTING_KEY);
+    }
+
+    /**
      * P0 回归：发布侧（Jackson JSON）→ 消费侧（容器工厂同款转换器）必须能还原 POJO。
      * 曾缺 setMessageConverter：消费端默认 SimpleMessageConverter 对 application/json
      * 只返回 byte[]，POJO 参数解析失败 → MessageConversionException（fatal）→ DLQ，

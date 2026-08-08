@@ -6,6 +6,7 @@ import java.nio.file.Path;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -112,6 +113,11 @@ public class MigrationService {
                 System.currentTimeMillis() - start);
     }
 
+    /** 存量批量提取 EXIF（POST /photos/extract-exif）：
+     *  写 ExifData（dateTaken/GPS/相机参数）→ 必须失效 {photos, timeline, map}
+     *  （同 PhotoQueryService.extractExifForPhoto 的清单；曾缺 evict，批量提取后
+     *  时间线/地图/列表 EXIF 最长 30s 显示旧数据） */
+    @CacheEvict(value = {"photos", "timeline", "map"}, allEntries = true)
     public int extractExifForExisting() {
         int count = 0;
         var pageable = PageRequest.of(0, BATCH_SIZE);

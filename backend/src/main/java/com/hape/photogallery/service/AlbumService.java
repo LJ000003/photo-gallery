@@ -1,6 +1,7 @@
 package com.hape.photogallery.service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -47,7 +48,10 @@ public class AlbumService {
                         row -> (Long) row[0], row -> ((Number) row[1]).intValue()));
         return albumRepo.findAll().stream()
                 .map(a -> AlbumResponse.from(a, counts.getOrDefault(a.getId(), 0)))
-                .toList();
+                // 缓存值必须收进 ArrayList：stream().toList() 返回 JDK 不可变 ListN（final 类），
+                // Redis 的 NON_FINAL typing 不为它写类型 id → 空列表序列化为裸 [] → 读取时
+                // SerializationException → GET /api/albums 500（prod Redis 形态曾现故障）
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
     }
 
     @CacheEvict(value = {"albums", "photos"}, allEntries = true)
@@ -195,22 +199,22 @@ public class AlbumService {
     @CacheEvict(value = {"photos", "albums"}, allEntries = true)
     public void addPhotos(Long albumId, List<Long> photoIds) {
         Album a = albumRepo.findById(albumId).orElseThrow(() -> new BusinessException(404, "相册不存在"));
-        // 封面取实际加载成功的照片（min id 确定性）——photoIds.get(0) 可能不存在
-        // （软删/拼错 id），直接设置会产生幽灵封面（曾见：封面空白且永不自愈）
-        Long firstLoaded = null;
+        // 封面取实际加载成功的照片中的 min id（与 create/update/removePhotos 的 minPhotoId
+        // 约定一致——此前取请求列表首个 id，同一批照片因传参顺序不同封面不同）。
+        // 不取 photoIds.get(0)：可能不存在（软删/拼错 id），直接设置会产生幽灵封面
+        // （曾见：封面空白且永不自愈）
+        List<Long> loadedIds = new ArrayList<>();
         for (Long pid : photoIds) {
             Photo p = photoRepo.findById(pid).orElse(null);
             if (p != null) {
                 a.getPhotos().add(p);
                 p.getAlbums().add(a);
                 photoRepo.save(p);
-                if (firstLoaded == null) {
-                    firstLoaded = pid;
-                }
+                loadedIds.add(pid);
             }
         }
-        if (a.getCoverPhotoId() == null && firstLoaded != null) {
-            a.setCoverPhotoId(firstLoaded);
+        if (a.getCoverPhotoId() == null && !loadedIds.isEmpty()) {
+            a.setCoverPhotoId(loadedIds.stream().min(Long::compare).orElse(null));
         }
         albumRepo.save(a);
     }

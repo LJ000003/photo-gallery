@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -214,11 +215,18 @@ public class PhotoQueryService {
             item.setLatitude(gcj[1]);
             item.setLongitude(gcj[0]);
             return item;
-        }).toList();
+            // 缓存值必须收进 ArrayList：toList() 返回 final 的 ListN，Redis NON_FINAL typing
+            // 不写类型 id，空列表序列化为裸 [] → 读取 SerializationException → 500（同 albums）
+        }).collect(java.util.stream.Collectors.toCollection(ArrayList::new));
     }
 
     // extractExifForExisting（存量 EXIF 批量提取）已随迁移方法拆至 MigrationService
 
+    /** 单张提取 EXIF（POST /photos/{id}/extract-exif）：
+     *  写 ExifData（dateTaken/GPS/相机参数）→ 必须失效 {photos, timeline, map}——
+     *  PhotoResponse 内嵌 exifData、timeline 按 dateTaken 排序、map 按 GPS 坐标，
+     *  否则提取后 UI 最长 30s 显示旧数据（曾缺 evict，与处理链 PhotoProcessor 清单不一致） */
+    @CacheEvict(value = {"photos", "timeline", "map"}, allEntries = true)
     public ExifData extractExifForPhoto(Long id) {
         Photo photo = getById(id);
         Path filePath = storage.getUploadDir().resolve(photo.getFileName());

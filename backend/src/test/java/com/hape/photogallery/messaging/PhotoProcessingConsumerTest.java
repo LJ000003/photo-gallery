@@ -103,13 +103,16 @@ class PhotoProcessingConsumerTest {
 
         consumer.handle(new ProcessingMessage(1L, "2024/08", "x.jpg", null), amqpMsg, channel);
 
-        // 重投 TTL 重试队列（同一 Message 实例，header 递增为 3）+ ack，不再 requeue
+        // 重投 TTL 重试队列（同一 Message 实例，header 递增为 3 + 消息级 expiration）+ ack，不再 requeue
         ArgumentCaptor<Message> sent = ArgumentCaptor.forClass(Message.class);
         verify(rabbitTemplate).send(eq(RabbitMQConfig.EXCHANGE),
                 eq(RabbitMQConfig.RETRY_ROUTING_KEY), sent.capture());
         assertThat(sent.getValue()).isSameAs(amqpMsg);
         assertThat(sent.getValue().getMessageProperties().getHeaders().get("x-retry-count"))
                 .isEqualTo(3);
+        // TTL 消息级化（P0-2）：重投必须携带 30s expiration，否则无队列参数兜底、消息永久滞留
+        assertThat(sent.getValue().getMessageProperties().getExpiration())
+                .isEqualTo(String.valueOf(RabbitMQConfig.RETRY_TTL_MS));
         verify(channel).basicAck(42L, false);
         verify(channel, never()).basicNack(anyLong(), anyBoolean(), anyBoolean());
         verify(photoRepo, never()).save(any());
