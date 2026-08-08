@@ -214,7 +214,7 @@ photo-gallery/
 │   │   ├── application-prod.yml                # 生产环境（Redis/RabbitMQ/限流受信头，ddl-auto: validate）
 │   │   ├── application-local.yml.example       # 本地敏感配置模板（密码/JWT 密钥，gitignored）
 │   │   ├── logback-spring.xml                  # 控制台 + 按天滚动文件（30/90 天保留）
-│   │   ├── db/migration/                       # Flyway 迁移脚本 V1–V12（含 file_hash 去重 + FULLTEXT/ngram 索引 + share_tokens + 水印落库 + original_processed 水印幂等标记）
+│   │   ├── db/migration/                       # Flyway 迁移脚本 V1–V13（含 file_hash 去重 + FULLTEXT/ngram 索引 + share_tokens + 水印落库 + original_processed 水印幂等标记 + description 扩 500）
 │   │   └── static/                             # 前端构建产物 (SPA，npm run build 自动复制，不入库)
 │   ├── Dockerfile                              # JRE 17 Alpine + 文泉驿字体 + curl
 │   └── pom.xml                                 # Maven 配置（JaCoCo ≥35% + SpotBugs 门禁）
@@ -426,18 +426,18 @@ docker compose up -d --build
 | Redis | 256M | 7 Alpine，maxmemory 128M + allkeys-lru 淘汰 + AOF |
 | RabbitMQ | 256M | 3.13 management-alpine（内置 Prometheus 插件，15692 仅容器网络内访问） |
 | Prometheus | 128M | v3.2.0，15 天保留，每 15s scrape |
-| Grafana | 256M | 13.1.0，仅绑定 127.0.0.1:3000 |
+| Grafana | 512M | 13.1.0，仅绑定 127.0.0.1:3000（lightweight 模式，首启秒级） |
 
-所有容器均配置了 Docker healthcheck（`restart: always` 保证容器异常退出时自动拉起）。内存上限合计约 2.1GB（768+512+256+256+128+256），2GB 内存服务器上建议同时关闭本地其他服务。
+所有容器均配置了 Docker healthcheck（`restart: always` 保证容器异常退出时自动拉起）。内存上限合计约 2.4GB（768+512+256+256+128+512），2C4G 内存服务器上建议同时关闭本地其他服务。
 
 #### 4. 升级部署注意
 
-- **先删 RabbitMQ 重试队列再启动**：重试队列 TTL 由 10s 调整为 30s，而 RabbitMQ 队列参数不可变——不删旧队列则应用启动报 406 PRECONDITION_FAILED：
+- **（仅旧队列的一次性迁移）**：升级前若 RabbitMQ 里存在带 `x-message-ttl` 的旧重试队列（10s/30s 时代遗留），需手动删除——队列参数不可变，遗留旧队列会导致启动声明 406 PRECONDITION_FAILED；当前版本 TTL 已改为**消息级 expiration**（调整无需删队列，新队列声明即无此参数）：
   ```bash
   docker exec pg-rabbitmq rabbitmqctl delete_queue pg.photo.processing.retry
   ```
 - **部署顺序先后端后前端**：新前端依赖 `GET /photos/status` 批量状态端点（旧前端继续用逐张轮询端点，兼容）
-- **V12 迁移**（`original_processed` 水印幂等标记）由 Flyway 自动应用，无需手动操作
+- **V12/V13 迁移**（`original_processed` 水印幂等标记、description 扩至 500）由 Flyway 自动应用，无需手动操作
 - 建议为服务器配置 2-4G swap，防止瞬时内存尖峰触发 OOM killer 误杀容器
 
 #### 5. 常用命令
