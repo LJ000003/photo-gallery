@@ -80,7 +80,7 @@ cd frontend && npm install && npm run dev     # http://localhost:5173
 
 ## 测试与质量
 
-后端 463 条 JUnit（surefire 汇总 465，JaCoCo 实测 79% 指令）· 前端 143 条 Vitest · 14 条 Playwright E2E · SpotBugs 0 bug · Husky + commitlint · CI 四 job 流水线（frontend → backend → docker/e2e）
+后端 465 条 JUnit（`mvn clean test` 实测：0 失败 / 7 跳过 / 48 个测试类，JaCoCo 79.91% 指令覆盖）· 前端 143 条 Vitest（21 个文件）· 14 条 Playwright E2E（5 个 spec）· SpotBugs 0 bug · Husky + commitlint · CI 四 job 流水线（frontend → backend → docker/e2e）
 
 ## 链接
 
