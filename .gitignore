@@ -31,7 +31,7 @@ desktop.ini
 .env.*
 !.env.example
 # 文档档案（改进方案/面试材料，本地保留，不提交；docs/ 详细说明需入库，勿合并）
-doc/
+notes/
 # IDE
 .idea/
 *.iml

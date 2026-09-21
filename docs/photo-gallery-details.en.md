@@ -663,7 +663,7 @@ k6 run scripts/k6/share.js
 
 - **Seeding**: `scripts/k6/seed-10000.sql` — SQL-direct insert of 10k photos (+EXIF/tag/album/category relations, `k6-` prefix for cleanup). The list endpoint never touches files, so SQL seeding is sufficient for query/cache-path testing; real upload throughput is covered by the upload scenario
 - **Measure cache-miss separately**: the list `@Cacheable` key space is bounded (10k ÷ 20 = 500 keys), so random pages fill every key in the first second and cache-miss share is <1% over 60s — measure cold-cache latency with `redis-cli FLUSHDB` + single-concurrency first-request (measured: 10k-row cold cache-miss p95 ≈ 32ms)
-- **Measured**: cache-hit p95 7.96ms (20 VU × 60s, 192k requests) / cold cache-miss 32ms / deep pagination identical to shallow / search 20-concurrency 297.5ms near the 300ms threshold; the benchmark run also surfaced and fixed a prod-only Redis serialization 500 (PhotoResponse entity leakage → DTOs; see doc/photo-gallery-改进方案问题记录.md §2.8/Appendix O)
+- **Measured**: cache-hit p95 7.96ms (20 VU × 60s, 192k requests) / cold cache-miss 32ms / deep pagination identical to shallow / search 20-concurrency 297.5ms near the 300ms threshold; the benchmark run also surfaced and fixed a prod-only Redis serialization 500 (PhotoResponse entity leakage → DTOs)
 
 ## 13. Engineering Conventions
 
